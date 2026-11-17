@@ -1,0 +1,231 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Little Browser — a calm, private browser</title>
+  <meta name="description" content="Little Browser is a small, private, open-source browser in early development. One quiet sidebar, spaces for the parts of your life, and nothing about you on our servers.">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <link rel="canonical" href="https://littlebrowser.app/">
+  <meta property="og:url" content="https://littlebrowser.app/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Little Browser">
+  <meta property="og:title" content="Little Browser">
+  <meta property="og:description" content="A calm, private, open-source browser.">
+  <meta property="og:image" content="https://littlebrowser.app/assets/brand/icon-512.png">
+  <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wm" viewBox="-4 0 324 46">
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 4V40"/><path d="M10.5 16V40"/><path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/><path d="M56 4V40"/>
+      <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/><path d="M108.5 4V40"/><circle cx="120.5" cy="28" r="12"/>
+      <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/><circle cx="176" cy="28" r="12"/><path d="M198 16L205 40L213 22L221 40L228 16"/>
+      <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+      <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/><path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+    </g>
+    <circle cx="10.5" cy="6.5" r="3.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Little Browser home">
+      <img src="assets/brand/icon.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#platforms">Platforms</a>
+    </nav>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <button data-t="auto" aria-pressed="true">Auto</button>
+      <button data-t="light" aria-pressed="false">Light</button>
+      <button data-t="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="status-pill"><i></i>Early development · macOS only · no download yet</span>
+        <h1>A little browser<br>for a calmer web.</h1>
+        <p class="lead">Everything lives in one quiet sidebar, with a space for each part of your life. No account, no telemetry. It runs on macOS today as a developer build; we'll publish downloads when it's ready for daily use.</p>
+        <div class="ctas">
+          <a class="btn primary" href="#features">See what's inside</a>
+          <a class="btn ghost" href="#" data-peek>Preview the design</a>
+        </div>
+      </div>
+
+      <div class="mock" aria-label="Little Browser window: a sidebar on the left and a page on the right">
+        <aside class="m-side">
+          <div class="m-lights"><i></i><i></i><i></i></div>
+          <div class="m-url">news.example.org</div>
+          <div class="m-favs">
+            <span><b style="background:#c2513f"></b></span>
+            <span><b style="background:#3f8c5a"></b></span>
+            <span><b style="background:#3f63c2"></b></span>
+            <span><b style="background:#9a4fa8"></b></span>
+          </div>
+          <div class="m-ws-name">Personal</div>
+          <div class="m-tabs">
+            <div class="m-tab"><b class="logo"></b>Start</div>
+            <div class="m-tab on"><b style="background:#e07b39"></b>The quiet web, explained</div>
+            <div class="m-tab"><b style="background:#2c8c8c"></b>Recipes for a slow Sunday</div>
+          </div>
+          <div class="m-sep"></div>
+          <div class="m-new">+ New tab</div>
+          <div class="m-spaces" aria-label="Spaces">
+            <button style="--h:222" data-h="222" title="Personal" aria-pressed="true" aria-label="Personal space"></button>
+            <button style="--h:150" data-h="150" title="Garden" aria-pressed="false" aria-label="Garden space"></button>
+            <button style="--h:24" data-h="24" title="Work" aria-pressed="false" aria-label="Work space"></button>
+            <button style="--h:300" data-h="300" title="Reading" aria-pressed="false" aria-label="Reading space"></button>
+          </div>
+        </aside>
+        <div class="m-page">
+          <div class="h"></div>
+          <div class="l" style="width:92%"></div>
+          <div class="l" style="width:86%"></div>
+          <div class="l" style="width:64%"></div>
+          <div class="img"></div>
+          <div class="l" style="width:90%"></div>
+          <div class="l" style="width:78%"></div>
+          <span class="link">Shift+click a link to peek →</span>
+          <div class="m-backdrop"></div>
+          <i class="m-dot"></i>
+          <div class="m-card" aria-hidden="true">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="h"></div>
+            <div class="l" style="width:88%"></div>
+            <div class="l" style="width:70%"></div>
+            <div class="img"></div>
+            <div class="l" style="width:82%"></div>
+          </div>
+        </div>
+      </div>
+      <p class="mock-caption">A design preview, not a screenshot. Pick a space colour in the sidebar, or <button data-peek>replay the Peek</button> (Peek is planned; it isn't built yet).</p>
+    </div>
+  </section>
+
+  <section id="features" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Features</span>
+        <h2>Small on purpose.</h2>
+        <p>Only a few things, done carefully. No toolbar or bookmarks bar, and no badges or pop-ups. The page gets the whole window. Cards marked <em>Planned</em> are designed but not built yet.</p>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></div>
+          <h3>One quiet sidebar</h3>
+          <p>Address, tabs and favourites sit in one place, built on Chromium's own vertical tabs. Collapse it down to icons when you want more page.</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/><rect x="10" y="4" width="10" height="10" rx="2.5"/><path d="M8 16l2.5-2.5" opacity=".6"/></svg></div>
+          <h3>Peek <span class="tag">Planned</span></h3>
+          <p>Shift+click a link to open a little page over the one you're reading. Press Esc to let it go, or turn it into a tab without reloading.</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="12" r="3"/><circle cx="12" cy="12" r="3" opacity=".6"/><circle cx="18" cy="12" r="3" opacity=".35"/></svg></div>
+          <h3>Spaces</h3>
+          <p>Personal, work, a hobby: each space has its own tabs and its own colour, and comes back after a restart. Switch with <kbd>⌃</kbd> <kbd>1</kbd>…<kbd>9</kbd> or a two-finger swipe on the sidebar. A space can run in its own profile to keep logins separate.</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="6" width="14" height="12" rx="2.5"/><path d="M5 9.5h14"/></svg></div>
+          <h3>Little window <span class="tag">Planned</span></h3>
+          <p>A small window with no tabs at all, for the link from a chat or a quick look-up. Move it into a space when it turns out to matter.</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 12h4M14 12h3"/></svg></div>
+          <h3>Command bar</h3>
+          <p><kbd>⌘</kbd> <kbd>T</kbd> and <kbd>⌘</kbd> <kbd>L</kbd> open one palette for your open tabs, favourites, history, commands and searches, all from the keyboard.</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.5-.8z"/></svg></div>
+          <h3>The extensions you use</h3>
+          <p>On desktop it's Chromium underneath, so Chrome Web Store extensions, DevTools and Picture-in-Picture come along. Only Manifest V3 extensions run, as in Chrome itself.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy" class="privacy">
+    <img class="mark-bg" src="assets/brand/mark.svg" alt="">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Privacy</span>
+        <h2>Private by default. Nothing to sign up for.</h2>
+        <p>We never hold readable data about you. There's no account to create and no server that keeps your history.</p>
+      </div>
+      <div class="grid">
+        <div class="item"><h3>No telemetry</h3><p>No usage stats, field trials or browser sign-in. It starts from ungoogled-chromium, which removes Google's background services.</p></div>
+        <div class="item"><h3>Ad and tracker blocking built in <span class="tag">Planned</span></h3><p>A native blocker, so it works even where extensions don't. Tracking parameters are stripped from links.</p></div>
+        <div class="item"><h3>Stricter defaults <span class="tag">Planned</span></h3><p>Third-party cookies blocked and HTTPS-First on by default. Site isolation stays on.</p></div>
+        <div class="item"><h3>Sync you own <span class="tag">Planned</span></h3><p>End-to-end encrypted, device to device or through your own iCloud, Google Drive, Dropbox or WebDAV. Pair devices with a QR code.</p></div>
+        <div class="item"><h3>You pick the search engine</h3><p>There's no default. Choose on first run, and suggestions stay off, so nothing is sent while you type.</p></div>
+        <div class="item"><h3>Safe Browsing, standard only</h3><p>Checks against a local list of hash prefixes, with no real-time lookups. The threat lists need an agreement with Google, which we haven't finished, so it has no data yet.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="platforms">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">Platforms</span>
+        <h2>Mac first, then the rest.</h2>
+        <p>The same calm layout everywhere, built on whatever each platform allows. Only macOS exists so far.</p>
+      </div>
+      <div class="platforms">
+        <div class="platform"><b>macOS</b><span>Chromium</span><em>Developer build</em></div>
+        <div class="platform"><b>Windows</b><span>Chromium</span><em>Planned</em></div>
+        <div class="platform"><b>Linux</b><span>Chromium</span><em>Planned</em></div>
+        <div class="platform"><b>iPhone &amp; iPad</b><span>WebKit, as Apple requires</span><em>Planned</em></div>
+        <div class="platform"><b>Android</b><span>Chromium</span><em>Planned, last</em></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap oss">
+      <div class="section-head" style="margin:0">
+        <span class="eyebrow">Open source</span>
+        <h2>Read every line.</h2>
+        <p>Little Browser is free and open source under the Mozilla Public Licence 2.0. You can check what it does instead of taking our word for it.</p>
+      </div>
+      <ul>
+        <li><span><b>MPL-2.0.</b> Our code is open. Chromium, WebKit and the filter lists keep their own licences.</span></li>
+        <li><span><b>A small patch set.</b> We stay close to upstream Chromium, so security fixes arrive quickly.</span></li>
+        <li><span><b>Calm by design.</b> No promos, “what's new” pages or permission nags. Nothing moves unless you moved it.</span></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Little Browser home">
+      <img src="assets/brand/icon-small.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Footer">
+      <a href="#privacy">Privacy</a>
+    </nav>
+    <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · This site uses no cookies or analytics.</span>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

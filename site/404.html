@@ -1,0 +1,81 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page not found — Little Browser</title>
+  <meta name="robots" content="noindex">
+  <meta name="description" content="Little Browser is a small, private, open-source browser. One quiet sidebar, little pages you can peek at and let go, and nothing about you on our servers.">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wm" viewBox="-4 0 324 46">
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 4V40"/><path d="M10.5 16V40"/><path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/><path d="M56 4V40"/>
+      <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/><path d="M108.5 4V40"/><circle cx="120.5" cy="28" r="12"/>
+      <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/><circle cx="176" cy="28" r="12"/><path d="M198 16L205 40L213 22L221 40L228 16"/>
+      <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+      <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/><path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+    </g>
+    <circle cx="10.5" cy="6.5" r="3.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Little Browser home">
+      <img src="/assets/brand/icon.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Sections">
+      <a href="/#features">Features</a>
+      <a href="/#privacy">Privacy</a>
+      <a href="/#platforms">Platforms</a>
+    </nav>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <button data-t="auto" aria-pressed="true">Auto</button>
+      <button data-t="light" aria-pressed="false">Light</button>
+      <button data-t="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero" style="min-height:60vh">
+    <div class="wrap">
+      <div class="hero-copy" style="margin-bottom:0">
+        <img class="icon" src="/assets/brand/icon.svg" alt="">
+        <h1>This little page<br>has gone.</h1>
+        <p class="lead">Like a Peek you closed, there's nothing left here. The page may have moved, or the link may be mistyped.</p>
+        <div class="ctas"><a class="btn primary" href="/">Go to the home page</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="Little Browser home">
+      <img src="/assets/brand/icon-small.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Footer">
+      <a href="/#privacy">Privacy</a>
+    </nav>
+    <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · This site uses no cookies or analytics.</span>
+  </div>
+</footer>
+<script src="/site.js"></script>
+</body>
+</html>
