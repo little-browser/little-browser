@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432">
+<!-- Little Browser brand asset. Usage rules: branding/README.md -->
+
+  <g transform="translate(54 54) scale(0.165) translate(-257 -257)">
+    <g fill="none" stroke="#fff" stroke-width="16">
+      <rect x="153" y="250" width="110" height="110" rx="26" stroke-opacity=".3"/>
+      <rect x="175" y="178" width="162" height="162" rx="35" stroke-opacity=".55"/>
+    </g>
+    <rect x="196" y="104" width="216" height="216" rx="44" fill="#fff"/>
+    <circle cx="132" cy="380" r="30" fill="#fff"/>
+  </g>
+</svg>

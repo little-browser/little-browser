@@ -1,0 +1,14 @@
+{
+  "name": "little-browser-branding",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Little Browser brand assets and platform icon export",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "export": "node scripts/export.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2"
+  }
+}

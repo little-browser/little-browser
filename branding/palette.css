@@ -1,0 +1,39 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+/* Little Browser brand palette. These tokens are the source of truth for brand colours. The
+ * default space hue is 222 ("Little Blue"), the same as kFirstSpaceHue in
+ * desktop/lb/browser/spaces/space_model.h; other spaces use their own hue. */
+
+:root {
+  /* Brand (fixed: the app icon never follows the space colour) */
+  --lb-tile-top: #4783eb;      /* hsl(218 80% 60%) */
+  --lb-tile-bottom: #2435cc;   /* hsl(234 70% 47%) */
+  --lb-tile: linear-gradient(135deg, var(--lb-tile-top), var(--lb-tile-bottom));
+  --lb-mark: #ffffff;
+  --lb-mark-dark: #81adf8;     /* hsl(218 90% 74%) — mark on dark, no tile (iOS dark icon) */
+
+  /* UI, light (default space hue 222) */
+  --lb-accent: #245bdb;        /* hsl(222 72% 50%) */
+  --lb-on-accent: #ffffff;
+  --lb-sidebar: #dadfec;       /* hsl(222 32% 89%) */
+  --lb-ink: #212630;           /* hsl(222 18% 16%) — wordmark colour on light */
+  --lb-ink-dim: #5c6270;       /* hsl(222 10% 40%) */
+  --lb-page: #ffffff;
+
+  /* Incognito (fixed violet) */
+  --lb-incognito-accent: #b47ef1; /* hsl(268 80% 72%) */
+  --lb-incognito-bg: #1d1a22;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --lb-accent: #5581e7;      /* hsl(222 75% 62%) */
+    --lb-on-accent: #0f1524;   /* hsl(222 40% 10%) */
+    --lb-sidebar: #1e2129;     /* hsl(222 16% 14%) */
+    --lb-ink: #e2e4e9;         /* hsl(222 15% 90%) — wordmark colour on dark */
+    --lb-ink-dim: #969ba6;     /* hsl(222 8% 62%) */
+    --lb-page: #1f1f22;
+  }
+}

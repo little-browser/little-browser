@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="32" height="32">
+<!-- Little Browser brand asset. Usage rules: branding/README.md -->
+
+  <defs>
+    <linearGradient id="lb-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4783EB"/>
+      <stop offset="1" stop-color="#2435CC"/>
+    </linearGradient>
+    <filter id="lb-shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity=".3"/>
+    </filter>
+  </defs>
+  <g filter="url(#lb-shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#lb-tile)"/>
+  </g>
+  <g transform="translate(100 100) scale(1.609375)">
+    <rect x="168" y="176" width="168" height="168" rx="38" fill="none" stroke="#fff" stroke-width="28" stroke-opacity=".5"/>
+    <rect x="188" y="96" width="228" height="228" rx="50" fill="#fff"/>
+    <circle cx="130" cy="384" r="40" fill="#fff"/>
+  </g>
+</svg>

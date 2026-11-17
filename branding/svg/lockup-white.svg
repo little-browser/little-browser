@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 64" width="380" height="64">
+<!-- Little Browser brand asset. Usage rules: branding/README.md -->
+  <defs>
+    <linearGradient id="lb-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4783EB"/>
+      <stop offset="1" stop-color="#2435CC"/>
+    </linearGradient>
+  </defs>
+  <svg width="64" height="64" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="114" fill="url(#lb-tile)"/>
+    <g fill="none" stroke="#fff" stroke-width="16">
+      <rect x="153" y="250" width="110" height="110" rx="26" stroke-opacity=".3"/>
+      <rect x="175" y="178" width="162" height="162" rx="35" stroke-opacity=".55"/>
+    </g>
+    <rect x="196" y="104" width="216" height="216" rx="44" fill="#fff"/>
+    <circle cx="132" cy="380" r="30" fill="#fff"/>
+  </svg>
+  <g transform="translate(86 11) scale(0.9)">
+  <g fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M0 4V40"/>
+    <path d="M10.5 16V40"/>
+    <path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/>
+    <path d="M56 4V40"/>
+    <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/>
+    <path d="M108.5 4V40"/>
+    <circle cx="120.5" cy="28" r="12"/>
+    <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/>
+    <circle cx="176" cy="28" r="12"/>
+    <path d="M198 16L205 40L213 22L221 40L228 16"/>
+    <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+    <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/>
+    <path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+  </g>
+  <circle cx="10.5" cy="6.5" r="3.4" fill="#FFFFFF"/>
+  </g>
+</svg>
