@@ -1,0 +1,10 @@
+COMPANY_FULLNAME=The Little Browser Team
+COMPANY_SHORTNAME=Little Browser Team
+PRODUCT_FULLNAME=Little Browser
+PRODUCT_SHORTNAME=Little Browser
+PRODUCT_INSTALLER_FULLNAME=Little Browser Installer
+PRODUCT_INSTALLER_SHORTNAME=Little Browser Installer
+COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Little Browser Team. All rights reserved.
+MAC_BUNDLE_ID=app.littlebrowser.LittleBrowser
+MAC_CREATOR_CODE=Cr24
+MAC_TEAM_ID=

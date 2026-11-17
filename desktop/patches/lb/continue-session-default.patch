@@ -1,0 +1,46 @@
+# Little Browser: "Continue where you left off" by default on desktop — spaces keep their tabs,
+# like Arc. Users can still change it in Settings → On startup. No infobar announcing it: it is
+# the default from the first launch, not a change.
+diff --git a/chrome/browser/prefs/session_startup_pref.cc b/chrome/browser/prefs/session_startup_pref.cc
+index 72fc94f..7cd8a8f 100644
+--- a/chrome/browser/prefs/session_startup_pref.cc
++++ b/chrome/browser/prefs/session_startup_pref.cc
+@@ -70,9 +70,8 @@ SessionStartupPref::Type SessionStartupPref::GetDefaultStartupType() {
+   return SessionStartupPref::LAST;
+ #else
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
+-  if (features::kSetDefaultToContinueSession.Get()) {
+-    return SessionStartupPref::LAST;
+-  }
++  // Little Browser: continue where you left off by default — spaces keep their tabs.
++  return SessionStartupPref::LAST;
+ #elif BUILDFLAG(IS_ANDROID)
+   // On Android desktop, restoring the last session is the default startup
+   // behavior when the restore-on-startup pref is synced.
+@@ -81,8 +80,10 @@ SessionStartupPref::Type SessionStartupPref::GetDefaultStartupType() {
+           chrome::android::kSyncRestoreOnStartupPref)) {
+     return SessionStartupPref::LAST;
+   }
+-#endif
+   return SessionStartupPref::DEFAULT;
++#else
++  return SessionStartupPref::DEFAULT;
++#endif
+ #endif
+ }
+ 
+diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
+index 1f95858..f8bd305 100644
+--- a/chrome/browser/ui/ui_features.cc
++++ b/chrome/browser/ui/ui_features.cc
+@@ -384,7 +384,9 @@ BASE_FEATURE(kNonMilestoneUpdateToast, base::FEATURE_ENABLED_BY_DEFAULT);
+ BASE_FEATURE(kRespectShouldTriggerSessionRestoreOnDesktop,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+-BASE_FEATURE(kSessionRestoreInfobar, base::FEATURE_ENABLED_BY_DEFAULT);
++// Little Browser: off. The infobar announces "continue where you left off" to users whose
++// default changed; ours is the default from the first launch.
++BASE_FEATURE(kSessionRestoreInfobar, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE_PARAM(bool,
+                    kSetDefaultToContinueSession,

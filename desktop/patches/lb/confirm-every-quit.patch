@@ -1,0 +1,139 @@
+# Little Browser: with "Warn Before Quitting" on, every user quit asks — ⌘Q, the menu, the Dock and
+# AppleScript — with a "Quit Little Browser?" dialog (Quit / Cancel / Quit and Don't Ask Again)
+# instead of Chromium's hold-⌘Q panel. Exits that are already decided never ask: a ⌘Q quit just
+# confirmed, restarts, chrome://quit, DevTools and signals (BrowserProcessPlatformPart::AttemptExit
+# sets a flag around the final -terminate:), plus logout and shutdown of the Mac.
+
+--- a/chrome/browser/app_controller_mac.h
++++ b/chrome/browser/app_controller_mac.h
+@@ -91,6 +91,10 @@
+ 
+ // Run the quit confirmation panel if conditions are met and return the result.
+ - (ConfirmQuitResult)confirmQuitIfNeeded;
++
++// Little Browser: set while an exit that needs no question runs (see
++// BrowserProcessPlatformPart::AttemptExit); -confirmQuitIfNeeded doesn't ask then.
++@property(nonatomic) BOOL lbQuitAlreadyDecided;
+ 
+ // Indicate that the system is powering off or logging out.
+ - (void)willPowerOff:(NSNotification*)inNotification;
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -736,6 +736,9 @@
+ 
+   // This will be true after receiving a NSWorkspaceWillPowerOffNotification.
+   BOOL _isPoweringOff;
++
++  // Little Browser: the quit dialog is up (⌘Q pressed again, or held, must not open another).
++  BOOL _lbQuitDialogShowing;
+ 
+   // This will be true after receiving a |-applicationWillTerminate:| event.
+   BOOL _isShuttingDown;
+@@ -1020,30 +1023,48 @@
+     return ConfirmQuitResultNotPrompted;
+   }
+ 
+-  NSEvent* event = [NSApp currentEvent];
+-  // Run only for keyboard-initiated quits.
+-  if (!event || CommandForKeyEvent(event).chrome_command != IDC_EXIT) {
++  // Little Browser: no question for an exit that is already decided (a ⌘Q quit the user just
++  // confirmed, restarts, chrome://quit, DevTools, signals: see
++  // BrowserProcessPlatformPart::AttemptExit), during shutdown, or at logout and shutdown.
++  if (self.lbQuitAlreadyDecided || browser_shutdown::IsTryingToQuit() ||
++      browser_shutdown::HasShutdownStarted() || _isPoweringOff ||
++      [NSAppleEventManager.sharedAppleEventManager.currentAppleEvent
++          attributeDescriptorForKeyword:kAEQuitReason]) {
+     return ConfirmQuitResultNotPrompted;
+   }
+ 
+-  // In the event of a double-quit attempt (holding command and pressing 'Q'
+-  // twice), we will already have a ConfirmQuitPanelController, so only create a
+-  // new one if needed.
+-  if (!_confirmQuitPanelController) {
+-    _confirmQuitPanelController = [[ConfirmQuitPanelController alloc] init];
+-  }
++  // Little Browser: every quit (⌘Q, the menu, the Dock, AppleScript) asks with a dialog,
++  // instead of Chromium's hold-⌘Q panel.
++  return [self lbConfirmQuitWithDialog];
++}
+ 
+-  __weak AppController* weakSelf = self;
+-  BOOL quitConfirmed = [_confirmQuitPanelController
+-      runConfirmQuitLoopWithEvent:event
+-                dismissedCallback:^{
+-                  AppController* strongSelf = weakSelf;
+-                  if (strongSelf && !browser_shutdown::IsTryingToQuit()) {
+-                    strongSelf->_confirmQuitPanelController = nil;
+-                  }
+-                }];
++// Little Browser: "Quit Little Browser?" with Quit, Cancel and "Quit and Don't Ask Again"
++// (which turns off Warn Before Quitting).
++- (ConfirmQuitResult)lbConfirmQuitWithDialog {
++  // Already asking (e.g. ⌘Q pressed again, or held, while the dialog is up).
++  if (_lbQuitDialogShowing) {
++    return ConfirmQuitResultAborted;
++  }
++  base::AutoReset<BOOL> showing(&_lbQuitDialogShowing, YES);
++  NSString* product = l10n_util::GetNSString(IDS_PRODUCT_NAME);
++  NSAlert* alert = [[NSAlert alloc] init];
++  alert.messageText = [NSString stringWithFormat:@"Quit %@?", product];
++  alert.informativeText = [NSString
++      stringWithFormat:@"You can turn this off with %@ › Warn Before Quitting.", product];
++  [alert addButtonWithTitle:@"Quit"];
++  NSButton* cancel = [alert addButtonWithTitle:@"Cancel"];
++  cancel.keyEquivalent = @"\e";
++  [alert addButtonWithTitle:@"Quit and Don't Ask Again"];
+ 
+-  return quitConfirmed ? ConfirmQuitResultConfirmed : ConfirmQuitResultAborted;
++  [NSApp activateIgnoringOtherApps:YES];
++  const NSModalResponse response = [alert runModal];
++  if (response == NSAlertSecondButtonReturn) {
++    return ConfirmQuitResultAborted;
++  }
++  if (response == NSAlertThirdButtonReturn) {
++    g_browser_process->local_state()->SetBoolean(prefs::kConfirmToQuitEnabled, false);
++  }
++  return ConfirmQuitResultConfirmed;
+ }
+ 
+ // Handles the NSApplicationWillTerminateNotification notification. (Note to
+@@ -1987,11 +2008,8 @@
+ // the app menu right above the Quit menu item. This method will refresh the
+ // display of that item depending on the preference state.
+ - (void)updateConfirmToQuitPrefMenuItem:(NSMenuItem*)item {
+-  // Format the string so that the correct key equivalent is displayed.
+-  NSString* acceleratorString = [ConfirmQuitPanelController keyCommandString];
+-  NSString* title = l10n_util::GetNSStringF(IDS_CONFIRM_TO_QUIT_OPTION,
+-      base::SysNSStringToUTF16(acceleratorString));
+-  [item setTitle:title];
++  // Little Browser: every quit asks, not just ⌘Q, so no key equivalent in the title.
++  [item setTitle:@"Warn Before Quitting"];
+ 
+   const PrefService* prefService = g_browser_process->local_state();
+   bool enabled = prefService->GetBoolean(prefs::kConfirmToQuitEnabled);
+--- a/chrome/browser/browser_process_platform_part_mac.mm
++++ b/chrome/browser/browser_process_platform_part_mac.mm
+@@ -44,7 +44,12 @@
+     }
+   }
+ 
++  // Little Browser: the exit is decided by now (confirmed above, or a programmatic exit:
++  // chrome://quit, restarts, DevTools, signals), so -terminate: must not ask (again). It runs
++  // synchronously, so the flag covers exactly this attempt.
++  AppController.sharedController.lbQuitAlreadyDecided = YES;
+   chrome_browser_application_mac::Terminate();
++  AppController.sharedController.lbQuitAlreadyDecided = NO;
+ }
+ 
+ void BrowserProcessPlatformPart::PreMainMessageLoopRun() {
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -363,7 +363,7 @@
+         Pressing Tab on a webpage highlights links, as well as form fields
+       </message>
+       <message name="IDS_SETTINGS_WARN_BEFORE_QUITTING_PREF" desc="The documentation string of the 'Warn Before Quitting' preference which is also available in the Chrome app menu.">
+-        Show warning before quitting with ⌘Q
++        Show warning before quitting
+       </message>
+     </if>
+ 

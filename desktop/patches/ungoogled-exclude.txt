@@ -1,0 +1,17 @@
+# ungoogled-chromium patches (core or platform repo) we do NOT apply, as listed in their series files.
+#
+# Reason: we keep standard Safe Browsing. ungoogled removes it in several layers; these
+# patches exist only for building/running without it. At 157.0.8103.78 the remaining
+# 127 patches (104 core + 23 macOS) apply cleanly without them. See desktop/README.md.
+core/inox-patchset/0001-fix-building-without-safebrowsing.patch
+core/ungoogled-chromium/fix-building-without-safebrowsing.patch
+# Mostly Safe Browsing, but also drops Screen AI / translation sandbox params that disable-ai.patch
+# needs on macOS — that part is carried as lb/macos-no-ai-sandbox-params.patch.
+ungoogled-chromium/macos/fix-disabling-safebrowsing.patch
+# Strips Safe Browsing (and unused sign-in) preference registration across the browser.
+# Skipping it keeps some unused sign-in fields in the Preferences file: harmless, sign-in itself
+# stays disabled by ungoogled's other patches.
+core/ungoogled-chromium/remove-unused-preferences-fields.patch
+# Moves one pref out of the (deleted) Safe Browsing prefs; with them restored it would register
+# the same pref twice and crash at startup.
+core/ungoogled-chromium/move-js-optimizer-unfamiliar-sites.patch

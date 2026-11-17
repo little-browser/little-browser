@@ -1,0 +1,16 @@
+# Fast development build (desktop/scripts/build.sh --dev → out/Dev), applied after common.gn and the
+# platform file. Trades runtime speed for build speed: Chromium is split into ~hundreds of shared
+# libraries (component build), no link-time optimisation, no PGO, symbols for debugging.
+# Use out/Default (release) for packaging and performance measurements.
+is_official_build = false
+is_component_build = true
+is_debug = false
+symbol_level = 1
+blink_symbol_level = 0
+use_thin_lto = false
+chrome_pgo_phase = 0
+# Precompiled headers (on by default in non-official builds) fail with the pinned LLVM 23
+# ("missing 'export module' declaration in module interface unit"). Release builds don't use them.
+enable_precompiled_headers = false
+# DCHECKs off: ungoogled's patches are not tested with them. Turn on when chasing bugs.
+dcheck_always_on = false

@@ -1,0 +1,8 @@
+# Files in ungoogled-chromium's pruning.list that we must NOT delete.
+# Reason: we keep standard Safe Browsing; ungoogled deletes its preference code outright.
+components/safe_browsing/core/common/safe_browsing_prefs.cc
+components/safe_browsing/core/common/safe_browsing_prefs.h
+# Pruned only because remove-unused-preferences-fields.patch (which we skip, see
+# ungoogled-exclude.txt) removes every use of them.
+components/signin/public/base/signin_pref_names.cc
+components/signin/public/base/signin_pref_names.h

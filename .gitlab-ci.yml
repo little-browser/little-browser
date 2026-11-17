@@ -1,0 +1,96 @@
+# Little Browser CI/CD: GitLab hosting and CI on AWS runners, with a dedicated macOS runner.
+# Release pipeline: docs/design.md §14.
+#
+# Runner tags (registered on our runners — names are placeholders until the runners exist):
+#   lb-linux-small      autoscaled AWS Linux (docker), fast checks
+#   lb-macos            dedicated macOS builder (EC2 Mac or Mac mini): Chromium build, signing
+#   lb-linux-build      large AWS Linux instance (32–64 cores, 300 GB disk): Chromium build   (later)
+#   lb-windows-build    large AWS Windows instance: Chromium build                            (later)
+#
+# The Chromium build jobs have not run yet — they need the runners above.
+
+stages: [check, build, package, publish]
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# ------------------------------------------------------------------ fast checks (every push)
+
+core:
+  stage: check
+  tags: [lb-linux-small]
+  image: rust:1-slim
+  before_script:
+    - rustup component add clippy rustfmt
+  script:
+    - cd core
+    - cargo fmt --check
+    - cargo clippy --all-targets -- -D warnings
+    - cargo test
+
+scripts:
+  stage: check
+  tags: [lb-linux-small]
+  image: koalaman/shellcheck-alpine:stable
+  script:
+    - bash -n desktop/scripts/fetch.sh && bash -n desktop/scripts/build.sh
+    - shellcheck desktop/scripts/*.sh
+
+# ------------------------------------------------------------------ Chromium builds
+# Run on release tags, or by hand from the pipeline page. Long: hours on a cold runner,
+# much less with the runner's persistent build directory and compiler cache.
+
+.chromium:
+  stage: build
+  timeout: 8h
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - when: manual
+      allow_failure: true
+
+macos-arm64:
+  extends: .chromium
+  tags: [lb-macos]
+  variables:
+    GIT_DEPTH: 1
+  script:
+    - rm -rf desktop/build/src   # fresh tree each release; download cache is kept
+    - desktop/scripts/fetch.sh arm64
+    - desktop/scripts/build.sh arm64
+  artifacts:
+    paths: ["desktop/build/src/out/Default/Little Browser.app"]
+    expire_in: 1 week
+
+# macos-x64, linux-x64, windows-x64: added when their platform recipes are wired up (desktop/README.md).
+
+# ------------------------------------------------------------------ package, sign, publish
+
+macos-package:
+  stage: package
+  tags: [lb-macos]
+  needs: [macos-arm64]
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    # Developer ID signing + notarization. Credentials are CI/CD variables (masked, protected):
+    # MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD, MACOS_NOTARIZATION_APPLE_ID,
+    # MACOS_NOTARIZATION_TEAM_ID, MACOS_NOTARIZATION_PWD — never in the repo.
+    - desktop/scripts/build.sh --package
+  artifacts:
+    paths: ["desktop/build/*.dmg"]
+
+release:
+  stage: publish
+  tags: [lb-linux-small]
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: [macos-package]
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Publishing $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "Little Browser $CI_COMMIT_TAG — see docs/design.md §14 for what each release contains."

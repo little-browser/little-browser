@@ -1,0 +1,52 @@
+# Little Browser: Cmd+T / the new-tab button / Cmd+L open the command bar; Cmd+1…9 open favourites —
+# in windows that show our sidebar (desktop/lb/browser/ui/views/sidebar/sidebar_controller.cc).
+# Two hooks: the command controller's entry point (keyboard, menus) and the new-tab action (the
+# vertical strip's button, the app menu). chrome::NewTab itself is untouched: other callers
+# (new tab group, web-app launch, AppleScript) need it to really add a tab.
+
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/browser_command_controller.h"
++
++#include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+ 
+ #include <stddef.h>
+ 
+@@ -668,6 +670,12 @@
+   }
+ 
+   DCHECK(IsCommandEnabled(id)) << "Invalid/disabled command " << id;
++
++  // Little Browser: command bar (Cmd+T / Cmd+L) and favourites (Cmd+1…9). Hooked here, not
++  // in HandleCommandWithDisposition, because commands may run through the actions framework.
++  if (lb::HandleCommand(browser_, id)) {
++    return true;
++  }
+ 
+   return command_updater_->ExecuteCommandWithDisposition(
+       id, disposition, std::move(context), time_stamp);
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -107,6 +107,7 @@
+ #include "chrome/browser/ui/browser_action_prefs_listener.h"
+ #include "chrome/browser/ui/browser_command_controller.h"
+ #include "chrome/browser/ui/browser_commands.h"
++#include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/browser_select_file_dialog_controller.h"
+ #include "chrome/browser/ui/browser_window.h"
+@@ -1261,6 +1262,11 @@
+           base::BindRepeating(
+               [](BrowserWindowInterface* bwi, actions::ActionItem* item,
+                  actions::ActionInvocationContext context) {
++                // Little Browser: the sidebar's new-tab button and the app menu's New Tab open
++                // the command bar (only in windows that show the sidebar).
++                if (lb::HandleNewTab(bwi)) {
++                  return;
++                }
+                 chrome::NewTab(bwi, NewTabTypes::kNewTabCommand);
+               },
+               bwi))

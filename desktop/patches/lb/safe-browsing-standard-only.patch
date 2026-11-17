@@ -1,0 +1,114 @@
+# Little Browser: Safe Browsing standard protection only.
+# - Enhanced protection and extended reporting are hard-disabled (pref/policy/sync cannot enable them).
+# - No real-time hash-prefix lookups: the local hash-prefix database only.
+# - Settings page hides the Enhanced option and the extended-reporting toggle.
+# - security_page.ts: drop passwordsLeakToggle from the element map (ungoogled removes the element;
+#   the patch that also removed this line is one we skip — see patches/ungoogled-exclude.txt).
+
+diff --git a/chrome/browser/resources/settings/privacy_page/security/security_page.html b/chrome/browser/resources/settings/privacy_page/security/security_page.html
+index e8bbd9e..d9240dc 100644
+--- a/chrome/browser/resources/settings/privacy_page/security/security_page.html
++++ b/chrome/browser/resources/settings/privacy_page/security/security_page.html
+@@ -12,7 +12,8 @@ import {HttpsFirstModeSetting} from './security_page.js';
+           pref-key="generated.safe_browsing"
+           selectable-elements="cr-radio-button, settings-collapse-radio-button"
+           @change="${this.onSafeBrowsingRadioChange_}">
+-        <settings-collapse-radio-button id="safeBrowsingEnhanced"
++        <!-- Little Browser: standard protection only. -->
++        <settings-collapse-radio-button id="safeBrowsingEnhanced" hidden
+             name="${SafeBrowsingSetting.ENHANCED}"
+             pref-key="generated.safe_browsing"
+             label="$i18n{safeBrowsingEnhanced}"
+@@ -94,7 +95,7 @@ import {HttpsFirstModeSetting} from './security_page.js';
+           </div>
+         </settings-collapse-radio-button>
+         <settings-collapse-radio-button id="safeBrowsingStandard"
+-            ?no-collapse="${this.hideExtendedReportingRadioButton_}"
++            ?no-collapse="${true || this.hideExtendedReportingRadioButton_}"
+             name="${SafeBrowsingSetting.STANDARD}"
+             pref-key="generated.safe_browsing"
+             label="$i18n{safeBrowsingStandard}"
+@@ -104,7 +105,8 @@ import {HttpsFirstModeSetting} from './security_page.js';
+             @expand-clicked="${this.onStandardProtectionExpandClicked_}"
+             no-automatic-collapse>
+           <div slot="noSelectionCollapse">
+-            ${!this.hideExtendedReportingRadioButton_ ? html`
++            ${/* Little Browser: no extended reporting. */
++              false && !this.hideExtendedReportingRadioButton_ ? html`
+               <settings-toggle-button id="safeBrowsingReportingToggle"
+                   pref-key="safebrowsing.scout_reporting_enabled"
+                   label="$i18n{safeBrowsingStandardReportingLabel}"
+diff --git a/chrome/browser/resources/settings/privacy_page/security/security_page.ts b/chrome/browser/resources/settings/privacy_page/security/security_page.ts
+index 998a976..91bf82c 100644
+--- a/chrome/browser/resources/settings/privacy_page/security/security_page.ts
++++ b/chrome/browser/resources/settings/privacy_page/security/security_page.ts
+@@ -62,7 +62,8 @@ export enum HttpsFirstModeSetting {
+ 
+ export interface SettingsSecurityPageElement {
+   $: {
+-    passwordsLeakToggle: SettingsToggleButtonElement,
++    // Little Browser: passwordsLeakToggle is removed from the template by ungoogled's
++    // remove-uneeded-ui.patch (normally paired with the prefs patch we skip).
+     safeBrowsingDisabled: SettingsCollapseRadioButtonElement,
+     safeBrowsingEnhanced: SettingsCollapseRadioButtonElement,
+     safeBrowsingRadioGroup: SettingsRadioGroupElement,
+diff --git a/components/safe_browsing/core/common/features.cc b/components/safe_browsing/core/common/features.cc
+index be66f22..ff8c6ff 100644
+--- a/components/safe_browsing/core/common/features.cc
++++ b/components/safe_browsing/core/common/features.cc
+@@ -363,9 +363,11 @@ BASE_FEATURE(kGooglePlayProtectReducesWarnings,
+ BASE_FEATURE(kGoogleStandardDeviceBoundSessionCredentials,
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ 
++// Little Browser: look URLs up in the local hash-prefix database only;
++// no per-navigation real-time lookups (not even via the OHTTP relay).
+ BASE_FEATURE(kHashPrefixRealTimeLookups,
+              "SafeBrowsingHashPrefixRealTimeLookups",
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ constexpr base::FeatureParam<std::string> kHashPrefixRealTimeLookupsRelayUrl{
+     &kHashPrefixRealTimeLookups,
+     "SafeBrowsingHashPrefixRealTimeLookupsRelayUrl",
+@@ -390,7 +392,7 @@ constexpr base::FeatureParam<std::string>
+ 
+ BASE_FEATURE(kHashPrefixRealTimeLookupsSamplePing,
+              "SafeBrowsingHashPrefixRealTimeLookupsSamplePing",
+-             base::FEATURE_ENABLED_BY_DEFAULT);
++             base::FEATURE_DISABLED_BY_DEFAULT);
+ constexpr base::FeatureParam<int> kHashPrefixRealTimeLookupsSampleRate{
+     &kHashPrefixRealTimeLookupsSamplePing,
+     "HashPrefixRealTimeLookupsSampleRate", /*default_value=*/5};
+diff --git a/components/safe_browsing/core/common/safe_browsing_prefs.cc b/components/safe_browsing/core/common/safe_browsing_prefs.cc
+index ed4747e..59ea0e1 100644
+--- a/components/safe_browsing/core/common/safe_browsing_prefs.cc
++++ b/components/safe_browsing/core/common/safe_browsing_prefs.cc
+@@ -167,10 +167,10 @@ bool IsSafeBrowsingEnabled(const PrefService& prefs) {
+ }
+ 
+ bool IsEnhancedProtectionEnabled(const PrefService& prefs) {
+-  // SafeBrowsingEnabled is checked too due to devices being out
+-  // of sync or not on a version that includes SafeBrowsingEnhanced pref.
+-  return prefs.GetBoolean(prefs::kSafeBrowsingEnhanced) &&
+-         IsSafeBrowsingEnabled(prefs);
++  // Little Browser: standard protection only. Enhanced protection sends
++  // visited URLs and other data to Google, so it is off regardless of prefs,
++  // policy or sync. Everything gated on enhanced protection follows from this.
++  return false;
+ }
+ 
+ ExtendedReportingLevel GetExtendedReportingLevel(const PrefService& prefs) {
+@@ -191,12 +191,8 @@ bool IsExtendedReportingOptInAllowed(const PrefService& prefs) {
+ }
+ 
+ bool IsExtendedReportingEnabled(const PrefService& prefs) {
+-  if (IsExtendedReportingDeprecated()) {
+-    return IsEnhancedProtectionEnabled(prefs);
+-  }
+-  return (IsSafeBrowsingEnabled(prefs) &&
+-          prefs.GetBoolean(prefs::kSafeBrowsingScoutReportingEnabled)) ||
+-         IsEnhancedProtectionEnabled(prefs);
++  // Little Browser: never send extended reports to Google.
++  return false;
+ }
+ 
+ bool IsExtendedReportingPolicyManaged(const PrefService& prefs) {

@@ -1,0 +1,49 @@
+# Little Browser: with vertical tabs, the page is an inset card with rounded corners next to the
+# sidebar (desktop/lb/browser/ui/views/frame/contents_card.h).
+
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -36,6 +36,7 @@
+ #include "chrome/browser/ui/views/frame/layout/browser_view_layout_impl.h"
+ #include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
++#include "lb/browser/ui/views/frame/contents_card.h"
+ #include "chrome/browser/ui/views/frame/shadow_frame_view.h"
+ #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_background_blur_backdrop.h"
+@@ -1274,11 +1275,16 @@
+     content_right =
+         std::min(content_right, browser_params.visual_client_area.right());
+   }
++  gfx::Rect contents_bounds(content_left, params.visual_client_area.y(),
++                            content_right - content_left,
++                            params.visual_client_area.height());
++  // Little Browser: the page is a card next to the sidebar.
++  if (layout_data_->tab_strip_type == TabStripType::kVertical &&
++      !is_fullscreen(layout_data_->window_state)) {
++    contents_bounds = lb::ContentsCardBounds(contents_bounds);
++  }
+   auto& contents_layout =
+-      layout.AddChild(views().multi_contents_view,
+-                      gfx::Rect(content_left, params.visual_client_area.y(),
+-                                content_right - content_left,
+-                                params.visual_client_area.height()));
++      layout.AddChild(views().multi_contents_view, contents_bounds);
+ 
+   // Maybe expand and clip the web contents to avoid issues during animation.
+   if (features::UseSidePanelFlyoverAnimation()) {
+@@ -1593,6 +1599,14 @@
+       }
+     }
+     views().multi_contents_view->SetBackgroundRadii(content_corners);
++  }
++  // Little Browser: round the page card next to the sidebar (also outside glass mode), and
++  // square it again in fullscreen or with tabs on top (only glass mode resets it otherwise).
++  if (layout_data_->tab_strip_type == TabStripType::kVertical &&
++      !is_fullscreen(layout_data_->window_state)) {
++    views().multi_contents_view->SetBackgroundRadii(lb::ContentsCardRadii());
++  } else if (!in_glass_mode()) {
++    views().multi_contents_view->SetBackgroundRadii(gfx::RoundedCornersF());
+   }
+ 
+   // Want to cut the vertical tabstrip and its decorations out of the top

@@ -1,0 +1,65 @@
+# Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
+# strip — header at the top, space switcher at the bottom — and build our files (sidebar, command
+# bar, snapshot tool) with the region view's target.
+diff --git a/chrome/browser/ui/views/frame/BUILD.gn b/chrome/browser/ui/views/frame/BUILD.gn
+index 07ff356..741cbe6 100644
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -537,7 +537,25 @@ source_set("horizontal_tab_strip_region_view") {
+ 
+ source_set("vertical_tab_strip_region_view") {
+   public = [ "vertical_tab_strip_region_view.h" ]
+-  sources = [ "vertical_tab_strip_region_view.cc" ]
++  sources = [
++    "vertical_tab_strip_region_view.cc",
++
++    # Little Browser sidebar (desktop/lb, linked into the tree as //lb).
++    "//lb/browser/ui/lb_ui_snapshot.cc",
++    "//lb/browser/ui/views/command_bar/command_bar.cc",
++    "//lb/browser/ui/views/command_bar/command_bar.h",
++    "//lb/browser/ui/lb_ui_snapshot.h",
++    "//lb/browser/ui/views/sidebar/sidebar_controller.cc",
++    "//lb/browser/ui/views/sidebar/sidebar_controller.h",
++    "//lb/browser/ui/views/sidebar/sidebar_footer_view.cc",
++    "//lb/browser/ui/views/sidebar/sidebar_footer_view.h",
++    "//lb/browser/ui/views/sidebar/sidebar_header_view.cc",
++    "//lb/browser/ui/views/sidebar/sidebar_header_view.h",
++    "//lb/browser/ui/views/sidebar/new_space_dialog.cc",
++    "//lb/browser/ui/views/sidebar/new_space_dialog.h",
++    "//lb/browser/ui/views/search/search_choice_dialog.cc",
++    "//lb/browser/ui/views/search/search_choice_dialog.h",
++  ]
+   public_deps = [
+     ":base_tab_strip_region_view",
+     "//base",
+@@ -557,6 +575,7 @@ source_set("vertical_tab_strip_region_view") {
+     "//ui/views",
+   ]
+   deps = [
++    "//lb:model",  # Little Browser: view-free sidebar logic (desktop/lb/BUILD.gn)
+     ":browser_view_header",
+     ":custom_corners_background",
+     ":frame",
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index f3ab4f1..0e28ea5 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -9,6 +9,7 @@
+ #include <utility>
+ 
+ #include "base/callback_list.h"
++#include "lb/browser/ui/views/sidebar/sidebar_header_view.h"
+ #include "base/functional/bind.h"
+ #include "base/i18n/number_formatting.h"
+ #include "base/i18n/rtl.h"
+@@ -192,6 +193,10 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+   gemini_button_ =
+       content_area_view_->AddChildView(std::make_unique<views::View>());
+ 
++  // Little Browser: address pill, favourites and space name above the tabs; space switcher
++  // at the bottom.
++  lb::AddSidebar(content_area_view_, browser_view, region_horizontal_padding);
++
+   // Views that go into the content area above
+   // --------------
+ 

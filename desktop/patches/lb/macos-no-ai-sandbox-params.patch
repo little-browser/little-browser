@@ -1,0 +1,48 @@
+# Little Browser (macOS): the non-Safe-Browsing part of ungoogled-chromium-macos's
+# fix-disabling-safebrowsing.patch, which we skip because we keep Safe Browsing.
+# ungoogled's disable-ai.patch removes Screen AI and on-device translation; drop their
+# sandbox parameters so the browser links. Based on that patch (157.0.8103.78-1.1), with one fix:
+# Speech recognition keeps its `return true` (the upstream hunk dropped it, which would crash the
+# browser through a CHECK once SODA is installed), and Screen AI / on-device translation return
+# true without parameters instead of failing that CHECK.
+
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -8657,31 +8657,12 @@
+                                    soda_language_pack_path.value()));
+     return true;
+   }
+-  if (sandbox_type == sandbox::mojom::Sandbox::kScreenAI) {
+-    // ScreenAI service needs read access to ScreenAI component binary path to
+-    // load it.
+-    base::FilePath screen_ai_binary_path =
+-        screen_ai::ScreenAIInstallState::GetInstance()
+-            ->get_component_binary_path();
+-    if (screen_ai_binary_path.empty()) {
+-      VLOG(1) << "Screen AI component not found.";
+-      return false;
+-    }
+-    return serializer->SetParameter(
+-        sandbox::policy::kParamScreenAiComponentPath,
+-        screen_ai_binary_path.value());
+-  }
+-  if (sandbox_type == sandbox::mojom::Sandbox::kOnDeviceTranslation) {
+-    auto translatekit_binary_path =
+-        on_device_translation::ComponentManager::GetInstance()
+-            .GetTranslateKitComponentPath();
+-    if (translatekit_binary_path.empty()) {
+-      VLOG(1) << "TranslationKit component not found.";
+-      return false;
+-    }
+-    return serializer->SetParameter(
+-        sandbox::policy::kParamTranslatekitComponentPath,
+-        translatekit_binary_path.value());
++  // Little Browser: ungoogled-chromium removes Screen AI and on-device translation, so their
++  // parameters can't be set here. Don't report failure for them: the browser CHECKs this result
++  // and would crash; without the parameters the utility process just can't load its component.
++  if (sandbox_type == sandbox::mojom::Sandbox::kScreenAI ||
++      sandbox_type == sandbox::mojom::Sandbox::kOnDeviceTranslation) {
++    return true;
+   }
+ 
+   return false;

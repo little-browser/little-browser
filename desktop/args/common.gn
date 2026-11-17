@@ -1,0 +1,22 @@
+# Little Browser GN args, appended AFTER ungoogled-chromium's flags.gn (later values win).
+# build.sh runs `gn gen --fail-on-unused-args`, so every arg here must be one the pinned tree knows.
+
+is_official_build = true
+is_debug = false
+symbol_level = 0
+blink_symbol_level = 0
+
+# Keep Safe Browsing. ungoogled sets 0 (disabled); 1 = full desktop mode. Standard protection
+# only — enforced by patches/lb/safe-browsing-standard-only.patch.
+safe_browsing_mode = 1
+
+# Widevine support compiled in; the CDM itself is only downloaded on user consent (not built yet: see desktop/README.md).
+enable_widevine = true
+
+# Codecs for streaming sites (H.264/AAC). Patent licensing needs legal review before
+# distributing binaries, especially on Linux (see docs/design.md section 14).
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+
+# PGO off: the source tarball has no PGO profiles (a normal checkout downloads them from Google storage).
+chrome_pgo_phase = 0

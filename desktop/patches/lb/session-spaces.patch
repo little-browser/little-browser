@@ -1,0 +1,102 @@
+# Little Browser: each window remembers its space across restarts (desktop/lb sidebar). The
+# space id is saved as window extra data — like Chromium's own vertical-tab collapsed state — and
+# a restored window is put back on its space before its tabs come back.
+# Restoring into an existing window (the crash bubble's Restore) moves that window to the saved
+# window's space too. A window reopened from Recently Closed (Cmd+Shift+T) goes back to its space
+# the same way.
+
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/sessions/session_service_base.h"
++
++#include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+ 
+ #include <stddef.h>
+ 
+@@ -635,7 +637,7 @@
+       sessions::CreateLastActiveTimeCommand(session_id,
+                                             tab->GetLastActiveTime()));
+ 
+-  // TODO(stahon@microsoft.com) This might be movable to SessionService
++  // TODO(stahon@m1cr050ft.qjz9zk) This might be movable to SessionService
+   // when Chrome OS uses AppSessionService for app restores.
+   // For now it needs to stay to support SessionService restoring apps.
+   std::string app_id = apps::GetAppIdForWebContents(tab);
+@@ -790,6 +792,13 @@
+             base::NumberToString(controller->GetUncollapsedWidth())));
+   }
+ 
++  // Little Browser: which space the window shows (desktop/lb sidebar).
++  if (const std::string space_id = lb::GetWindowSpaceId(browser); !space_id.empty()) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddWindowExtraDataCommand(browser->GetSessionID(),
++                                                  lb::kWindowSpaceKey, space_id));
++  }
++
+   int index = 0;
+   for (const tabs::TabInterface* tab_interface : *tab_strip) {
+     WebContents* tab = tab_interface->GetContents();
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/sessions/session_restore.h"
+ 
++#include "lb/browser/ui/views/sidebar/sidebar_controller.h"
++
+ #include <stddef.h>
+ 
+ #include <algorithm>
+@@ -872,6 +874,8 @@
+           ShouldRestoreToExistingBrowser()) {
+         // The first set of tabs is added to the existing browser.
+         browser = browser_;
++        // Little Browser: put that window on the saved window's space first.
++        lb::OnRestoringIntoWindow(browser, window->extra_data, window->selected_tab_index);
+       } else {
+ #if BUILDFLAG(IS_CHROMEOS)
+         ash::BootTimesRecorder::Get()->AddLoginTimeMarker(
+@@ -1392,6 +1396,8 @@
+     base::TimeTicks now = base::TimeTicks::Now();
+     BrowserWindowInterface* browser_window =
+         CreateBrowserWindow(std::move(params));
++    // Little Browser: put the window back on its space before its tabs come back.
++    lb::OnWindowRestored(browser_window, extra_data);
+     if (auto* manager =
+             InitialWebUIWindowMetricsManager::From(browser_window)) {
+       manager->SetWindowCreationInfo(
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -59,6 +59,7 @@
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/session_storage_namespace_handle.h"
+ #include "content/public/browser/web_contents.h"
++#include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+ #include "ui/base/mojom/window_show_state.mojom.h"
+ #include "ui/base/window_open_disposition.h"
+ 
+@@ -208,6 +209,12 @@
+ BrowserLiveTabContext::GetExtraDataForWindow() const {
+   std::map<std::string, std::string> data;
+ 
++  // Little Browser: a reopened window (Cmd+Shift+T) goes back to its space.
++  if (std::string space_id = lb::GetWindowSpaceId(&browser_.get());
++      !space_id.empty()) {
++    data[lb::kWindowSpaceKey] = std::move(space_id);
++  }
++
+   auto* controller =
+       tabs::VerticalTabStripStateController::From(&browser_.get());
+   if (controller) {
+@@ -563,6 +570,8 @@
+ 
+   BrowserWindowInterface* browser =
+       CreateBrowserWindow(std::move(*create_params));
++  // Little Browser: put the window back on its space before its tabs come back.
++  lb::OnWindowRestored(browser, extra_data);
+ 
+   return BrowserLiveTabContext::From(browser);
+ }

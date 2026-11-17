@@ -1,0 +1,18 @@
+# Little Browser patches, applied after ungoogled-chromium's core and platform patches, in this order.
+# One concern per patch. Format: <path relative to desktop/patches>   # one-line reason
+lb/safe-browsing-standard-only.patch  # standard protection only, local hash-prefix DB, no reporting
+lb/macos-no-ai-sandbox-params.patch   # macOS: non-Safe-Browsing half of an ungoogled patch we skip
+lb/settings-product-icon.patch        # branding: Little Browser mark as the WebUI product icon
+lb/vertical-tabs-default.patch        # sidebar layout (vertical tabs) by default
+lb/sidebar-hooks.patch                # host desktop/lb's sidebar (header + space switcher) in the vertical tab strip
+lb/sidebar-prefs.patch                # register the sidebar's prefs (favourites per profile, spaces browser-wide)
+lb/command-hooks.patch                # Cmd+T / Cmd+L → command bar, Cmd+1…9 → favourites
+lb/tab-metrics-detached-guard.patch   # don't crash on tabs of inactive spaces (detached)
+lb/session-spaces.patch               # restored windows return to their space
+lb/continue-session-default.patch     # "continue where you left off" by default (spaces keep tabs)
+lb/confirm-every-quit.patch           # every quit asks while "Warn Before Quitting" is on
+lb/profile-picker-off-at-startup.patch # launches restore spaces, not the profile picker
+lb/welcome-page-url.patch             # first-run page at chrome://welcome/
+lb/first-run-profile-name.patch       # first run doesn't name the profile "Work"
+lb/mac-data-folder.patch              # macOS data in Application Support/Little Browser
+lb/contents-card.patch                # with vertical tabs, the page is an inset rounded card

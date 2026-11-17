@@ -1,0 +1,23 @@
+# Little Browser: first run doesn't name the profile "Work". With sign-in off, Chromium treats
+# every first run as skipped by policy and names the profile like a managed one; the sidebar
+# names it "Personal" instead.
+diff --git a/chrome/browser/ui/startup/first_run_service.cc b/chrome/browser/ui/startup/first_run_service.cc
+index 7e1709c..f2c9358 100644
+--- a/chrome/browser/ui/startup/first_run_service.cc
++++ b/chrome/browser/ui/startup/first_run_service.cc
+@@ -187,12 +187,10 @@ void FirstRunService::FinishFirstRun(
+                                       signin::ConsentLevel::kSignin));
+     profile_name_resolver_->RunWithProfileName(base::BindOnce(
+         &FirstRunService::FinishProfileSetUp, weak_ptr_factory_.GetWeakPtr()));
+-  } else if (reason ==
+-             ProfilePicker::FirstRunFinishReason::kSkippedByPolicies) {
+-    // TODO(crbug.com/40256886): Try to get a domain name if available.
+-    FinishProfileSetUp(
+-        profiles::GetDefaultNameForNewEnterpriseProfile(std::string()));
+   }
++  // Little Browser: no rename when first run is "skipped by policies". Sign-in is off in
++  // ungoogled-chromium, so every first run ends that way, and Chromium would name the profile
++  // "Work" as if a company managed it. The sidebar names the first profile "Personal".
+ }
+ 
+ void FirstRunService::FinishProfileSetUp(std::u16string profile_name) {
