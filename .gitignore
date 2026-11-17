@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Node (branding)
+node_modules/
+
+# Python
+__pycache__/
+
+# Rust (core)
+target/
+
+# Chromium fork working trees (huge — never commit)
+desktop/build/
+desktop/third_party/
+desktop/out/
+
+# Claude Code session worktrees
+.claude/worktrees/
+
+# Editors
+.vscode/
+.idea/
