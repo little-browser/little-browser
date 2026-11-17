@@ -1,0 +1,10 @@
+[package]
+name = "lb-core"
+description = "Little Browser shared core: data model and sync"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+# No dependencies. Not built yet: uniffi (Swift/Kotlin bindings), cxx (C++ bindings),
+# adblock (Brave's adblock-rust), rusqlite, a CRDT library (Loro or Automerge), iroh (P2P).
+[dependencies]
