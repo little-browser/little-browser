@@ -1,0 +1,1663 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+
+#include <algorithm>
+#include <optional>
+#include <set>
+#include <utility>
+
+#include "base/command_line.h"
+#include "base/containers/span.h"
+#include "base/functional/bind.h"
+#include "base/location.h"
+#include "base/logging.h"
+#include "base/no_destructor.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
+#include "base/uuid.h"
+#include "base/values.h"
+#include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_attributes_entry.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/sessions/session_restore.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_tabrestore.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+#include "chrome/browser/ui/tabs/split_tab_metrics.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/tabs/tab_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/browser_widget.h"
+#include "chrome/common/chrome_constants.h"
+#include "chrome/common/webui_url_constants.h"
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_registry_simple.h"
+#include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
+#include "components/saved_tab_groups/public/saved_tab_group.h"
+#include "components/saved_tab_groups/public/tab_group_sync_service.h"
+#include "components/saved_tab_groups/public/types.h"
+#include "components/sessions/core/serialized_navigation_entry.h"
+#include "components/sessions/core/serialized_user_agent_override.h"
+#include "components/split_tabs/split_tab_id.h"
+#include "components/split_tabs/split_tab_visual_data.h"
+#include "components/tab_groups/tab_group_color.h"
+#include "components/tab_groups/tab_group_id.h"
+#include "components/tab_groups/tab_group_visual_data.h"
+#include "components/tabs/public/split_tab_collection.h"
+#include "components/tabs/public/split_tab_data.h"
+#include "components/tabs/public/tab_group.h"
+#include "components/tabs/public/tab_group_tab_collection.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/web_contents.h"
+#include "lb/browser/ui/views/search/search_choice_dialog.h"
+#include "lb/browser/ui/views/sidebar/new_space_dialog.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/base_window.h"
+#include "ui/base/page_transition_types.h"
+#include "url/url_constants.h"
+
+namespace lb {
+
+namespace {
+
+constexpr char kFavouritesPref[] = "lb.favourites";
+constexpr char kSpacesPref[] = "lb.spaces";  // Local State
+// Local State: id -> the saved tabs of each space no window shows. Kept apart from lb.spaces so
+// saving tabs doesn't notify every window's sidebar (it observes lb.spaces).
+constexpr char kSpaceTabsPref[] = "lb.space_tabs";
+constexpr char kActiveSpacePref[] = "lb.active_space";
+
+// Fills the sidebar with sample data and switches space once (manual testing and the
+// --lb-ui-snapshot tour):
+// --lb-sidebar-demo[=command-bar|collapsed|new-space|new-profile|search-again|
+//                   restore-after-crash|tab-group|split|reopen-window]
+constexpr char kDemoSwitch[] = "lb-sidebar-demo";
+
+std::map<BrowserWindowInterface*, SidebarController*>& Registry() {
+  static base::NoDestructor<std::map<BrowserWindowInterface*, SidebarController*>> registry;
+  return *registry;
+}
+
+// Space a window should start on, set before we create it: windows we open for a space in
+// another profile (SwitchToOtherProfile).
+std::map<std::string, std::string>& PendingByProfile() {
+  static base::NoDestructor<std::map<std::string, std::string>> pending;
+  return *pending;
+}
+
+// A tab nobody has used yet: the new-tab page or a blank page, no history.
+bool IsBlankTab(content::WebContents* contents) {
+  return !contents->GetController().CanGoBack() && IsBlankTabUrl(contents->GetVisibleURL());
+}
+
+// The profile everyone starts with is "Personal", like its first space (Chromium would say
+// "Your Little Browser").
+constexpr char16_t kInitialProfileName[] = u"Personal";
+
+bool IsUnnamedInitialProfile(const ProfileAttributesEntry& entry) {
+  return entry.IsUsingDefaultName() &&
+         entry.GetPath().BaseName().AsUTF8Unsafe() == chrome::kInitialProfile;
+}
+
+std::u16string DisplayName(const ProfileAttributesEntry& entry) {
+  return IsUnnamedInitialProfile(entry) ? kInitialProfileName : entry.GetName();
+}
+
+// Gives the initial profile its name in Chromium's own list too (profile menu, picker,
+// Settings), so every place says "Personal".
+void NameInitialProfile(const base::FilePath& path) {
+  ProfileManager* manager = g_browser_process->profile_manager();
+  ProfileAttributesEntry* entry =
+      manager ? manager->GetProfileAttributesStorage().GetProfileAttributesWithPath(path) : nullptr;
+  if (entry && IsUnnamedInitialProfile(*entry)) {
+    entry->SetLocalProfileName(kInitialProfileName, /*is_default_name=*/false);
+  }
+}
+
+std::u16string ProfileDisplayName(const std::string& base_name) {
+  ProfileManager* manager = g_browser_process->profile_manager();
+  if (!manager) {
+    return base::UTF8ToUTF16(base_name);
+  }
+  ProfileAttributesEntry* entry =
+      manager->GetProfileAttributesStorage().GetProfileAttributesWithPath(
+          manager->user_data_dir().AppendASCII(base_name));
+  return entry ? DisplayName(*entry) : base::UTF8ToUTF16(base_name);
+}
+
+// Saves tab groups in Chromium's saved tab groups once TabGroupSyncService is ready. A group whose
+// earlier saved entry still exists and isn't open elsewhere reconnects to it, as session restore
+// does, instead of being saved again as a new group. Deletes itself.
+class TabGroupSaver : public tab_groups::TabGroupSyncService::Observer {
+ public:
+  using Group = std::pair<tab_groups::TabGroupId, std::string /*saved guid, may be empty*/>;
+
+  static void Start(Profile* profile, std::vector<Group> groups) {
+    tab_groups::TabGroupSyncService* service =
+        tab_groups::TabGroupSyncServiceFactory::GetForProfile(profile);
+    if (!service || groups.empty()) {
+      return;
+    }
+    // Owned by itself until Finish(). AddObserver calls OnInitialized at once if the service is
+    // ready already.
+    service->AddObserver(new TabGroupSaver(service, std::move(groups)));
+  }
+
+  // tab_groups::TabGroupSyncService::Observer:
+  void OnInitialized() override {
+    // Not from inside the notification: saving and connecting notify the service's observers,
+    // and its observer list doesn't allow that while it is notifying.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&TabGroupSaver::Save, weak_factory_.GetWeakPtr()));
+  }
+  void OnWillBeDestroyed() override { Finish(); }
+
+ private:
+  TabGroupSaver(tab_groups::TabGroupSyncService* service, std::vector<Group> groups)
+      : service_(service), groups_(std::move(groups)) {}
+  ~TabGroupSaver() override = default;
+
+  void Save() {
+    for (const auto& [local_id, guid] : groups_) {
+      // Only groups still in a tab strip (not parked meanwhile) and not saved yet.
+      BrowserWindowInterface* browser =
+          tab_groups::SavedTabGroupUtils::GetBrowserWithTabGroupId(local_id);
+      if (!browser || browser->GetTabStripModel()->IsEphemeralTabGroup(local_id) ||
+          service_->GetGroup(local_id)) {
+        continue;
+      }
+      const base::Uuid saved_guid = base::Uuid::ParseLowercase(guid);
+      if (saved_guid.is_valid()) {
+        // Connecting to a group that doesn't exist would close the local one, so check first.
+        if (std::optional<tab_groups::SavedTabGroup> saved = service_->GetGroup(saved_guid);
+            saved && !saved->local_group_id()) {
+          VLOG(1) << "lb: tab group reconnected to its saved group";
+          service_->ConnectLocalTabGroup(saved_guid, local_id,
+                                         tab_groups::OpeningSource::kConnectOnSessionRestore);
+          continue;
+        }
+      }
+      VLOG(1) << "lb: tab group saved as a new group";
+      service_->SaveGroup(tab_groups::SavedTabGroupUtils::CreateSavedTabGroupFromLocalId(local_id));
+    }
+    VLOG(1) << "lb: saved tab groups: " << service_->GetAllGroups().size();
+    Finish();
+  }
+
+  void Finish() {
+    service_->RemoveObserver(this);
+    delete this;
+  }
+
+  raw_ptr<tab_groups::TabGroupSyncService> service_;
+  const std::vector<Group> groups_;
+  base::WeakPtrFactory<TabGroupSaver> weak_factory_{this};
+};
+
+}  // namespace
+
+SkColor SpaceTint(int hue) {
+  const SkScalar hsv[3] = {static_cast<SkScalar>((hue % 360 + 360) % 360), 0.55f, 0.85f};
+  return SkHSVToColor(hsv);
+}
+
+SidebarController::ParkedSpace::ParkedSpace() = default;
+SidebarController::ParkedSpace::ParkedSpace(ParkedSpace&&) = default;
+SidebarController::ParkedSpace& SidebarController::ParkedSpace::operator=(ParkedSpace&&) = default;
+SidebarController::ParkedSpace::~ParkedSpace() = default;
+
+std::vector<tabs::TabInterface*> SidebarController::ParkedSpace::Tabs() const {
+  std::vector<tabs::TabInterface*> result;
+  for (const auto& item : items) {
+    if (const auto* tab = std::get_if<std::unique_ptr<DetachedTab>>(&item)) {
+      result.push_back((*tab)->tab.get());
+    } else if (const auto* collection =
+                   std::get_if<std::unique_ptr<DetachedTabCollection>>(&item)) {
+      std::visit(
+          [&](const auto& c) {
+            for (tabs::TabInterface* t : c->GetTabsRecursive()) {
+              result.push_back(t);
+            }
+          },
+          (*collection)->collection_);
+    }
+  }
+  return result;
+}
+
+SidebarController::SidebarController(BrowserWindowInterface* browser)
+    : browser_(browser), is_private_(browser->GetProfile()->IsOffTheRecord()) {
+  Registry()[browser_] = this;
+  registrar_.Init(prefs());
+  registrar_.Add(kFavouritesPref,
+                 base::BindRepeating(&SidebarController::NotifyChanged, base::Unretained(this)));
+  if (is_private_) {
+    return;
+  }
+
+  EnsureSpaceForProfile();
+  // A window opened for a space the user picked (another profile's space, SwitchToOtherProfile).
+  if (auto it = PendingByProfile().find(GetProfileBaseName()); it != PendingByProfile().end()) {
+    active_id_ = it->second;
+    explicit_space_ = true;
+    PendingByProfile().erase(it);
+  }
+  const auto spaces = GetSpaces();
+  if (active_id_.empty() || IsSpaceInUse(active_id_) ||
+      std::ranges::none_of(spaces, [&](const Space& s) { return s.id == active_id_; })) {
+    active_id_ = ChooseInitialSpace();
+    explicit_space_ = false;
+  }
+
+  local_registrar_.Init(local_state());
+  local_registrar_.Add(
+      kSpacesPref, base::BindRepeating(&SidebarController::NotifyChanged, base::Unretained(this)));
+  browser_->GetTabStripModel()->AddObserver(this);
+
+  static bool demo_done = false;  // first window only: windows it opens don't repeat it
+  if (!demo_done && base::CommandLine::ForCurrentProcess()->HasSwitch(kDemoSwitch)) {
+    demo_done = true;
+    SeedDemoData();
+  }
+
+  // After the window's first tabs are in: fill a fresh window with the space's saved tabs,
+  // record the window's space in the session, and offer the search engine choice.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<SidebarController> self) {
+                       if (self) {
+                         self->LoadSavedTabs();
+                         self->SaveWindowSpace();
+                         self->ApplyTint();
+                       }
+                     },
+                     GetWeakPtr()));
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<SidebarController> self) {
+            if (self) {
+              MaybeShowSearchChoice(self->browser());
+            }
+          },
+          GetWeakPtr()),
+      base::Seconds(1));
+}
+
+SidebarController::~SidebarController() {
+  Registry().erase(browser_);
+}
+
+// static
+SidebarController* SidebarController::FromBrowser(BrowserWindowInterface* browser) {
+  auto it = Registry().find(browser);
+  return it == Registry().end() ? nullptr : it->second;
+}
+
+void SidebarController::AddObserver(Observer* observer) {
+  observers_.AddObserver(observer);
+}
+
+void SidebarController::RemoveObserver(Observer* observer) {
+  observers_.RemoveObserver(observer);
+}
+
+base::WeakPtr<SidebarController> SidebarController::GetWeakPtr() {
+  return weak_factory_.GetWeakPtr();
+}
+
+PrefService* SidebarController::prefs() const {
+  // The original profile's prefs, also in private windows: an incognito profile's prefs are an
+  // in-memory overlay, so favourites changed there would never reach the real profile.
+  return browser_->GetProfile()->GetOriginalProfile()->GetPrefs();
+}
+
+PrefService* SidebarController::local_state() const {
+  return g_browser_process->local_state();
+}
+
+std::string SidebarController::GetProfileBaseName() const {
+  return browser_->GetProfile()->GetOriginalProfile()->GetBaseName().AsUTF8Unsafe();
+}
+
+void SidebarController::NotifyChanged() {
+  for (Observer& observer : observers_) {
+    observer.OnSidebarModelChanged();
+  }
+}
+
+// ---------------------------------------------------------------- favourites
+
+namespace {
+
+// A saved favourite, or null for a malformed entry (skipped everywhere).
+std::optional<Favourite> FavouriteFromValue(const base::Value& value) {
+  if (!value.is_dict()) {
+    return std::nullopt;
+  }
+  const std::string* title = value.GetDict().FindString("title");
+  const std::string* url = value.GetDict().FindString("url");
+  if (!url || !GURL(*url).is_valid()) {
+    return std::nullopt;
+  }
+  return Favourite{title ? *title : *url, GURL(*url)};
+}
+
+}  // namespace
+
+std::vector<Favourite> SidebarController::GetFavourites() const {
+  std::vector<Favourite> result;
+  for (const base::Value& value : prefs()->GetList(kFavouritesPref)) {
+    if (std::optional<Favourite> favourite = FavouriteFromValue(value)) {
+      result.push_back(std::move(*favourite));
+    }
+  }
+  return result;
+}
+
+bool SidebarController::CanAddCurrentTab() const {
+  content::WebContents* contents = browser_->GetTabStripModel()->GetActiveWebContents();
+  if (is_private_ || !contents || !contents->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
+    return false;
+  }
+  const GURL url = contents->GetLastCommittedURL();
+  return std::ranges::none_of(GetFavourites(),
+                              [&](const Favourite& f) { return SameSite(f.url, url); });
+}
+
+void SidebarController::AddCurrentTabToFavourites() {
+  if (!CanAddCurrentTab()) {
+    return;
+  }
+  content::WebContents* contents = browser_->GetTabStripModel()->GetActiveWebContents();
+  base::DictValue dict;
+  dict.Set("title", base::UTF16ToUTF8(contents->GetTitle()));
+  dict.Set("url", contents->GetLastCommittedURL().spec());
+  ScopedListPrefUpdate(*prefs(), kFavouritesPref)->Append(std::move(dict));
+}
+
+void SidebarController::RemoveFavourite(size_t index) {
+  // `index` counts only the valid entries GetFavourites() returns; skip malformed ones here too.
+  ScopedListPrefUpdate update(*prefs(), kFavouritesPref);
+  size_t valid = 0;
+  for (auto it = update->begin(); it != update->end(); ++it) {
+    if (!FavouriteFromValue(*it)) {
+      continue;
+    }
+    if (valid++ == index) {
+      update->erase(it);
+      return;
+    }
+  }
+}
+
+void SidebarController::OpenFavourite(size_t index) {
+  const auto favourites = GetFavourites();
+  if (index >= favourites.size()) {
+    return;
+  }
+  const GURL& url = favourites[index].url;
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (int i = 0; i < model->count(); ++i) {
+    if (SameSite(model->GetWebContentsAt(i)->GetLastCommittedURL(), url)) {
+      model->ActivateTabAt(i);
+      return;
+    }
+  }
+  chrome::AddTabAt(browser_, url, -1, /*foreground=*/true);
+}
+
+// ---------------------------------------------------------------- spaces: storage
+
+void SidebarController::AppendSpace(const Space& space) {
+  ScopedListPrefUpdate(*local_state(), kSpacesPref)->Append(SpaceToDict(space));
+}
+
+void SidebarController::EnsureSpaceForProfile() {
+  NameInitialProfile(browser()->GetProfile()->GetOriginalProfile()->GetPath());
+  const std::string profile = GetProfileBaseName();
+  const auto spaces = GetSpaces();
+  if (std::ranges::any_of(spaces, [&](const Space& s) { return s.profile == profile; })) {
+    return;
+  }
+  // First space of a profile: "Personal" for the default profile, else the profile's name.
+  const bool first_ever = spaces.empty();
+  Space space{base::Uuid::GenerateRandomV4().AsLowercaseString(),
+              first_ever ? "Personal" : base::UTF16ToUTF8(ProfileDisplayName(profile)),
+              NextSpaceIcon(spaces),
+              NextSpaceHue(spaces),
+              profile,
+              u""};
+  AppendSpace(space);
+}
+
+std::string SidebarController::ChooseInitialSpace() {
+  // The profile's last active space, else its first space that no window shows, else a new one.
+  const std::string profile = GetProfileBaseName();
+  const auto spaces = GetSpaces();
+  if (std::optional<std::string> id = ChooseSpaceForWindow(
+          spaces, profile, prefs()->GetString(kActiveSpacePref),
+          [this](const std::string& space_id) { return IsSpaceInUse(space_id); },
+          browser_->CreatedBySessionRestore())) {
+    return *id;
+  }
+  return CreateEmptySpace();
+}
+
+std::string SidebarController::CreateEmptySpace() {
+  const auto spaces = GetSpaces();
+  Space space{base::Uuid::GenerateRandomV4().AsLowercaseString(),
+              NextSpaceName(spaces),
+              NextSpaceIcon(spaces),
+              NextSpaceHue(spaces),
+              GetProfileBaseName(),
+              u""};
+  AppendSpace(space);
+  return space.id;
+}
+
+bool SidebarController::IsSpaceInUse(const std::string& space_id) const {
+  // Shown by another window, or its live tabs are parked in a window (this one included).
+  if (OwnerOf(space_id)) {
+    return true;
+  }
+  for (const auto& [browser, controller] : Registry()) {
+    if (auto it = controller->detached_.find(space_id);
+        it != controller->detached_.end() && !it->second.items.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::vector<Space> SidebarController::GetSpaces() const {
+  if (is_private_) {
+    return {Space{"private", "Private", "\U0001F576️", 270, "", u""}};
+  }
+  std::vector<Space> result;
+  for (const base::Value& value : local_state()->GetList(kSpacesPref)) {
+    if (!value.is_dict()) {
+      continue;
+    }
+    std::optional<Space> space = SpaceFromDict(value.GetDict(), chrome::kInitialProfile);
+    if (!space) {
+      continue;
+    }
+    space->profile_name = ProfileDisplayName(space->profile);
+    result.push_back(std::move(*space));
+  }
+  return result;
+}
+
+size_t SidebarController::GetActiveIndex() const {
+  const auto spaces = GetSpaces();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (spaces[i].id == active_id_) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+std::string SidebarController::GetActiveSpaceId() const {
+  return is_private_ ? std::string() : active_id_;
+}
+
+SidebarController* SidebarController::OwnerOf(const std::string& space_id) const {
+  for (const auto& [browser, controller] : Registry()) {
+    if (controller != this && !controller->is_private_ && controller->active_id_ == space_id) {
+      return controller;
+    }
+  }
+  return nullptr;
+}
+
+SidebarController::ParkedSpace SidebarController::TakeParkedSpace(const std::string& space_id) {
+  for (const auto& [browser, controller] : Registry()) {
+    if (controller->is_private_ || controller->GetProfileBaseName() != GetProfileBaseName()) {
+      continue;
+    }
+    if (auto it = controller->detached_.find(space_id); it != controller->detached_.end()) {
+      ParkedSpace parked = std::move(it->second);
+      controller->detached_.erase(it);
+      return parked;
+    }
+  }
+  return {};
+}
+
+// ---------------------------------------------------------------- spaces: saving
+
+void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
+                                               const TabStripModelChange& change,
+                                               const TabStripSelectionChange& selection) {
+  ScheduleSave();
+}
+
+void SidebarController::OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) {
+  ScheduleSave();
+}
+
+void SidebarController::ScheduleSave() {
+  if (is_private_) {
+    return;
+  }
+  save_timer_.Start(FROM_HERE, base::Seconds(1),
+                    base::BindOnce(&SidebarController::SaveActiveTabs, base::Unretained(this)));
+}
+
+void SidebarController::SaveActiveTabs() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  // A closing window empties its strip tab by tab; keep the last state instead.
+  if (is_private_ || model->closing_all() || model->empty()) {
+    return;
+  }
+  base::ListValue records;
+  const tabs::TabInterface* const active = model->GetActiveTab();
+  tab_groups::TabGroupSyncService* group_service =
+      tab_groups::TabGroupSyncServiceFactory::GetForProfile(browser_->GetProfile());
+  std::map<tab_groups::TabGroupId, std::string> saved_guids;  // one lookup per group
+  // Walk the tabs themselves: index lookups are linear in the tab tree.
+  for (tabs::TabInterface* strip_tab : *model) {
+    content::WebContents* contents = strip_tab->GetContents();
+    const GURL url = contents->GetLastCommittedURL().is_empty() ? contents->GetVisibleURL()
+                                                                : contents->GetLastCommittedURL();
+    if (IsBlankTab(contents)) {
+      continue;
+    }
+    SavedTab tab{url, contents->GetTitle(), strip_tab->IsPinned(), strip_tab == active};
+    if (const std::optional<tab_groups::TabGroupId> group = strip_tab->GetGroup()) {
+      tab.group_id = group->ToString();
+      if (const TabGroup* tab_group = model->group_model()->GetTabGroup(*group)) {
+        const tab_groups::TabGroupVisualData* visuals = tab_group->visual_data();
+        tab.group_title = visuals->title();
+        tab.group_color = static_cast<int>(visuals->color());
+        tab.group_collapsed = visuals->is_collapsed();
+      }
+      auto [it, inserted] = saved_guids.try_emplace(*group);
+      if (inserted && group_service) {
+        if (std::optional<tab_groups::SavedTabGroup> saved_group =
+                group_service->GetGroup(*group)) {
+          it->second = saved_group->saved_guid().AsLowercaseString();
+        }
+      }
+      tab.group_saved_guid = it->second;
+    }
+    if (const std::optional<split_tabs::SplitTabId> split = strip_tab->GetSplit()) {
+      tab.split_id = split->ToString();
+      if (const split_tabs::SplitTabData* data = model->GetSplitData(*split)) {
+        tab.split_layout = static_cast<int>(data->visual_data()->split_layout());
+        tab.split_ratio = data->visual_data()->split_ratio();
+      }
+    }
+    records.Append(SavedTabToDict(tab));
+  }
+  // Compare first: an unchanged list needn't rewrite Local State.
+  if (const base::ListValue* old = SavedTabs(active_id_); old && *old == records) {
+    return;
+  }
+  ScopedDictPrefUpdate(*local_state(), kSpaceTabsPref)->Set(active_id_, std::move(records));
+}
+
+const base::ListValue* SidebarController::SavedTabs(const std::string& space_id) const {
+  return local_state()->GetDict(kSpaceTabsPref).FindList(space_id);
+}
+
+void SidebarController::SaveWindowSpace() {
+  if (is_private_) {
+    return;
+  }
+  prefs()->SetString(kActiveSpacePref, active_id_);
+  if (SessionService* session =
+          SessionServiceFactory::GetForProfileIfExisting(browser_->GetProfile())) {
+    session->AddWindowExtraData(browser_->GetSessionID(), kWindowSpaceKey, active_id_);
+  }
+}
+
+void SidebarController::LoadSavedTabs() {
+  if (is_private_ || restored_ || browser_->CreatedBySessionRestore()) {
+    return;
+  }
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (tabs::TabInterface* tab : *model) {
+    if (!IsBlankTab(tab->GetContents())) {
+      // Opened with real tabs (a link, a dragged-out tab): keep them. They must not replace the
+      // saved tabs of the space this window was put on, so such a space gives way to a free empty
+      // one (a new one if there is none).
+      if (const base::ListValue* saved = SavedTabs(active_id_); saved && !saved->empty()) {
+        active_id_ = FreeEmptySpace();
+        ApplyTint();
+        NotifyChanged();
+      }
+      return;
+    }
+  }
+  const std::vector<tabs::TabInterface*> blanks(model->begin(), model->end());
+  const base::ListValue* list = SavedTabs(active_id_);
+  const std::vector<SavedTab> saved = list ? SavedTabsFromList(*list) : std::vector<SavedTab>();
+  if (saved.empty()) {
+    return;
+  }
+  // Remember the copies opened here: a crash restore into this window replaces the ones still
+  // untouched (FinishRestoredTabs).
+  const std::vector<tabs::TabInterface*> added = AddSavedTabs(saved);
+  for (size_t i = 0; i < added.size(); ++i) {
+    if (added[i]) {
+      loaded_copies_.emplace_back(added[i]->GetHandle(), saved[i].url);
+    }
+  }
+  CloseTabs(blanks);
+}
+
+void SidebarController::CloseTabs(const std::vector<tabs::TabInterface*>& tabs) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (tabs::TabInterface* tab : tabs) {
+    const int index = tab ? model->GetIndexOfTab(tab) : -1;
+    if (index >= 0 && model->count() > 1) {  // never the last tab: that would close the window
+      model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+    }
+  }
+}
+
+std::string SidebarController::FreeEmptySpace() {
+  for (const Space& s : GetSpaces()) {
+    const base::ListValue* saved = SavedTabs(s.id);
+    if (s.profile == GetProfileBaseName() && s.id != active_id_ && !IsSpaceInUse(s.id) &&
+        (!saved || saved->empty())) {
+      return s.id;
+    }
+  }
+  return CreateEmptySpace();
+}
+
+std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(
+    const std::vector<SavedTab>& saved) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  // Each saved group gets a fresh id, as session restore does (crbug.com/40055647).
+  std::vector<std::optional<tab_groups::TabGroupId>> group_of(saved.size());
+  std::vector<tab_groups::TabGroupId> groups;
+  if (model->SupportsTabGroups()) {
+    for (const std::vector<size_t>& run : SavedTabGroups(saved)) {
+      const tab_groups::TabGroupId id = tab_groups::TabGroupId::GenerateNew();
+      bool used = false;
+      for (size_t i : run) {
+        if (!saved[i].pinned) {  // pinned tabs can't be grouped
+          group_of[i] = id;
+          used = true;
+        }
+      }
+      if (used) {
+        groups.push_back(id);
+      }
+    }
+  }
+  // As session restore does: the tabs are created hidden with their saved title and load when
+  // first shown (one navigation entry each, no history). None is selected here, because selecting
+  // would also bring the window to the front.
+  std::vector<tabs::TabInterface*> added(saved.size(), nullptr);
+  for (size_t i = 0; i < saved.size(); ++i) {
+    sessions::SerializedNavigationEntry entry;
+    entry.set_index(0);
+    entry.set_virtual_url(saved[i].url);
+    entry.set_original_request_url(saved[i].url);
+    entry.set_title(saved[i].title);
+    entry.set_transition_type(ui::PAGE_TRANSITION_AUTO_BOOKMARK);
+    entry.set_timestamp(base::Time::Now());
+    content::WebContents* contents = chrome::AddRestoredTab(
+        browser_, base::span(&entry, 1u), model->count(), /*selected_navigation=*/0,
+        /*extension_app_id=*/std::string(), group_of[i], /*select=*/false, saved[i].pinned,
+        base::TimeTicks(), base::Time(), /*storage_namespace=*/nullptr,
+        sessions::SerializedUserAgentOverride(), /*extra_data=*/{}, /*from_session_restore=*/false,
+        /*is_active_browser=*/std::nullopt);
+    added[i] = contents ? tabs::TabInterface::GetFromContents(contents) : nullptr;
+  }
+  // Tab groups get their title, colour and collapsed state back, and are saved like any group.
+  std::vector<std::pair<tab_groups::TabGroupId, std::string>> to_save;
+  for (const tab_groups::TabGroupId& id : groups) {
+    const size_t first = static_cast<size_t>(
+        std::ranges::find(group_of, std::optional<tab_groups::TabGroupId>(id)) - group_of.begin());
+    if (model->group_model()->ContainsTabGroup(id)) {
+      // The uint32_t constructor maps an unknown colour (e.g. from a newer build) to grey.
+      model->ChangeTabGroupVisuals(
+          id, tab_groups::TabGroupVisualData(saved[first].group_title,
+                                             static_cast<uint32_t>(saved[first].group_color),
+                                             saved[first].group_collapsed));
+    }
+    to_save.emplace_back(id, saved[first].group_saved_guid);
+  }
+  TabGroupSaver::Start(browser_->GetProfile(), std::move(to_save));
+  // Split views too (after the groups: a split can sit inside a group).
+  for (const std::vector<size_t>& split : SavedTabSplits(saved)) {
+    std::vector<int> indices;
+    for (size_t i : split) {
+      if (const int index = added[i] ? model->GetIndexOfTab(added[i]) : -1; index >= 0) {
+        indices.push_back(index);
+      }
+    }
+    if (indices.size() != 2 || model->IsTabPinned(indices[0]) != model->IsTabPinned(indices[1]) ||
+        model->GetSplitForTab(indices[0]) || model->GetSplitForTab(indices[1])) {
+      continue;
+    }
+    std::ranges::sort(indices);  // RestoreSplit CHECKs that they are sorted
+    const SavedTab& first = saved[split.front()];
+    const auto layout = first.split_layout == static_cast<int>(split_tabs::SplitTabLayout::kStacked)
+                            ? split_tabs::SplitTabLayout::kStacked
+                            : split_tabs::SplitTabLayout::kSideBySide;
+    model->RestoreSplit(split_tabs::SplitTabId::GenerateNew(), indices,
+                        split_tabs::SplitTabVisualData(layout, first.split_ratio));
+  }
+  // Show the space's active tab (this loads it).
+  const size_t active = ActiveSavedTab(saved);
+  tabs::TabInterface* show = active < added.size() && added[active] ? added[active] : nullptr;
+  if (!show) {
+    const auto it = std::ranges::find_if(added, [](tabs::TabInterface* t) { return t; });
+    show = it == added.end() ? nullptr : *it;
+  }
+  if (show) {
+    model->ActivateTab(show);
+  }
+  return added;
+}
+
+void SidebarController::UnsaveTabGroups(const std::set<tab_groups::TabGroupId>& groups) {
+  tab_groups::TabGroupSyncService* service =
+      tab_groups::TabGroupSyncServiceFactory::GetForProfile(browser_->GetProfile());
+  if (!service) {
+    return;
+  }
+  for (const tab_groups::TabGroupId& id : groups) {
+    if (service->GetGroup(id)) {
+      service->UnsaveGroup(id);
+    }
+  }
+}
+
+void SidebarController::ParkTabs(const std::string& space_id,
+                                 const std::vector<tabs::TabInterface*>& tabs,
+                                 tabs::TabInterface* active) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  std::vector<int> indices;
+  std::set<tab_groups::TabGroupId> groups;
+  for (tabs::TabInterface* tab : tabs) {
+    if (const int index = tab ? model->GetIndexOfTab(tab) : -1; index >= 0) {
+      indices.push_back(index);
+      if (const std::optional<tab_groups::TabGroupId> group = tab->GetGroup()) {
+        groups.insert(*group);
+      }
+    }
+  }
+  if (indices.empty()) {
+    return;
+  }
+  std::ranges::sort(indices);
+  // Chromium's saved tab groups expect every group they track to be in some window: a parked
+  // group is unsaved, and saved again when it comes back (UnparkSpace).
+  UnsaveTabGroups(groups);
+  ParkedSpace& store = detached_[space_id];
+  if (active && std::ranges::find(tabs, active) != tabs.end()) {
+    store.active = active->GetHandle();
+  }
+  for (auto& item : model->DetachTabsAndCollectionsForInsertion(indices)) {
+    store.items.push_back(std::move(item));
+  }
+  // Inactive spaces sleep: frozen pages run no scripts or timers, so nothing in them can reach
+  // code that expects the tab to be in a window.
+  for (tabs::TabInterface* tab : store.Tabs()) {
+    tab->GetContents()->SetPageFrozen(true);
+  }
+}
+
+tabs::TabInterface* SidebarController::UnparkSpace(ParkedSpace parked) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  const std::vector<tabs::TabInterface*> parked_tabs = parked.Tabs();
+  for (tabs::TabInterface* tab : parked_tabs) {
+    tab->GetContents()->SetPageFrozen(false);
+  }
+  // As Chromium's own "move tabs to another window" does (chrome::MoveTabsToExistingWindow).
+  for (auto& item : parked.items) {
+    if (auto* tab = std::get_if<std::unique_ptr<DetachedTab>>(&item)) {
+      const bool pinned = (*tab)->was_pinned_at_time_of_removal;
+      model->InsertDetachedTabAt(model->count(), std::move((*tab)->tab),
+                                 pinned ? AddTabTypes::ADD_PINNED : AddTabTypes::ADD_NONE);
+    } else if (auto* collection = std::get_if<std::unique_ptr<DetachedTabCollection>>(&item)) {
+      if (std::holds_alternative<std::unique_ptr<tabs::TabGroupTabCollection>>(
+              (*collection)->collection_)) {
+        model->InsertDetachedTabGroupAt(std::move(*collection), model->count());
+      } else {
+        const bool pinned = (*collection)->pinned_;
+        model->InsertDetachedSplitTabAt(std::move(*collection),
+                                        pinned ? model->IndexOfFirstNonPinnedTab() : model->count(),
+                                        pinned);
+      }
+    }
+  }
+  // Its groups were unsaved while parked (see ParkTabs): save them again.
+  std::vector<std::pair<tab_groups::TabGroupId, std::string>> groups;
+  for (tabs::TabInterface* tab : parked_tabs) {
+    if (const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
+        group && std::ranges::none_of(groups, [&](const auto& g) { return g.first == *group; })) {
+      groups.emplace_back(*group, std::string());
+    }
+  }
+  TabGroupSaver::Start(browser_->GetProfile(), std::move(groups));
+  tabs::TabInterface* active = parked.active.Get();
+  if ((!active || model->GetIndexOfTab(active) < 0) && !parked_tabs.empty()) {
+    active = parked_tabs.front();
+  }
+  return active;
+}
+
+void SidebarController::PrepareForRestoredTabs(const std::string& space_id,
+                                               int selected_tab_index) {
+  if (is_private_) {
+    return;
+  }
+  // The tabs here now belong to the window's current space: save them. Session restore adds the
+  // saved window's tabs right after this; FinishRestoredTabs then sorts the two sets out.
+  save_timer_.Stop();
+  SaveActiveTabs();
+  restored_ = true;
+  TabStripModel* model = browser_->GetTabStripModel();
+  std::vector<tabs::TabHandle> old_tabs;
+  for (tabs::TabInterface* tab : *model) {
+    old_tabs.push_back(tab->GetHandle());
+  }
+  tabs::TabInterface* old_active = model->GetActiveTab();
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&SidebarController::FinishRestoredTabs, GetWeakPtr(), space_id,
+                                selected_tab_index, std::move(old_tabs),
+                                old_active ? old_active->GetHandle() : tabs::TabHandle()));
+}
+
+void SidebarController::FinishRestoredTabs(const std::string& space_id,
+                                           int selected_tab_index,
+                                           std::vector<tabs::TabHandle> old_tabs,
+                                           tabs::TabHandle old_active) {
+  TabStripModel* model = browser_->GetTabStripModel();
+  std::set<tabs::TabInterface*> old_set;
+  for (const tabs::TabHandle& handle : old_tabs) {
+    if (tabs::TabInterface* tab = handle.Get()) {
+      old_set.insert(tab);
+    }
+  }
+  std::vector<tabs::TabInterface*> old, restored;
+  for (tabs::TabInterface* tab : *model) {
+    (old_set.contains(tab) ? old : restored).push_back(tab);
+  }
+  if (restored.empty()) {
+    return;
+  }
+  // Session restore selects none of the tabs it adds to a window that has tabs already.
+  tabs::TabInterface* selected =
+      selected_tab_index >= 0 && static_cast<size_t>(selected_tab_index) < restored.size()
+          ? restored[static_cast<size_t>(selected_tab_index)]
+          : restored.front();
+  const auto spaces = GetSpaces();
+  const bool known = !space_id.empty() && std::ranges::any_of(spaces, [&](const Space& s) {
+    return s.id == space_id && s.profile == GetProfileBaseName();
+  });
+
+  if (known && space_id == active_id_) {
+    // Same space: the restored tabs replace the copies LoadSavedTabs opened, if untouched since.
+    // Anything else (tabs opened or navigated meanwhile) stays.
+    std::vector<tabs::TabInterface*> copies;
+    for (const auto& [handle, url] : loaded_copies_) {
+      tabs::TabInterface* tab = handle.Get();
+      if (tab && old_set.contains(tab) &&
+          tab->GetContents()->GetController().GetEntryCount() <= 1 &&
+          tab->GetContents()->GetLastCommittedURL() == url) {
+        copies.push_back(tab);
+      }
+    }
+    model->ActivateTab(selected);
+    CloseTabs(copies);
+  } else if (known && !IsSpaceInUse(space_id) && !explicit_space_) {
+    // Another free space: the window moves to it, and its previous space's tabs are parked (as on
+    // a space switch), not closed.
+    model->ActivateTab(selected);
+    ParkTabs(active_id_, old, old_active.Get());
+    active_id_ = space_id;
+    SaveWindowSpace();
+    ApplyTint();
+    NotifyChanged();
+  } else if (known && !IsSpaceInUse(space_id)) {
+    // The user picked this window's space (the window was opened for it): keep it, and park the
+    // restored tabs as their own space instead.
+    ParkTabs(space_id, restored, selected);
+  } else {
+    // The restored space is shown or parked elsewhere, or gone: keep the tabs here (as Chromium
+    // does), so nothing is lost.
+    model->ActivateTab(selected);
+  }
+  loaded_copies_.clear();
+  if (SessionService* session =
+          SessionServiceFactory::GetForProfileIfExisting(browser_->GetProfile())) {
+    session->ResetFromCurrentBrowsers();
+  }
+}
+
+// ---------------------------------------------------------------- spaces: switching
+
+void SidebarController::RestoreSpace(const std::string& space_id) {
+  if (is_private_) {
+    return;
+  }
+  restored_ = true;
+  const bool known = std::ranges::any_of(GetSpaces(), [&](const Space& s) {
+    return s.id == space_id && s.profile == GetProfileBaseName();
+  });
+  if (known && !IsSpaceInUse(space_id)) {
+    active_id_ = space_id;
+  } else if (IsSpaceInUse(active_id_)) {
+    // The saved space is shown or parked elsewhere, and so is the one picked for this window:
+    // the restored tabs get a space of their own rather than doubling up another window's.
+    active_id_ = FreeEmptySpace();
+  } else {
+    return;
+  }
+  VLOG(1) << "lb: restored window on space " << active_id_ << " (saved on " << space_id << ")";
+  ApplyTint();
+  NotifyChanged();
+  SaveWindowSpace();
+}
+
+void SidebarController::ShowInPlaceOf(SidebarController* other) {
+  // Bring this window up exactly where `other` is, then hide `other` (it keeps its space).
+  ui::BaseWindow* window = browser_->GetWindow();
+  ui::BaseWindow* old_window = other->browser()->GetWindow();
+  window->SetBounds(old_window->GetBounds());
+  window->Show();
+  window->Activate();
+  if (other->GetProfileBaseName() != GetProfileBaseName()) {
+    old_window->Hide();
+  }
+}
+
+void SidebarController::SwitchToOtherProfile(const Space& space) {
+  // A window of the other profile that shows the space already.
+  if (SidebarController* owner = OwnerOf(space.id)) {
+    owner->ShowInPlaceOf(this);
+    return;
+  }
+  // A window of that profile that holds the space's live tabs parked: switch it to the space.
+  for (const auto& [browser, controller] : Registry()) {
+    if (!controller->is_private_ && controller->GetProfileBaseName() == space.profile &&
+        controller->detached_.contains(space.id)) {
+      const auto spaces = controller->GetSpaces();
+      const auto it =
+          std::ranges::find_if(spaces, [&](const Space& s) { return s.id == space.id; });
+      if (it != spaces.end()) {
+        controller->ShowInPlaceOf(this);
+        controller->SwitchTo(static_cast<size_t>(it - spaces.begin()));
+        return;
+      }
+    }
+  }
+  ProfileManager* manager = g_browser_process->profile_manager();
+  const base::FilePath path = manager->user_data_dir().AppendASCII(space.profile);
+  auto open = base::BindOnce(
+      [](base::WeakPtr<SidebarController> self, std::string space_id, std::string profile_name,
+         Profile* profile) {
+        if (!self || !profile) {
+          return;
+        }
+        PendingByProfile()[profile_name] = space_id;
+        BrowserWindowCreateParams params(profile, /*from_user_gesture=*/true);
+        params.initial_bounds = self->browser()->GetWindow()->GetBounds();
+        BrowserWindowInterface* window = CreateBrowserWindow(std::move(params));
+        if (!window) {
+          PendingByProfile().erase(profile_name);
+          return;
+        }
+        // A window needs a tab; LoadSavedTabs replaces it with the space's tabs.
+        chrome::AddTabAt(window, GURL(), -1, /*foreground=*/true);
+        if (SidebarController* controller = SidebarController::FromBrowser(window)) {
+          controller->ShowInPlaceOf(self.get());
+        } else {
+          window->GetWindow()->Show();
+        }
+      },
+      GetWeakPtr(), space.id, space.profile);
+  if (Profile* profile = manager->GetProfileByPath(path)) {
+    std::move(open).Run(profile);
+  } else {
+    manager->LoadProfileByPath(path, /*incognito=*/false, std::move(open));
+  }
+}
+
+void SidebarController::SwitchTo(size_t index) {
+  const auto spaces = GetSpaces();
+  if (is_private_ || index >= spaces.size() || spaces[index].id == active_id_) {
+    return;
+  }
+  const Space& target = spaces[index];
+  if (target.profile != GetProfileBaseName()) {
+    SwitchToOtherProfile(target);
+    return;
+  }
+  if (SidebarController* owner = OwnerOf(target.id)) {
+    owner->browser()->GetWindow()->Activate();  // another window of this profile shows it
+    return;
+  }
+  const std::string target_id = target.id;
+  TabStripModel* model = browser_->GetTabStripModel();
+  save_timer_.Stop();
+  SaveActiveTabs();
+
+  // 1. Remember the outgoing tabs.
+  std::vector<tabs::TabInterface*> outgoing;
+  for (int i = 0; i < model->count(); ++i) {
+    outgoing.push_back(model->GetTabAtIndex(i));
+  }
+
+  // 2. Bring in the target space's tabs first: Chromium closes a window whose tab strip
+  //    becomes empty, so the strip must never be empty in between. The space's last active tab
+  //    is shown again (docs/ux.md §5).
+  tabs::TabInterface* const outgoing_active = model->GetActiveTab();
+  tabs::TabInterface* to_activate = nullptr;
+  if (ParkedSpace parked = TakeParkedSpace(target_id); !parked.items.empty()) {
+    to_activate = UnparkSpace(std::move(parked));
+  } else if (const base::ListValue* list = SavedTabs(target_id)) {
+    const std::vector<SavedTab> saved = SavedTabsFromList(*list);
+    if (std::ranges::any_of(AddSavedTabs(saved), [](tabs::TabInterface* t) { return t; })) {
+      to_activate = model->GetActiveTab();
+    }
+  }
+  if (!to_activate) {
+    content::WebContents* contents =
+        chrome::AddAndReturnTabAt(browser_, GURL(), -1, /*foreground=*/true);
+    to_activate = contents ? tabs::TabInterface::GetFromContents(contents) : nullptr;
+  }
+  if (to_activate) {
+    model->ActivateTab(to_activate);
+  }
+
+  // 3. Park the outgoing tabs; they stay alive in this window until we come back.
+  ParkTabs(active_id_, outgoing, outgoing_active);
+
+  const int direction = index > GetActiveIndex() ? 1 : -1;
+  active_id_ = target_id;
+  SaveWindowSpace();
+  // Chromium's session file still lists the tabs we detached (it expects a detached tab to land
+  // in another window); rebuild it from the tab strips as they are now.
+  if (SessionService* session =
+          SessionServiceFactory::GetForProfileIfExisting(browser_->GetProfile())) {
+    session->ResetFromCurrentBrowsers();
+  }
+  ApplyTint();
+  NotifyChanged();
+  for (Observer& observer : observers_) {
+    observer.OnSpaceSwitched(direction);
+  }
+}
+
+void SidebarController::SwitchBy(int step) {
+  const int n = static_cast<int>(GetSpaces().size());
+  if (n < 2) {
+    return;
+  }
+  SwitchTo(static_cast<size_t>(((static_cast<int>(GetActiveIndex()) + step) % n + n) % n));
+}
+
+void SidebarController::UpdateSpace(size_t index, const char* key, base::Value value) {
+  if (is_private_) {
+    return;
+  }
+  // `index` is into GetSpaces(), which skips malformed entries: find the entry by id.
+  const auto spaces = GetSpaces();
+  if (index >= spaces.size()) {
+    return;
+  }
+  ScopedListPrefUpdate update(*local_state(), kSpacesPref);
+  for (base::Value& entry : *update) {
+    const std::string* id = entry.is_dict() ? entry.GetDict().FindString("id") : nullptr;
+    if (id && *id == spaces[index].id) {
+      entry.GetDict().Set(key, std::move(value));
+      return;
+    }
+  }
+}
+
+void SidebarController::RenameSpace(size_t index, const std::string& name) {
+  if (!name.empty()) {
+    UpdateSpace(index, "name", base::Value(name));
+  }
+}
+
+void SidebarController::SetSpaceIcon(size_t index, const std::string& icon) {
+  UpdateSpace(index, "icon", base::Value(icon));
+}
+
+void SidebarController::SetSpaceHue(size_t index, int hue) {
+  UpdateSpace(index, "hue", base::Value(hue));
+  for (const auto& [browser, controller] : Registry()) {
+    if (!controller->is_private_ && controller->GetActiveIndex() == index) {
+      controller->ApplyTint();
+    }
+  }
+}
+
+void SidebarController::ApplyTint() {
+  if (is_private_) {
+    return;
+  }
+  // This window only: the profile's theme (and any installed theme extension) stays as it is.
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser_);
+  BrowserWidget* widget = view ? view->browser_widget() : nullptr;
+  const auto spaces = GetSpaces();
+  if (!widget || spaces.empty()) {
+    return;  // the window isn't up yet; the constructor's posted task tints it
+  }
+  const SkColor colour = SpaceTint(spaces[GetActiveIndex()].hue);
+  if (widget->user_color_override() != colour) {
+    widget->SetUserColorOverride(colour);
+  }
+}
+
+std::vector<TabEntry> SidebarController::GetAllTabs() const {
+  std::vector<TabEntry> result;
+  auto add_live = [&](size_t space, tabs::TabInterface* tab, bool in_active_space) {
+    content::WebContents* contents = tab->GetContents();
+    result.push_back({space, contents->GetTitle(), contents->GetLastCommittedURL(), in_active_space,
+                      tab->GetHandle(), std::nullopt});
+  };
+  const size_t active = GetActiveIndex();
+  for (tabs::TabInterface* tab : *browser_->GetTabStripModel()) {
+    add_live(active, tab, true);
+  }
+  if (is_private_) {
+    return result;
+  }
+  const auto spaces = GetSpaces();
+  for (size_t s = 0; s < spaces.size(); ++s) {
+    if (s == active) {
+      continue;
+    }
+    // Live tabs: in the window that shows the space, or parked in some window.
+    if (SidebarController* owner = OwnerOf(spaces[s].id)) {
+      for (tabs::TabInterface* tab : *owner->browser()->GetTabStripModel()) {
+        add_live(s, tab, false);
+      }
+      continue;
+    }
+    bool live = false;
+    for (const auto& [browser, controller] : Registry()) {
+      if (auto it = controller->detached_.find(spaces[s].id); it != controller->detached_.end()) {
+        for (tabs::TabInterface* tab : it->second.Tabs()) {
+          add_live(s, tab, false);
+        }
+        live = true;
+        break;
+      }
+    }
+    if (live) {
+      continue;
+    }
+    if (const base::ListValue* list = SavedTabs(spaces[s].id)) {
+      const std::vector<SavedTab> saved = SavedTabsFromList(*list);
+      for (size_t i = 0; i < saved.size(); ++i) {
+        result.push_back({s, saved[i].title, saved[i].url, false, tabs::TabHandle(), i});
+      }
+    }
+  }
+  return result;
+}
+
+void SidebarController::GoToTab(const TabEntry& entry) {
+  SidebarController* target = this;
+  if (entry.space_index != GetActiveIndex()) {
+    const auto spaces = GetSpaces();
+    if (entry.space_index >= spaces.size()) {
+      return;
+    }
+    const Space space = spaces[entry.space_index];
+    SwitchTo(entry.space_index);
+    if (SidebarController* owner = OwnerOf(space.id)) {
+      target = owner;  // the space is shown by another window
+    } else if (active_id_ != space.id) {
+      return;  // it opens in another profile's window, maybe only once that profile has loaded
+    }
+  }
+  TabStripModel* model = target->browser()->GetTabStripModel();
+  // A live tab: exactly that one (two tabs may show the same page).
+  if (tabs::TabInterface* tab = entry.tab.Get(); tab && model->GetIndexOfTab(tab) >= 0) {
+    model->ActivateTab(tab);
+    return;
+  }
+  // A saved tab: the space's tabs come back in their saved order.
+  if (entry.saved_index && static_cast<int>(*entry.saved_index) < model->count() &&
+      model->GetWebContentsAt(static_cast<int>(*entry.saved_index))->GetLastCommittedURL() ==
+          entry.url) {
+    model->ActivateTabAt(static_cast<int>(*entry.saved_index));
+    return;
+  }
+  for (tabs::TabInterface* tab : *model) {
+    if (tab->GetContents()->GetLastCommittedURL() == entry.url) {
+      model->ActivateTab(tab);
+      return;
+    }
+  }
+}
+
+bool SidebarController::OpenFavouriteIfExists(size_t index) {
+  if (index >= GetFavourites().size()) {
+    return false;
+  }
+  OpenFavourite(index);
+  return true;
+}
+
+void SidebarController::SetShowCommandBarCallback(
+    base::RepeatingCallback<void(CommandBarMode)> callback) {
+  show_command_bar_ = std::move(callback);
+}
+
+bool SidebarController::ShowCommandBar(CommandBarMode mode) {
+  if (!show_command_bar_) {
+    return false;
+  }
+  show_command_bar_.Run(mode);
+  return true;
+}
+
+// ---------------------------------------------------------------- spaces: create, delete
+
+std::vector<ProfileChoice> SidebarController::GetProfiles() const {
+  std::vector<ProfileChoice> result;
+  ProfileManager* manager = g_browser_process->profile_manager();
+  if (!manager) {
+    return result;
+  }
+  for (ProfileAttributesEntry* entry :
+       manager->GetProfileAttributesStorage().GetAllProfilesAttributesSortedForDisplay()) {
+    result.push_back({entry->GetPath().BaseName().AsUTF8Unsafe(), DisplayName(*entry)});
+  }
+  return result;
+}
+
+void SidebarController::NewSpace() {
+  if (!is_private_) {
+    ShowNewSpaceDialog(this);
+  }
+}
+
+void SidebarController::CreateSpace(const std::string& name,
+                                    const std::string& icon,
+                                    int hue,
+                                    const std::string& profile,
+                                    const std::u16string& new_profile_name) {
+  if (is_private_ || name.empty()) {
+    return;
+  }
+  auto add = [](base::WeakPtr<SidebarController> self, Space space) {
+    if (!self) {
+      return;
+    }
+    self->AppendSpace(space);
+    const auto spaces = self->GetSpaces();
+    for (size_t i = 0; i < spaces.size(); ++i) {
+      if (spaces[i].id == space.id) {
+        self->SwitchTo(i);
+      }
+    }
+  };
+  Space space{base::Uuid::GenerateRandomV4().AsLowercaseString(), name, icon, hue, profile, u""};
+  if (!profile.empty()) {
+    add(GetWeakPtr(), std::move(space));
+    return;
+  }
+  // A new profile first; the space goes into it once it exists.
+  ProfileManager* manager = g_browser_process->profile_manager();
+  ProfileManager::CreateMultiProfileAsync(
+      new_profile_name.empty() ? base::UTF8ToUTF16(name) : new_profile_name,
+      manager->GetProfileAttributesStorage().ChooseAvatarIconIndexForNewProfile(),
+      /*is_hidden=*/false,
+      base::BindOnce(
+          [](decltype(add) add, base::WeakPtr<SidebarController> self, Space space,
+             Profile* created) {
+            if (!created) {
+              LOG(ERROR) << "lb: could not create a profile for the new space";
+              return;
+            }
+            space.profile = created->GetBaseName().AsUTF8Unsafe();
+            add(self, std::move(space));
+          },
+          add, GetWeakPtr(), std::move(space)));
+}
+
+std::optional<std::vector<std::pair<SidebarController*, size_t>>>
+SidebarController::MovesForDeleting(size_t index) const {
+  const auto spaces = GetSpaces();
+  if (is_private_ || spaces.size() < 2 || index >= spaces.size()) {
+    return std::nullopt;
+  }
+  // Every window showing the space moves to a different space of the same profile that no
+  // window shows. (Usually one window; after a merged session restore there can be more.)
+  auto shown = [](const std::string& space_id) {
+    return std::ranges::any_of(Registry(), [&](const auto& entry) {
+      return !entry.second->is_private_ && entry.second->active_id_ == space_id;
+    });
+  };
+  std::vector<size_t> free;
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (i != index && spaces[i].profile == spaces[index].profile && !shown(spaces[i].id)) {
+      free.push_back(i);
+    }
+  }
+  std::vector<std::pair<SidebarController*, size_t>> moves;
+  for (const auto& [browser, controller] : Registry()) {
+    if (!controller->is_private_ && controller->active_id_ == spaces[index].id) {
+      if (moves.size() == free.size()) {
+        return std::nullopt;  // nowhere to move this window
+      }
+      moves.emplace_back(controller, free[moves.size()]);
+    }
+  }
+  return moves;
+}
+
+void SidebarController::StartRename(size_t index) {
+  const auto spaces = GetSpaces();
+  if (is_private_ || index >= spaces.size()) {
+    return;
+  }
+  const std::string id = spaces[index].id;
+  SwitchTo(index);
+  if (active_id_ == id) {
+    ShowCommandBar(CommandBarMode::kRenameSpace);
+  } else if (SidebarController* owner = OwnerOf(id);
+             owner && owner->GetProfileBaseName() == GetProfileBaseName()) {
+    owner->ShowCommandBar(CommandBarMode::kRenameSpace);  // another window shows it
+  }
+  // A space of another profile opens in that profile's window, maybe only once the profile has
+  // loaded; rename it there.
+}
+
+bool SidebarController::CanDeleteSpace(size_t index) const {
+  return MovesForDeleting(index).has_value();
+}
+
+void SidebarController::DeleteSpace(size_t index) {
+  const std::optional<std::vector<std::pair<SidebarController*, size_t>>> moves =
+      MovesForDeleting(index);
+  if (!moves) {
+    return;
+  }
+  const std::string id = GetSpaces()[index].id;
+  // The deleted space's tabs end up detached in those windows and are dropped below.
+  for (const auto& [controller, target] : *moves) {
+    controller->SwitchTo(target);
+  }
+  for (const auto& [browser, controller] : Registry()) {
+    controller->detached_.erase(id);
+  }
+  ScopedDictPrefUpdate(*local_state(), kSpaceTabsPref)->Remove(id);
+  ScopedListPrefUpdate update(*local_state(), kSpacesPref);
+  update->EraseIf([&](const base::Value& value) {
+    const std::string* value_id = value.is_dict() ? value.GetDict().FindString("id") : nullptr;
+    return value_id && *value_id == id;
+  });
+}
+
+// ---------------------------------------------------------------- demo data
+
+void SidebarController::SeedDemoData() {
+  if (prefs()->GetList(kFavouritesPref).empty()) {
+    ScopedListPrefUpdate update(*prefs(), kFavouritesPref);
+    const std::pair<const char*, const char*> demo[] = {
+        {"Wikipedia", "https://en.wikipedia.org/wiki/Main_Page"},
+        {"GitHub", "https://github.com/"},
+        {"YouTube", "https://www.youtube.com/"},
+        {"MDN", "https://developer.mozilla.org/"},
+        {"Hacker News", "https://news.ycombinator.com/"}};
+    for (const auto& [title, url] : demo) {
+      base::DictValue dict;
+      dict.Set("title", title);
+      dict.Set("url", url);
+      update->Append(std::move(dict));
+    }
+  }
+  if (GetSpaces().size() == 1) {
+    Space work{base::Uuid::GenerateRandomV4().AsLowercaseString(),
+               "Work",
+               kSpaceIcons[1],
+               28,
+               GetProfileBaseName(),
+               u""};
+    AppendSpace(work);
+    base::ListValue tabs;
+    tabs.Append(SavedTabToDict({GURL("https://news.ycombinator.com/"), u"Hacker News", true}));
+    tabs.Append(SavedTabToDict({GURL("https://example.org/"), u"Example", false}));
+    ScopedDictPrefUpdate(*local_state(), kSpaceTabsPref)->Set(work.id, std::move(tabs));
+  }
+  // Switch to the second space once, so a snapshot shows a real switch; then, by mode:
+  // command-bar opens the command bar (the Cmd+T path), collapsed collapses the strip,
+  // new-space opens the new-space dialog.
+  const std::string demo = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<SidebarController> self, std::string demo) {
+            if (!self) {
+              return;
+            }
+            if (demo == "restore-after-crash") {
+              // What the crash bubble's Restore button does.
+              SessionRestore::RestoreSessionAfterCrash(self->browser());
+              return;
+            }
+            self->SwitchTo(1);
+            if (demo == "command-bar") {
+              chrome::ExecuteCommand(self->browser(), IDC_NEW_TAB);
+            } else if (demo == "collapsed") {
+              if (auto* strip = tabs::VerticalTabStripStateController::From(self->browser())) {
+                strip->RequestCollapse(true);
+              }
+            } else if (demo == "new-space") {
+              self->NewSpace();
+            } else if (demo == "new-profile") {
+              // What the dialog's Create does with "New profile…": a new profile and a space in
+              // it, which opens that profile's window in place of this one.
+              self->CreateSpace("Client", kSpaceIcons[2], 330, std::string(), u"Client");
+            } else if (demo == "reopen-window") {
+              // Open a second window (it takes the free Personal space), give it a page, close
+              // it and reopen it as Cmd+Shift+T does: it must come back on Personal, not on a new
+              // space.
+              BrowserWindowInterface* other = chrome::OpenEmptyWindow(
+                  self->browser()->GetProfile(), /*should_trigger_session_restore=*/false);
+              if (!other) {
+                return;
+              }
+              chrome::AddAndReturnTabAt(other, GURL("https://example.com/"), -1, true);
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self,
+                         base::WeakPtr<SidebarController> other) {
+                        if (!self || !other) {
+                          return;
+                        }
+                        VLOG(1) << "lb: closing the window on space " << other->GetActiveSpaceId();
+                        other->browser()->GetWindow()->Close();
+                        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                            FROM_HERE,
+                            base::BindOnce(
+                                [](base::WeakPtr<SidebarController> self) {
+                                  if (self) {
+                                    chrome::ExecuteCommand(self->browser(), IDC_RESTORE_TAB);
+                                  }
+                                },
+                                self),
+                            base::Seconds(2));
+                      },
+                      self,
+                      SidebarController::FromBrowser(other)
+                          ? SidebarController::FromBrowser(other)->GetWeakPtr()
+                          : base::WeakPtr<SidebarController>()),
+                  base::Seconds(3));
+            } else if (demo == "tab-group") {
+              // Group the Work space's last tab, leave the space and come back: the group must
+              // survive (parked whole) and be saved with the space's tabs.
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self) {
+                        if (!self) {
+                          return;
+                        }
+                        TabStripModel* model = self->browser()->GetTabStripModel();
+                        if (!model->SupportsTabGroups() || model->count() < 1) {
+                          return;
+                        }
+                        const tab_groups::TabGroupId group =
+                            model->AddToNewGroup({model->count() - 1});
+                        model->ChangeTabGroupVisuals(
+                            group, tab_groups::TabGroupVisualData(
+                                       u"Research", tab_groups::TabGroupColorId::kGreen));
+                        self->SwitchTo(0);
+                        self->SwitchTo(1);
+                      },
+                      self),
+                  base::Seconds(2));
+            } else if (demo == "split") {
+              // Put Work's last tab side by side with a new page, leave the space and come
+              // back: the split must survive and be saved with the space's tabs.
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self) {
+                        if (!self) {
+                          return;
+                        }
+                        TabStripModel* model = self->browser()->GetTabStripModel();
+                        const int last = model->count() - 1;
+                        content::WebContents* added =
+                            chrome::AddAndReturnTabAt(self->browser(), GURL("https://example.com/"),
+                                                      -1, /*foreground=*/false);
+                        const int other = added ? model->GetIndexOfWebContents(added) : -1;
+                        if (last < 0 || other < 0 || model->IsTabPinned(last)) {
+                          return;
+                        }
+                        model->ActivateTabAt(last);
+                        model->AddToNewSplit({last, other},
+                                             split_tabs::SplitTabVisualData(
+                                                 split_tabs::SplitTabLayout::kSideBySide, 0.5),
+                                             split_tabs::SplitTabCreatedSource::kTabContextMenu);
+                        self->SwitchTo(0);
+                        self->SwitchTo(1);
+                      },
+                      self),
+                  base::Seconds(2));
+            } else if (demo == "search-again") {
+              // "Not now", then a search: the choice must come back.
+              ShowSearchChoice(self->browser(), base::OnceClosure());
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE, base::BindOnce([] { CloseSearchChoiceForTesting(); }),
+                  base::Seconds(1));
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self) {
+                        if (self) {
+                          ShowSearchChoice(self->browser(), base::OnceClosure());
+                        }
+                      },
+                      self),
+                  base::Seconds(3));
+            }
+          },
+          GetWeakPtr(), demo),
+      base::Seconds(2));
+}
+
+bool HandleCommand(BrowserWindowInterface* browser, int command_id) {
+  SidebarController* controller = SidebarController::FromBrowser(browser);
+  if (!controller) {
+    return false;
+  }
+  switch (command_id) {
+    case IDC_NEW_TAB:
+      return controller->ShowCommandBar(CommandBarMode::kNewTab);
+    case IDC_FOCUS_LOCATION:
+      return controller->ShowCommandBar(CommandBarMode::kEditAddress);
+    case IDC_SELECT_TAB_0:
+    case IDC_SELECT_TAB_1:
+    case IDC_SELECT_TAB_2:
+    case IDC_SELECT_TAB_3:
+    case IDC_SELECT_TAB_4:
+    case IDC_SELECT_TAB_5:
+    case IDC_SELECT_TAB_6:
+    case IDC_SELECT_TAB_7:
+      return controller->OpenFavouriteIfExists(command_id - IDC_SELECT_TAB_0);
+    case IDC_SELECT_LAST_TAB:
+      return controller->OpenFavouriteIfExists(8);
+    default:
+      return false;
+  }
+}
+
+bool HandleNewTab(BrowserWindowInterface* browser) {
+  SidebarController* controller = SidebarController::FromBrowser(browser);
+  return controller && controller->ShowCommandBar(CommandBarMode::kNewTab);
+}
+
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+  registry->RegisterListPref(kFavouritesPref);
+  registry->RegisterStringPref(kActiveSpacePref, std::string());
+  registry->RegisterBooleanPref(kSearchChoiceShownPref, false);
+}
+
+void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
+  registry->RegisterListPref(kSpacesPref);
+  registry->RegisterDictionaryPref(kSpaceTabsPref);
+}
+
+std::string GetWindowSpaceId(BrowserWindowInterface* browser) {
+  SidebarController* controller = SidebarController::FromBrowser(browser);
+  return controller ? controller->GetActiveSpaceId() : std::string();
+}
+
+void OnWindowRestored(BrowserWindowInterface* browser,
+                      const std::map<std::string, std::string>& extra_data) {
+  auto it = extra_data.find(kWindowSpaceKey);
+  if (!browser || it == extra_data.end() || it->second.empty()) {
+    return;
+  }
+  // The controller exists by now: it is built with the window's BrowserView.
+  if (SidebarController* controller = SidebarController::FromBrowser(browser)) {
+    controller->RestoreSpace(it->second);
+  }
+}
+
+void OnRestoringIntoWindow(BrowserWindowInterface* browser,
+                           const std::map<std::string, std::string>& extra_data,
+                           int selected_tab_index) {
+  SidebarController* controller = browser ? SidebarController::FromBrowser(browser) : nullptr;
+  if (!controller) {
+    return;
+  }
+  auto it = extra_data.find(kWindowSpaceKey);
+  controller->PrepareForRestoredTabs(it == extra_data.end() ? std::string() : it->second,
+                                     selected_tab_index);
+}
+
+}  // namespace lb
