@@ -1,0 +1,41 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//testing/test.gni")
+
+# Little Browser logic that doesn't need views or a browser window: unit tested by
+# lb_unittests. The sidebar's views target depends on it (patches/lb/sidebar-hooks.patch), which
+# is also what makes GN load this file.
+source_set("model") {
+  sources = [
+    "browser/command_bar/command_matching.cc",
+    "browser/command_bar/command_matching.h",
+    "browser/spaces/space_model.cc",
+    "browser/spaces/space_model.h",
+    "browser/spaces/swipe_tracker.cc",
+    "browser/spaces/swipe_tracker.h",
+  ]
+  deps = [
+    "//base",
+    "//net",
+    "//url",
+  ]
+}
+
+# desktop/lb/AGENTS.md says how to build and run these.
+test("lb_unittests") {
+  sources = [
+    "browser/command_bar/command_matching_unittest.cc",
+    "browser/spaces/space_model_unittest.cc",
+    "browser/spaces/swipe_tracker_unittest.cc",
+  ]
+  deps = [
+    ":model",
+    "//base",
+    "//base/test:run_all_unittests",
+    "//net",
+    "//testing/gtest",
+    "//url",
+  ]
+}
