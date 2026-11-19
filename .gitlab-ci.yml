@@ -170,9 +170,10 @@ macos-arm64-package:
     GIT_STRATEGY: none           # keep macos-arm64's tree (one Mac runner, same build directory);
                                  # a checkout would clean out the ignored build/ folder
   script:
-    # Ad-hoc signed: there is no Developer ID certificate or notarization yet, so macOS asks
-    # people to confirm the first launch.
-    - desktop/scripts/build.sh --package
+    # Developer ID signature, notarised and stapled, with the signing material from Secrets
+    # Manager (only this builder can read it). While those secrets are empty, an ad-hoc
+    # signature, and macOS asks people to confirm the first launch.
+    - desktop/scripts/package-macos.sh --release
   artifacts:
     paths: ["desktop/build/*.dmg"]
     expire_in: 30 days           # internal testing happens on these; publish promotes them as-is

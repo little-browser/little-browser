@@ -65,11 +65,17 @@ desktop/scripts/run.sh --dev
 ```
 
 Ad-hoc signed `.dmg` of the release build (`build/LittleBrowser-macos-<arch>.dmg`, the app next to
-an Applications link); CI packages releases the same way:
+an Applications link), through `scripts/package-macos.sh`:
 
 ```bash
 desktop/scripts/build.sh --package
 ```
+
+Releases use `scripts/package-macos.sh --release` in CI: a Developer ID signature with the
+hardened runtime, notarised and stapled, with the certificate and an App Store Connect API key read from
+AWS Secrets Manager (`little-browser/signing/apple-developer-id` and `apple-notarization`) by the
+release builder. While those secrets are empty it falls back to an ad-hoc signature. An ad-hoc
+signature carries no signing options: the hardened runtime's library validation needs a Team ID.
 
 Local builds are ad-hoc signed and the signature changes with every rebuild, so macOS asks for
 the "Chromium Safe Storage" keychain item each time ("Always Allow" is tied to the signature).
