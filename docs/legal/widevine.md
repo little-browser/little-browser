@@ -1,13 +1,14 @@
 # Widevine CDM licence — application guide (desktop)
 
-> Status: **not yet applied**. Sources checked 2026-11-17.
+> Status: **not yet applied**; we apply once a build can be downloaded from
+> https://littlebrowser.app. Sources checked 2026-11-17.
 > Widevine support is compiled into the desktop build (`enable_widevine = true` in
 > `desktop/args/common.gn`) and no CDM ships with it. The design is that the CDM is downloaded from
 > Google only when a site needs it **and** the user agrees; the patch that restricts the component
 > updater to Widevine and adds the consent prompt is not built yet (`desktop/patches/series`).
 > Until a licence exists, the build has no licensed or VMP-signed CDM host.
 > Route: **apply to Google directly, ask castLabs for a quote in parallel as a fallback, apply as
-> an individual, and apply only once the repository is public.**
+> an individual, and apply only once a release is downloadable from littlebrowser.app.**
 >
 > Safe Browsing access is a separate, cross-referenced request: [safe-browsing.md](safe-browsing.md).
 >
@@ -117,13 +118,14 @@ Google first and get a castLabs quote in parallel.
 
 ### A. Before applying (prerequisites)
 
-- [ ] **Make the repository public** (GitHub), with README, MPL-2.0 licence, `SECURITY.md` and
-      design docs. *Don't apply before this.*
-- [ ] **Put a simple project page live at https://littlebrowser.app** describing Little Browser
+- [x] **Make the repository public** (GitHub), with README, MPL-2.0 licence, `SECURITY.md` and
+      design docs.
+- [ ] **Publish a downloadable release** on https://littlebrowser.app (its `/downloads`
+      page, from `releases.json`). *Don't apply before this.*
+- [x] **Put a simple project page live at https://littlebrowser.app** describing Little Browser
       and linking to the repository. The application cites this URL, so it must load before you send.
-- [ ] *Optional:* send from an address at `@littlebrowser.app` (e.g. a founder or contact mailbox)
-      instead of a personal Gmail address. A domain address looks more like an established project;
-      if you do, update the email in §4.1–4.3.
+- [ ] **Check the sending mailbox**, eugen.kozynin@littlebrowser.app: it receives mail, and a test
+      message to an outside address passes SPF, DKIM and DMARC.
 - [ ] **Have code signing in place, or planned with a date**: an Apple Developer ID
       (notarisation) and a Windows Authenticode certificate. Google and castLabs will ask how
       binaries are signed and distributed.
@@ -188,7 +190,7 @@ Google first and get a castLabs quote in parallel.
 | First name | Eugen |
 | Last name | Kozynin |
 | Company | Little Browser (open-source project; individual developer, no company yet) |
-| Email | ekozynin@gmail.com |
+| Email | eugen.kozynin@littlebrowser.app |
 | Phone | +61 417 343 746 |
 | Summary | Widevine CDM licence request: Little Browser, a Chromium-based desktop browser (Windows, macOS, Linux) |
 | Description | *Paste the body of §4.2 from "I'm the founder…" to the list of questions.* |
@@ -230,7 +232,7 @@ Google first and get a castLabs quote in parallel.
 >
 > **Contact**
 > Eugen Kozynin, Founder & Lead Developer, Little Browser
-> ekozynin@gmail.com · +61 417 343 746
+> eugen.kozynin@littlebrowser.app · +61 417 343 746
 > PO Box 2091, Parkdale VIC 3195, Australia
 >
 > I'm currently an individual developer without a registered company. If the agreement requires a
@@ -275,7 +277,7 @@ Google first and get a castLabs quote in parallel.
 >
 > Thanks,
 > Eugen Kozynin, Founder & Lead Developer, Little Browser
-> ekozynin@gmail.com · +61 417 343 746
+> eugen.kozynin@littlebrowser.app · +61 417 343 746
 
 ### 4.4 Follow-up (reply on the same thread)
 
