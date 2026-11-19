@@ -114,8 +114,17 @@ ln -s "$esbuild_module" third_party/devtools-frontend/src/node_modules/esbuild
 [ -x third_party/rust-toolchain/crubit/bin/cc_bindings_from_rs ] || "$UGM/build_crubit.sh"
 
 ./out/Default/gn gen "$OUT_REL" --fail-on-unused-args
-# shellcheck disable=SC2086
-ninja ${LB_NINJA_FLAGS:-} -C "$OUT_REL" chrome
+# In CI, one line per step (~58,000) overruns GitLab's 4 MiB job-log limit, after which the log
+# stops: keep every 500th progress line and everything else (warnings, errors) in full.
+if [ -n "${CI:-}" ]; then
+  # shellcheck disable=SC2086
+  ninja ${LB_NINJA_FLAGS:-} -C "$OUT_REL" chrome | awk '
+    /^\[[0-9]+\/[0-9]+\] / { split(substr($1, 2), p, "/"); if (p[1] % 500 && p[1] != p[2] + 0) next }
+    { print; fflush() }'
+else
+  # shellcheck disable=SC2086
+  ninja ${LB_NINJA_FLAGS:-} -C "$OUT_REL" chrome
+fi
 if [ "${LB_CC_WRAPPER:-}" = sccache ]; then sccache --show-stats; fi
 for app in "$OUT"/*.app; do
   case "$app" in *" Helper"*) ;; *) echo "Built: $app"; break ;; esac
