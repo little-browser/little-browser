@@ -19,6 +19,7 @@ stands for Little Browser's small, short-lived pages, and it does not resemble o
 | `svg/wordmark.svg`, `svg/wordmark-white.svg` | Word mark "little browser": custom monoline lowercase, drawn as strokes, no font needed |
 | `svg/lockup.svg`, `svg/lockup-white.svg` | Icon + word mark, horizontal |
 | `svg/social-preview.svg` | 1280×640 social preview: the mark and word mark in white on the tile gradient. GitHub repo settings and link cards |
+| `svg/play-feature-graphic.svg` | 1024×500 Google Play feature graphic: the social preview's content, scaled and centred with wide margins (Play crops the edges) |
 | `palette.css` | Colour tokens (below) |
 | `scripts/export.mjs` | Exports every platform icon set into `exports/` |
 | `scripts/sync-site.sh` | Copies the brand assets into the website (`site/assets/brand/`, `site/favicon.ico`) |
@@ -39,7 +40,7 @@ writes:
 - `linux/hicolor/<n>x<n>/apps/little-browser.png` (16–512), plus the scalable and symbolic SVGs.
 - `android/res/mipmap-*/`: adaptive foreground, background and monochrome layers;
   `mipmap-anydpi-v26/ic_launcher(_round).xml`; legacy square and round icons;
-  `android/play-store-512.png`.
+  `android/play-store-512.png`; `android/play-feature-graphic.png` (1024×500, no alpha).
 - `ios/AppIcon.appiconset/`: a single 1024 px icon (RGB, no alpha) with dark and tinted appearances.
 - `web/`: `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`,
   `social-preview.png` (1280×640, no alpha).
@@ -55,10 +56,10 @@ Not covered yet: a macOS 26 Icon Composer `.icon` (Liquid Glass layers). Until t
 ## Website
 
 `site/` is the littlebrowser.app website, a plain static site with no build step. Every file in it
-is served, so upload the folder as it is. It has a home page and `/downloads` (the button for the
-visitor's system and every release, from `releases.json`), plus `404.html`, `robots.txt`,
-`sitemap.xml` and `site.webmanifest`. There are no cookies or analytics. Pages other than the home
-page use root-relative links, so preview the site from its own folder as well.
+is served, so upload the folder as it is. It has a home page, `/downloads` (the button for the
+visitor's system and every release, from `releases.json`) and `/privacy`, plus `404.html`,
+`robots.txt`, `sitemap.xml` and `site.webmanifest`. There are no cookies or analytics. Pages other
+than the home page use root-relative links, so preview the site from its own folder as well.
 
 The brand review page (`branding/brand.html`) borrows the site's styles. It stays out of the
 public site. At launch, add a slim `/press` page to the site instead, with logo downloads, a short
