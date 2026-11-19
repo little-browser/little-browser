@@ -81,6 +81,9 @@ once. Machines that share a cache need the same checkout path, or the keys won't
 - `scripts/macos-host.sh up` is CI-only: it allocates or reuses the per-release EC2 Mac
   host, starts the builder and, if one is configured, attaches its persistent data volume. The infrastructure behind it lives in
   the infrastructure repository.
+- `scripts/package-macos.sh [--release]` signs out/Default's app and makes the `.dmg`; `--release`
+  (CI) uses the Developer ID from Secrets Manager and notarises. `build.sh --package` runs it
+  without `--release` (ad-hoc).
 - `scripts/publish-release.sh <version> <file.dmg>` and `scripts/deploy-site.sh` are CI-only:
   they put a release on downloads.littlebrowser.app (and in `releases.json`) and upload `site/`
   to littlebrowser.app. `LB_DRY_RUN=1` prints what they would do.

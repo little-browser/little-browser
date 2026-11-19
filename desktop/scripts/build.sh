@@ -6,7 +6,7 @@
 # Configure and build Little Browser (desktop, macOS) from the tree prepared by fetch.sh.
 #
 #   desktop/scripts/build.sh [--dev] [arm64|x86_64]   configure + build (re-run for incremental builds)
-#   desktop/scripts/build.sh --package                ad-hoc sign the release app and make a .dmg
+#   desktop/scripts/build.sh --package                ad-hoc signed .dmg (scripts/package-macos.sh)
 #
 #   (default)  release build → out/Default   official, ThinLTO: for packaging and measurements
 #   --dev      dev build     → out/Dev       component build, no LTO: fast edit-build-run
@@ -25,32 +25,12 @@ SRC="$DESKTOP/build/src"
 
 [ -d "$SRC" ] || { echo "error: run desktop/scripts/fetch.sh first" >&2; exit 1; }
 
-# Ad-hoc sign out/Default's app (Developer ID signing and notarization come later) and put it
-# in a disk image next to an Applications link: desktop/build/LittleBrowser-macos-<arch>.dmg.
-package() {
-  local app="$SRC/out/Default/Little Browser.app" stage dmg arch
-  [ -d "$app" ] || { echo "error: no release build at $app" >&2; exit 1; }
-  arch="$(lipo -archs "$app/Contents/MacOS/Little Browser")"
-  dmg="$DESKTOP/build/LittleBrowser-macos-${arch// /-}.dmg"
-  xattr -cr "$app"
-  codesign --force --deep --sign - "$app"
-  codesign --verify --deep --strict "$app"
-  stage="$(mktemp -d)"
-  ditto "$app" "$stage/Little Browser.app"
-  ln -s /Applications "$stage/Applications"
-  rm -f "$dmg"
-  hdiutil create -quiet -volname "Little Browser" -srcfolder "$stage" -format UDZO -ov "$dmg"
-  rm -rf "${stage:?}"
-  echo "Packaged: $dmg"
-}
-
 DEV=0
 ARCH="$(uname -m)"
 for a in "$@"; do
   case "$a" in
     --package)
-      package
-      exit 0 ;;
+      exec "$DESKTOP/scripts/package-macos.sh" ;;
     --dev) DEV=1 ;;
     arm64|x86_64) ARCH="$a" ;;
     *) echo "usage: build.sh [--dev] [arm64|x86_64] | --package" >&2; exit 1 ;;
