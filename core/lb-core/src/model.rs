@@ -2,13 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Browser data model: profiles, spaces, favourites, pinned and "today" tabs (docs/ux.md §2, §5).
+//! Browser data model: profiles, spaces, pinned and "today" tabs (docs/ux.md §2, §5).
 //!
-//! - A **profile** is one set of logins, cookies, history and favourites — one Chromium profile
+//! - A **profile** is one set of logins, cookies and history — one Chromium profile
 //!   on desktop. Everyone starts with the default profile.
 //! - A **space** is a set of pinned and today tabs with a name, icon and colour. Every space uses a
 //!   profile; several spaces can share one (docs/ux.md §5).
-//! - **Favourites** belong to the profile, so all spaces on the same profile share them.
 
 pub type Id = String;
 
@@ -28,19 +27,11 @@ pub struct Tab {
     pub last_active_ms: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Favourite {
-    pub id: Id,
-    pub url: String,
-    pub title: String,
-}
-
-/// One set of logins, cookies and favourites.
+/// One set of logins and cookies.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
     pub id: Id,
     pub name: String,
-    pub favourites: Vec<Favourite>,
 }
 
 impl Profile {
@@ -48,7 +39,6 @@ impl Profile {
         Self {
             id: id.into(),
             name: name.into(),
-            favourites: Vec::new(),
         }
     }
 
@@ -163,20 +153,6 @@ impl Browser {
             .or_else(|| self.profile(DEFAULT_PROFILE))
     }
 
-    /// The favourites shown in a space: those of its profile.
-    pub fn favourites_of(&self, space_id: &str) -> &[Favourite] {
-        self.profile_of(space_id)
-            .map_or(&[], |p| p.favourites.as_slice())
-    }
-
-    pub fn favourites_of_mut(&mut self, space_id: &str) -> Option<&mut Vec<Favourite>> {
-        let profile_id = self.profile_of(space_id)?.id.clone();
-        self.profiles
-            .iter_mut()
-            .find(|p| p.id == profile_id)
-            .map(|p| &mut p.favourites)
-    }
-
     /// Spaces that run in the given profile.
     pub fn spaces_using<'a>(&'a self, profile_id: &'a str) -> impl Iterator<Item = &'a Space> + 'a {
         self.spaces
@@ -184,7 +160,7 @@ impl Browser {
             .filter(move |s| s.profile_id == profile_id)
     }
 
-    /// Add a profile with no logins and no favourites. Returns false if the id is taken.
+    /// Add a profile with no logins. Returns false if the id is taken.
     pub fn add_profile(&mut self, profile: Profile) -> bool {
         if self.profile(&profile.id).is_some() {
             return false;
@@ -251,21 +227,6 @@ mod tests {
         }
     }
 
-    fn fav(id: &str) -> Favourite {
-        Favourite {
-            id: id.into(),
-            url: format!("https://{id}.example/"),
-            title: id.into(),
-        }
-    }
-
-    fn fav_ids(b: &Browser, space_id: &str) -> Vec<String> {
-        b.favourites_of(space_id)
-            .iter()
-            .map(|f| f.id.clone())
-            .collect()
-    }
-
     #[test]
     fn pin_moves_tab_and_remembers_url() {
         let mut space = Space::new("s", "Personal", 210);
@@ -288,23 +249,22 @@ mod tests {
     }
 
     #[test]
-    fn spaces_sharing_a_profile_share_favourites() {
-        let mut b = Browser {
+    fn spaces_can_share_a_profile() {
+        let b = Browser {
             spaces: vec![
                 Space::new("personal", "Personal", 210),
                 Space::new("hobby", "Hobby", 90),
             ],
             ..Default::default()
         };
-        b.favourites_of_mut("personal").unwrap().push(fav("wiki"));
 
-        assert_eq!(fav_ids(&b, "personal"), ["wiki"]);
-        assert_eq!(fav_ids(&b, "hobby"), ["wiki"]);
+        assert_eq!(b.profile_of("personal").unwrap().id, DEFAULT_PROFILE);
+        assert_eq!(b.profile_of("hobby").unwrap().id, DEFAULT_PROFILE);
         assert_eq!(b.spaces_using(DEFAULT_PROFILE).count(), 2);
     }
 
     #[test]
-    fn space_on_another_profile_has_its_own_favourites() {
+    fn space_on_another_profile_has_its_own_profile() {
         let mut b = Browser {
             spaces: vec![
                 Space::new("personal", "Personal", 210),
@@ -313,15 +273,13 @@ mod tests {
             ],
             ..Default::default()
         };
-        b.favourites_of_mut("personal").unwrap().push(fav("wiki"));
         assert!(b.add_profile(Profile::new("work", "Work")));
         assert!(b.set_profile("client-a", "work"));
         assert!(b.set_profile("client-b", "work"));
-        b.favourites_of_mut("client-a").unwrap().push(fav("jira"));
 
-        assert_eq!(fav_ids(&b, "personal"), ["wiki"]);
-        assert_eq!(fav_ids(&b, "client-a"), ["jira"]);
-        assert_eq!(fav_ids(&b, "client-b"), ["jira"]); // several spaces share one profile
+        assert_eq!(b.profile_of("personal").unwrap().id, DEFAULT_PROFILE);
+        assert_eq!(b.profile_of("client-a").unwrap().id, "work");
+        assert_eq!(b.profile_of("client-b").unwrap().id, "work"); // several spaces share one profile
         assert_eq!(b.profile_of("client-b").unwrap().name, "Work");
     }
 
