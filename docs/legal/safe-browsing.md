@@ -1,6 +1,7 @@
 # Google Safe Browsing access — request guide (desktop)
 
-> Status: **not yet requested**. Sources checked 2026-11-17.
+> Status: **not yet requested**; we request once a build can be downloaded from
+> https://littlebrowser.app, the same week as the Widevine application. Sources checked 2026-11-17.
 > The desktop build runs Safe Browsing in **standard mode only**: a local hash-prefix database, with
 > full-hash lookups only when a prefix matches. Enhanced protection, extended reporting and
 > real-time lookups are hard-disabled (`desktop/patches/lb/safe-browsing-standard-only.patch`,
@@ -97,13 +98,14 @@ agreement, so treat "Firefox and Brave have an agreement" as *likely*, not confi
 
 ### A. Before requesting (shared with Widevine prerequisites)
 
-- [ ] The repository is public and https://littlebrowser.app is live (same gate as Widevine,
+- [x] The repository is public and https://littlebrowser.app is live.
+- [ ] A release can be downloaded from https://littlebrowser.app (same gate as Widevine,
       [widevine.md §3A](widevine.md)).
-- [ ] **Create a Google Cloud project** for Little Browser using the project's Google account, and
-      enable the **Safe Browsing API**. *You do this; Claude doesn't create accounts.* Note the
-      project ID; it isn't secret, but keep it out of the repo.
-- [ ] **Create an API key** restricted to the Safe Browsing API. Store it in the git-ignored key file
-      used by the build (`desktop/README.md`) and in the release pipeline's secrets, nowhere else.
+- [x] **Create a Google Cloud project** for Little Browser using the project's Google account, and
+      enable the **Safe Browsing API**. The project ID stays out of the repo.
+- [x] **Create an API key** restricted to the Safe Browsing API, with no application restriction
+      (browsers call Google from users' machines). It is kept privately and goes into no build
+      until Google confirms our use (§D).
 - [ ] **Check our warnings against §2.1**: interstitial wording, the "Advisory provided by Google"
       link, the reference links, and a notice in Settings or on first run before protection is
       relied on. Chromium's own interstitials are a starting point; check what ungoogled-chromium
@@ -133,8 +135,9 @@ agreement, so treat "Firefox and Brave have an agreement" as *likely*, not confi
 
 ### D. After access is granted
 
-- [ ] Put the key into the release pipeline only, and confirm `safebrowsing.googleapis.com` updates
-      return 200 in a test build.
+- [ ] Put the key into the release pipeline only (Secrets Manager, passed to the build as the
+      `google_api_key` GN arg; locally the git-ignored key file in `desktop/README.md`), and
+      confirm `safebrowsing.googleapis.com` updates return 200 in a test build.
 - [ ] Check the 30-minute freshness rule is honoured (Chromium does this; verify our patches don't
       break it).
 - [ ] Update this file's status line.
@@ -169,8 +172,8 @@ agreement, so treat "Firefox and Brave have an agreement" as *likely*, not confi
 > **Related request:** we have also applied for a Widevine CDM licence for the same browser
 > (applied [DATE]).
 >
-> **Contact:** Eugen Kozynin, Founder & Lead Developer, Little Browser · ekozynin@gmail.com ·
-> +61 417 343 746 · PO Box 2091, Parkdale VIC 3195, Australia.
+> **Contact:** Eugen Kozynin, Founder & Lead Developer, Little Browser ·
+> eugen.kozynin@littlebrowser.app · +61 417 343 746 · PO Box 2091, Parkdale VIC 3195, Australia.
 
 ### 4.2 Cross-reference paragraph (inside the Widevine email)
 
