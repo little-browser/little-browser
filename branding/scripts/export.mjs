@@ -13,7 +13,7 @@
 //   linux/    hicolor/<n>x<n>/apps/little-browser.png + scalable SVG
 //   android/  res/mipmap-*/ (adaptive layers + legacy), play-store-512.png
 //   ios/      AppIcon.appiconset/ (light, dark, tinted)
-//   web/      favicon.ico, favicon.svg, apple-touch-icon.png, icon-192/512.png
+//   web/      favicon.ico, favicon.svg, apple-touch-icon.png, icon-192/512.png, social-preview.png
 //
 // Pure Node + @resvg/resvg-js; no ImageMagick or iconutil needed, so it runs on any OS.
 
@@ -50,17 +50,17 @@ const macTile = pick(masters.macos, masters.macosSmall);
 
 // ---------------------------------------------------------------- rendering
 
-function rasterize(svg, size) {
+function rasterize(svg, size, height = size) {
   const r = new Resvg(svg, { fitTo: { mode: 'width', value: size }, font: { loadSystemFonts: false } });
   const img = r.render();
-  if (img.width !== size || img.height !== size) throw new Error(`expected ${size}px, got ${img.width}x${img.height}`);
+  if (img.width !== size || img.height !== height) throw new Error(`expected ${size}x${height}px, got ${img.width}x${img.height}`);
   return img;
 }
 const png = (svg, size) => rasterize(svg, size).asPng();
 
 // RGB PNG without an alpha channel (App Store rejects icons that have one).
-function pngOpaque(svg, size) {
-  const { pixels, width, height } = rasterize(svg, size);
+function pngOpaque(svg, size, h = size) {
+  const { pixels, width, height } = rasterize(svg, size, h);
   const raw = Buffer.alloc((width * 3 + 1) * height);
   for (let y = 0; y < height; y++) {
     const row = y * (width * 3 + 1);
@@ -244,5 +244,7 @@ write('web/favicon.svg', masters.iconSmall);
 write('web/apple-touch-icon.png', pngOpaque(masters.square, 180));
 write('web/icon-192.png', png(masters.icon, 192));
 write('web/icon-512.png', png(masters.icon, 512));
+// Social preview (GitHub repo settings, link cards): 1280x640, no alpha.
+write('web/social-preview.png', pngOpaque(src('social-preview.svg'), 1280, 640));
 
 console.log(`Wrote ${written.length} files to ${path.relative(process.cwd(), OUT) || '.'}/`);

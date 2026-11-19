@@ -18,6 +18,7 @@ stands for Little Browser's small, short-lived pages, and it does not resemble o
 | `svg/mark-template.svg` | Monochrome template (black + alpha only), small-size drawing: macOS menu bar, Linux symbolic icon, stamps, print |
 | `svg/wordmark.svg`, `svg/wordmark-white.svg` | Word mark "little browser": custom monoline lowercase, drawn as strokes, no font needed |
 | `svg/lockup.svg`, `svg/lockup-white.svg` | Icon + word mark, horizontal |
+| `svg/social-preview.svg` | 1280×640 social preview: the mark and word mark in white on the tile gradient. GitHub repo settings and link cards |
 | `palette.css` | Colour tokens (below) |
 | `scripts/export.mjs` | Exports every platform icon set into `exports/` |
 | `scripts/sync-site.sh` | Copies the brand assets into the website (`site/assets/brand/`, `site/favicon.ico`) |
@@ -40,7 +41,8 @@ writes:
   `mipmap-anydpi-v26/ic_launcher(_round).xml`; legacy square and round icons;
   `android/play-store-512.png`.
 - `ios/AppIcon.appiconset/`: a single 1024 px icon (RGB, no alpha) with dark and tinted appearances.
-- `web/`: `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`.
+- `web/`: `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`,
+  `social-preview.png` (1280×640, no alpha).
 
 Edit the SVG masters, never the exports, and commit both. The Chromium build picks up its icons
 from its own branding directory; when the desktop build is ready, copy `exports/macos/`,
