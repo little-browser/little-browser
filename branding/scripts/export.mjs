@@ -11,7 +11,7 @@
 //   macos/    LittleBrowser.icns, icon-1024.png, MenuBarTemplate(.png|@2x.png)
 //   windows/  little-browser.ico
 //   linux/    hicolor/<n>x<n>/apps/little-browser.png + scalable SVG
-//   android/  res/mipmap-*/ (adaptive layers + legacy), play-store-512.png
+//   android/  res/mipmap-*/ (adaptive layers + legacy), play-store-512.png, play-feature-graphic.png
 //   ios/      AppIcon.appiconset/ (light, dark, tinted)
 //   web/      favicon.ico, favicon.svg, apple-touch-icon.png, icon-192/512.png, social-preview.png
 //
@@ -213,6 +213,8 @@ const adaptive = `<?xml version="1.0" encoding="utf-8"?>
 write('android/res/mipmap-anydpi-v26/ic_launcher.xml', adaptive);
 write('android/res/mipmap-anydpi-v26/ic_launcher_round.xml', adaptive);
 write('android/play-store-512.png', pngOpaque(masters.square, 512));
+// Google Play feature graphic: 1024x500, no alpha (Play rejects transparency).
+write('android/play-feature-graphic.png', pngOpaque(src('play-feature-graphic.svg'), 1024, 500));
 
 // iOS (single-size app icon, Xcode 14+; dark and tinted appearances, iOS 18+)
 const ios = 'ios/AppIcon.appiconset';
