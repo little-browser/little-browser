@@ -9,14 +9,13 @@ build is in `../AGENTS.md`.
 - **`SidebarController`, one per browser window.** It owns the sidebar model and is reached with
   `SidebarController::FromBrowser()`. Views observe it through `Observer`. Chromium code calls in
   through the small hooks in `patches/lb/*-hooks.patch` (for example `lb::HandleCommand` for
-  ⌘T, ⌘L and ⌘1…9).
+  ⌘T, ⌘L and ⌘W).
 - **Where state lives:**
 
   | State | Where |
   |---|---|
   | Spaces (browser-wide; each belongs to a profile) | Local State `lb.spaces` |
   | Saved tabs of each space (with active tab, tab groups and split views) | Local State `lb.space_tabs`, keyed by space id; not observed, so saving doesn't redraw sidebars |
-  | Favourites (per profile) | profile prefs `lb.favourites` |
   | Last active space (per profile) | profile prefs `lb.active_space` |
   | Whether the first-run search choice was offered (per profile) | profile prefs `lb.search_choice_shown` |
   | A window's current space | session window extra data `lb_space` |

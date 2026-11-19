@@ -4,24 +4,24 @@
 
 #include "lb/browser/ui/views/sidebar/sidebar_header_view.h"
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_constants.h"
-#include "components/favicon/core/favicon_service.h"
-#include "components/favicon_base/favicon_types.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
@@ -50,7 +50,6 @@
 #include "ui/views/border.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view_class_properties.h"
@@ -61,16 +60,9 @@ namespace lb {
 namespace {
 
 constexpr int kPillHeight = 34;
-constexpr int kTileHeight = 44;
 constexpr float kRadius = 10.0f;
-constexpr int kGap = 6;
-constexpr size_t kTilesPerRow = 4;
-constexpr size_t kMaxFavourites = 8;  // two rows; Cmd+1…8 later
 // Below this width (the strip is collapsed) the header hides.
 constexpr int kMinVisibleWidth = 150;
-
-constexpr int kCmdRemoveFavourite = 1;
-constexpr int kCompactTileHeight = 36;
 
 // Two-finger sideways swipe on the sidebar switches space (docs/ux.md §5).
 class SwipeHandler : public ui::EventHandler {
@@ -138,22 +130,6 @@ std::u16string DisplayHost(const GURL& url) {
   return base::UTF8ToUTF16(host);
 }
 
-std::unique_ptr<FontLabelButton> MakeTile(std::u16string text,
-                                          std::u16string tooltip,
-                                          views::Button::PressedCallback cb) {
-  auto tile = std::make_unique<FontLabelButton>(std::move(cb), std::move(text));
-  tile->SetHorizontalAlignment(gfx::ALIGN_CENTER);
-  tile->SetMinSize(gfx::Size(0, kTileHeight));
-  tile->SetBorder(nullptr);
-  tile->SetBackground(views::CreateRoundedRectBackground(ui::kColorSysOmniboxContainer, kRadius));
-  tile->SetEnabledTextColors(ui::kColorSysOnSurface);
-  tile->SetLabelFont(
-      gfx::FontList().DeriveWithSizeDelta(3).DeriveWithWeight(gfx::Font::Weight::BOLD));
-  tile->SetTooltipText(tooltip);
-  tile->GetViewAccessibility().SetName(tooltip);
-  return tile;
-}
-
 }  // namespace
 
 SidebarHeaderView::SidebarHeaderView(BrowserView* browser_view,
@@ -178,13 +154,6 @@ SidebarHeaderView::SidebarHeaderView(BrowserView* browser_view,
   address_->SetEnabledTextColors(ui::kColorSysOnSurface);
   address_->GetViewAccessibility().SetName(u"Address");
 
-  // Favourites: rows of four tiles, per profile.
-  favourites_ = AddChildView(std::make_unique<views::View>());
-  favourites_
-      ->SetLayoutManager(std::make_unique<views::BoxLayout>(
-          views::BoxLayout::Orientation::kVertical, gfx::Insets(), kGap))
-      ->set_cross_axis_alignment(views::BoxLayout::CrossAxisAlignment::kStretch);
-
   // Active space.
   space_label_ = AddChildView(std::make_unique<views::Label>());
   space_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
@@ -198,7 +167,6 @@ SidebarHeaderView::SidebarHeaderView(BrowserView* browser_view,
   Observe(controller_->browser()->GetTabStripModel()->GetActiveWebContents());
   UpdateAddress();
   UpdateSpace();
-  RebuildFavourites();
 }
 
 SidebarHeaderView::~SidebarHeaderView() {
@@ -272,12 +240,10 @@ void SidebarHeaderView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
   compact_ = compact;
   address_->SetVisible(!compact_);
   space_label_->SetVisible(!compact_);
-  RebuildFavourites();
 }
 
 void SidebarHeaderView::OnSidebarModelChanged() {
   UpdateSpace();
-  RebuildFavourites();
 }
 
 void SidebarHeaderView::OnSpaceSwitched(int direction) {
@@ -305,7 +271,6 @@ void SidebarHeaderView::OnTabStripModelChanged(TabStripModel* tab_strip_model,
                                                const TabStripSelectionChange& selection) {
   if (selection.active_tab_changed()) {
     Observe(tab_strip_model->GetActiveWebContents());
-    UpdateAddTile();
   }
   UpdateAddress();
 }
@@ -313,7 +278,6 @@ void SidebarHeaderView::OnTabStripModelChanged(TabStripModel* tab_strip_model,
 void SidebarHeaderView::DidFinishNavigation(content::NavigationHandle* navigation_handle) {
   if (navigation_handle->IsInPrimaryMainFrame()) {
     UpdateAddress();
-    UpdateAddTile();
   }
 }
 
@@ -340,125 +304,23 @@ void SidebarHeaderView::UpdateSpace() {
   space_label_->SetText(text);
 }
 
-void SidebarHeaderView::UpdateAddTile() {
-  // The "+" tile depends on the current page; rebuild only when it comes or goes.
-  if (controller_->CanAddCurrentTab() != shows_add_tile_) {
-    RebuildFavourites();
-  }
-}
-
-void SidebarHeaderView::RebuildFavourites() {
-  favourites_->RemoveAllChildViews();
-  shows_add_tile_ = controller_->CanAddCurrentTab();
-  const auto favourites = controller_->GetFavourites();
-
-  std::vector<std::unique_ptr<views::View>> tiles;
-  for (size_t i = 0; i < favourites.size() && i < kMaxFavourites; ++i) {
-    const Favourite& fav = favourites[i];
-    const std::u16string title = base::UTF8ToUTF16(fav.title);
-    auto it = favicons_.find(fav.url);
-    const bool has_icon = it != favicons_.end() && !it->second.IsEmpty();
-    std::u16string initial = title.empty() ? u"?" : title.substr(0, 1);
-    auto tile = MakeTile(
-        has_icon ? std::u16string() : initial, title,
-        base::BindRepeating(&SidebarController::OpenFavourite, controller_->GetWeakPtr(), i));
-    if (has_icon) {
-      tile->SetImageModel(views::Button::STATE_NORMAL, ui::ImageModel::FromImage(it->second));
-    } else if (it == favicons_.end()) {
-      RequestFavicon(fav.url);
-    }
-    tile->SetID(static_cast<int>(i) + 1);
-    tile->set_context_menu_controller(this);
-    tiles.push_back(std::move(tile));
-  }
-  if (favourites.size() < kMaxFavourites && shows_add_tile_) {
-    tiles.push_back(MakeTile(u"+", u"Add this page to favourites",
-                             base::BindRepeating(&SidebarController::AddCurrentTabToFavourites,
-                                                 controller_->GetWeakPtr())));
-  }
-
-  const size_t per_row = compact_ ? 1 : kTilesPerRow;
-  if (compact_) {
-    for (auto& tile : tiles) {
-      static_cast<views::LabelButton*>(tile.get())->SetMinSize(gfx::Size(0, kCompactTileHeight));
-    }
-  }
-  views::View* row = nullptr;
-  for (size_t i = 0; i < tiles.size(); ++i) {
-    if (i % per_row == 0) {
-      row = favourites_->AddChildView(std::make_unique<views::View>());
-      row->SetLayoutManager(std::make_unique<views::BoxLayout>(
-          views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), kGap));
-    }
-    auto* tile = row->AddChildView(std::move(tiles[i]));
-    static_cast<views::BoxLayout*>(row->GetLayoutManager())->SetFlexForView(tile, 1);
-  }
-  // Keep the last row's tiles the same width as full rows.
-  if (row && row->children().size() < per_row) {
-    for (size_t i = row->children().size(); i < per_row; ++i) {
-      auto* spacer = row->AddChildView(std::make_unique<views::View>());
-      static_cast<views::BoxLayout*>(row->GetLayoutManager())->SetFlexForView(spacer, 1);
-    }
-  }
-  favourites_->SetVisible(!tiles.empty());
-  InvalidateLayout();
-}
-
-void SidebarHeaderView::RequestFavicon(const GURL& url) {
-  favicons_[url] = gfx::Image();  // in flight / none
-  favicon::FaviconService* service = FaviconServiceFactory::GetForProfile(
-      controller_->browser()->GetProfile(), ServiceAccessType::EXPLICIT_ACCESS);
-  if (!service) {
-    return;
-  }
-  service->GetFaviconImageForPageURL(url,
-                                     base::BindOnce(
-                                         [](base::WeakPtr<SidebarHeaderView> self, GURL url,
-                                            const favicon_base::FaviconImageResult& result) {
-                                           if (!self) {
-                                             return;
-                                           }
-                                           if (result.image.IsEmpty()) {
-                                             // None stored yet: ask again next time.
-                                             self->favicons_.erase(url);
-                                             return;
-                                           }
-                                           self->favicons_[url] = result.image;
-                                           self->RebuildFavourites();
-                                         },
-                                         weak_factory_.GetWeakPtr(), url),
-                                     &favicon_tracker_);
-}
-
 void SidebarHeaderView::FocusAddress() {
   controller_->ShowCommandBar(CommandBarMode::kEditAddress);
-}
-
-void SidebarHeaderView::ShowContextMenuForViewImpl(views::View* source,
-                                                   const gfx::Point& point,
-                                                   ui::mojom::MenuSourceType source_type) {
-  context_index_ = source->GetID() - 1;
-  if (context_index_ < 0) {
-    return;
-  }
-  menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  menu_model_->AddItem(kCmdRemoveFavourite, u"Remove from favourites");
-  menu_runner_ =
-      std::make_unique<views::MenuRunner>(menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
-  menu_runner_->RunMenuAt(GetWidget(), nullptr, gfx::Rect(point, gfx::Size()),
-                          views::MenuAnchorPosition::kTopLeft, source_type);
-}
-
-void SidebarHeaderView::ExecuteCommand(int command_id, int event_flags) {
-  if (command_id == kCmdRemoveFavourite && context_index_ >= 0) {
-    controller_->RemoveFavourite(static_cast<size_t>(context_index_));
-  }
 }
 
 BEGIN_METADATA(SidebarHeaderView)
 END_METADATA
 
-void AddSidebar(views::View* content_area, BrowserView* browser_view, int horizontal_padding) {
+void AddSidebar(views::View* content_area,
+                BrowserView* browser_view,
+                int horizontal_padding,
+                views::View* bottom_container) {
+  // Chromium's new-tab button: "+ New Tab" above today's tabs replaces it (new_tab_row_view.h).
+  // The container stays, since it is what fills the space between the tabs and the footer.
+  for (views::View* child : bottom_container->children()) {
+    child->SetVisible(false);
+  }
+
   auto controller = std::make_unique<SidebarController>(browser_view->browser());
   base::WeakPtr<SidebarController> weak_controller = controller->GetWeakPtr();
 

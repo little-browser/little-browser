@@ -11,19 +11,22 @@ lb/BUILD.gn                         //lb:model (view-free logic) + lb_unittests
 lb/browser/spaces/space_model.*     Space type, saved form, new-space defaults, which space a window opens on
 lb/browser/spaces/swipe_tracker.*   two-finger swipe → one space switch per gesture
 lb/browser/command_bar/command_matching.*  command bar scoring and "is this an address?"
+lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab goes to sleep
 lb/browser/ui/
   lb_ui_snapshot.*                  --lb-ui-snapshot=<png>: save the window's UI and quit (dev tool)
-  views/sidebar/sidebar_controller.*   spaces (Local State) and favourites (profile prefs), space switching, saved tabs
-  views/sidebar/sidebar_header_view.*  address pill, favourites (favicons, add/remove), space name
-  views/sidebar/sidebar_footer_view.*  space switcher: switch, new; right-click rename/icon/colour/delete
+  tabs/pinned_tab_sleep.*           closing a pinned tab puts it to sleep instead
+  views/sidebar/sidebar_controller.*   spaces (Local State), space switching, saved tabs
+  views/sidebar/sidebar_header_view.*  address pill, space name
+  views/sidebar/sidebar_footer_view.*  space switcher (switch; right-click rename/icon/colour/delete) and the "+" menu
+  views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill)
   views/search/search_choice_dialog.*  first-run search engine choice
   views/frame/contents_card.h       the page as an inset rounded card next to the sidebar
 ```
 
-Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `sidebar-prefs.patch`,
-`command-hooks.patch`, `session-spaces.patch`, `tab-metrics-detached-guard.patch` and
+Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
+`pinned-list.patch`, `pinned-tab-sleep.patch`, `sidebar-prefs.patch`, `command-hooks.patch`, `session-spaces.patch`, `tab-metrics-detached-guard.patch` and
 `contents-card.patch`; vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
 Not built yet: peek, the little window, the content blocker, tracking-parameter stripping, the
@@ -41,13 +44,23 @@ Try it:
 desktop/scripts/build.sh --dev && desktop/scripts/run.sh --dev --fresh
 ```
 
-Sample favourites and a second space, switched to automatically: add `--lb-sidebar-demo`
+A second space, switched to automatically: add `--lb-sidebar-demo`
 (`=command-bar` also opens the command bar through the Cmd+T path, `=collapsed` collapses the
 strip, `=new-space` opens the new-space dialog, `=new-profile` creates a space in a new profile,
 `=search-again` opens the search choice, closes it and opens it again,
 `=restore-after-crash` does what the crash bubble's Restore button does, `=tab-group` groups a
 tab in Work, leaves the space and comes back, `=split` does the same with a split view,
-`=reopen-window` closes a second window and reopens it as Cmd+Shift+T does; `--lb-ui-snapshot-dialog=<png>` captures a dialog; `--lb-command-bar-text=<q>`
+`=reopen-window` closes a second window and reopens it as Cmd+Shift+T does, `=pinned-sleep`
+pins a tab, shows it and presses Cmd+W (it must stay, asleep and faded), `=pinned-remove` then
+closes the sleeping tab (it must go), `=pinned-wake` then
+shows it again (it must load), `=pinned-close-all` pins every tab, closes them all at once and then closes one twice in a row
+(all must sleep, with a new tab shown), `=pinned-unloaded` pins a tab that hasn't loaded yet (it must look
+asleep); `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
+audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
+`--vmodule=sidebar_controller=1,pinned_tab_sleep=1`, with each pinned row's button;
+`=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and
+out of a tab group, as single jumps and with Esc, logging the tabs after each drag;
+`--lb-ui-snapshot-dialog=<png>` captures a dialog; `--lb-command-bar-text=<q>`
 prefills it; `--lb-ui-snapshot-command-bar=<png>` captures it; `--lb-ui-snapshot-delay=<seconds>`
 sets the wait before any capture, 4 by default). Add `--use-mock-keychain` to any
 manual launch, or macOS asks for keychain access after every rebuild (`run.sh` does this).

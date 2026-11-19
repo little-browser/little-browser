@@ -1,11 +1,10 @@
 # Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
-# strip — header at the top, space switcher at the bottom — and build our files (sidebar, command
-# bar, snapshot tool) with the region view's target.
-diff --git a/chrome/browser/ui/views/frame/BUILD.gn b/chrome/browser/ui/views/frame/BUILD.gn
-index 07ff356..741cbe6 100644
+# strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
+# today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
+# snapshot tool, pinned tab sleep) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,25 @@ source_set("horizontal_tab_strip_region_view") {
+@@ -537,7 +537,29 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -18,6 +17,8 @@ index 07ff356..741cbe6 100644
 +    "//lb/browser/ui/views/command_bar/command_bar.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.h",
 +    "//lb/browser/ui/lb_ui_snapshot.h",
++    "//lb/browser/ui/views/sidebar/new_tab_row_view.cc",
++    "//lb/browser/ui/views/sidebar/new_tab_row_view.h",
 +    "//lb/browser/ui/views/sidebar/sidebar_controller.cc",
 +    "//lb/browser/ui/views/sidebar/sidebar_controller.h",
 +    "//lb/browser/ui/views/sidebar/sidebar_footer_view.cc",
@@ -28,38 +29,51 @@ index 07ff356..741cbe6 100644
 +    "//lb/browser/ui/views/sidebar/new_space_dialog.h",
 +    "//lb/browser/ui/views/search/search_choice_dialog.cc",
 +    "//lb/browser/ui/views/search/search_choice_dialog.h",
++    "//lb/browser/ui/tabs/pinned_tab_sleep.cc",
++    "//lb/browser/ui/tabs/pinned_tab_sleep.h",
 +  ]
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +575,7 @@ source_set("vertical_tab_strip_region_view") {
+@@ -557,6 +579,8 @@
      "//ui/views",
    ]
    deps = [
 +    "//lb:model",  # Little Browser: view-free sidebar logic (desktop/lb/BUILD.gn)
++    "//chrome/browser/resource_coordinator:mojo_bindings",  # Little Browser: pinned tab sleep
      ":browser_view_header",
      ":custom_corners_background",
      ":frame",
-diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index f3ab4f1..0e28ea5 100644
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -9,6 +9,7 @@
+@@ -9,6 +9,8 @@
  #include <utility>
  
  #include "base/callback_list.h"
++#include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 +#include "lb/browser/ui/views/sidebar/sidebar_header_view.h"
  #include "base/functional/bind.h"
  #include "base/i18n/number_formatting.h"
  #include "base/i18n/rtl.h"
-@@ -192,6 +193,10 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+@@ -191,6 +193,11 @@
+ 
    gemini_button_ =
        content_area_view_->AddChildView(std::make_unique<views::View>());
- 
-+  // Little Browser: address pill, favourites and space name above the tabs; space switcher
-+  // at the bottom.
-+  lb::AddSidebar(content_area_view_, browser_view, region_horizontal_padding);
 +
++  // Little Browser: address pill and space name above the tabs; space switcher
++  // and the "+" menu at the bottom. The new-tab button moves above today's tabs (below).
++  lb::AddSidebar(content_area_view_, browser_view, region_horizontal_padding,
++                 bottom_button_container_);
+ 
    // Views that go into the content area above
    // --------------
+@@ -888,6 +895,9 @@
+               base::Unretained(this)));
  
+   OnCollapseStateChanged(state_controller_->GetCollapseState());
++
++  // Little Browser: "+ New Tab" between the pinned and today's tabs.
++  lb::AddNewTabRow(*tab_strip_view(), browser_view()->browser());
+ }
+ 
+ std::unique_ptr<views::View> VerticalTabStripRegionView::RemoveTabStripView(

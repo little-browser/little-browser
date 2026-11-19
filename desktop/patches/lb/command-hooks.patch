@@ -1,4 +1,5 @@
-# Little Browser: Cmd+T / the new-tab button / Cmd+L open the command bar; Cmd+1…9 open favourites —
+# Little Browser: Cmd+T / the new-tab button / Cmd+L open the command bar, and Cmd+W closes a
+# pinned tab without Chromium's "press again" toast —
 # in windows that show our sidebar (desktop/lb/browser/ui/views/sidebar/sidebar_controller.cc).
 # Two hooks: the command controller's entry point (keyboard, menus) and the new-tab action (the
 # vertical strip's button, the app menu). chrome::NewTab itself is untouched: other callers
@@ -20,7 +21,7 @@
  
    DCHECK(IsCommandEnabled(id)) << "Invalid/disabled command " << id;
 +
-+  // Little Browser: command bar (Cmd+T / Cmd+L) and favourites (Cmd+1…9). Hooked here, not
++  // Little Browser: our commands (lb::HandleCommand: Cmd+T, Cmd+L, Cmd+W). Hooked here, not
 +  // in HandleCommandWithDisposition, because commands may run through the actions framework.
 +  if (lb::HandleCommand(browser_, id)) {
 +    return true;

@@ -4,9 +4,10 @@ lb/safe-browsing-standard-only.patch  # standard protection only, local hash-pre
 lb/macos-no-ai-sandbox-params.patch   # macOS: non-Safe-Browsing half of an ungoogled patch we skip
 lb/settings-product-icon.patch        # branding: Little Browser mark as the WebUI product icon
 lb/vertical-tabs-default.patch        # sidebar layout (vertical tabs) by default
-lb/sidebar-hooks.patch                # host desktop/lb's sidebar (header + space switcher) in the vertical tab strip
-lb/sidebar-prefs.patch                # register the sidebar's prefs (favourites per profile, spaces browser-wide)
-lb/command-hooks.patch                # Cmd+T / Cmd+L → command bar, Cmd+1…9 → favourites
+lb/sidebar-hooks.patch                # host desktop/lb's sidebar (header, footer, "+ New Tab") in the vertical tab strip
+lb/new-tab-row.patch                  # a slot between pinned and today's tabs for "+ New Tab"
+lb/sidebar-prefs.patch                # register the sidebar's prefs (active space per profile, spaces browser-wide)
+lb/command-hooks.patch                # Cmd+T / Cmd+L → command bar
 lb/tab-metrics-detached-guard.patch   # don't crash on tabs of inactive spaces (detached)
 lb/session-spaces.patch               # restored windows return to their space
 lb/continue-session-default.patch     # "continue where you left off" by default (spaces keep tabs)
@@ -16,3 +17,8 @@ lb/welcome-page-url.patch             # first-run page at chrome://welcome/
 lb/first-run-profile-name.patch       # first run doesn't name the profile "Work"
 lb/mac-data-folder.patch              # macOS data in Application Support/Little Browser
 lb/contents-card.patch                # with vertical tabs, the page is an inset rounded card
+lb/pinned-list.patch                  # pinned tabs are list rows, not icon tiles (tiles only when collapsed)
+lb/no-saved-groups-button.patch      # no saved tab groups button in the vertical strip header
+lb/no-tab-detach.patch               # tabs can not be dragged out into a new window
+lb/drag-pins.patch                   # drag tabs between the pinned and the unpinned area
+lb/pinned-tab-sleep.patch            # closing a pinned tab puts it to sleep, it stays in place

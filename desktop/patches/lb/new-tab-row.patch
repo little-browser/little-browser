@@ -1,0 +1,91 @@
+# Little Browser: a slot in Chromium's tab list between the pinned and the unpinned tabs, for
+# desktop/lb's "+ New Tab" row (docs/ux.md §2: divider, New tab, today's tabs). The row itself
+# is ours (lb/browser/ui/views/sidebar/new_tab_row_view.*); sidebar-hooks.patch puts it in.
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+@@ -46,6 +46,11 @@
+ 
+   views::Separator* GetTabsSeparator() const { return tabs_separator_; }
+ 
++  // Little Browser: a row between the pinned and the unpinned tabs ("+ New Tab", from
++  // desktop/lb), laid out in the vertical orientation only. Replaces any earlier row.
++  void SetLbNewTabRow(std::unique_ptr<views::View> row);
++  views::View* lb_new_tab_row() const { return lb_new_tab_row_; }
++
+   PinnedTabContainerView* GetPinnedTabsContainer() const;
+   UnpinnedTabContainerView* GetUnpinnedTabsContainer() const;
+   TabScrollButtonContainer* GetScrollButtonContainer() const;
+@@ -150,6 +155,8 @@
+   raw_ptr<views::ScrollView> unpinned_tabs_scroll_view_ = nullptr;
+   raw_ptr<UnpinnedTabContainerView> unpinned_tabs_container_view_ = nullptr;
+   raw_ptr<TabScrollButtonContainer> tab_scroll_button_container_ = nullptr;
++  // Little Browser: see SetLbNewTabRow().
++  raw_ptr<views::View> lb_new_tab_row_ = nullptr;
+   bool is_collapsed_ = false;
+ 
+   // Used for seek time metrics from the time the mouse enters the tabstrip.
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+@@ -461,6 +461,14 @@
+   PrefService* prefs = GetPrefs();
+   return prefs ? prefs->GetBoolean(prefs::kTabScrollButtonsPinnedToTabstrip)
+                : true;
++}
++
++void TabStripView::SetLbNewTabRow(std::unique_ptr<views::View> row) {
++  if (lb_new_tab_row_) {
++    RemoveChildViewT(lb_new_tab_row_.ExtractAsDangling());
++  }
++  lb_new_tab_row_ = AddChildView(std::move(row));
++  InvalidateLayout();
+ }
+ 
+ void TabStripView::SetCollapsedState(bool is_collapsed) {
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
+@@ -217,6 +217,11 @@
+ 
+   int total_host_width =
+       has_unpinned ? std::max(pinned_width, x) : pinned_width;
++
++  // Little Browser: the "+ New Tab" row is for the vertical tab strip only.
++  if (views::View* lb_row = tab_strip_view->lb_new_tab_row()) {
++    layouts.child_layouts.emplace_back(lb_row, false, gfx::Rect());
++  }
+ 
+   layouts.host_size = gfx::Size(total_host_width, container_height);
+   return layouts;
+@@ -259,11 +264,18 @@
+                                      unpinned_preferred_height != 0 &&
+                                      is_collapsed;
+ 
++  // Little Browser: the "+ New Tab" row between the pinned and unpinned tabs.
++  views::View* const lb_row = tab_strip_view->lb_new_tab_row();
++  const int lb_row_height =
++      lb_row && lb_row->GetVisible()
++          ? lb_row->GetHeightForWidth(size_bounds.width().value())
++          : 0;
++
+   // If the height is bounded, calculate the available space for laying out the
+   // pinned and unpinned containers.
+   int remaining_height = 0;
+   if (size_bounds.height().is_bounded()) {
+-    remaining_height = size_bounds.height().value();
++    remaining_height = size_bounds.height().value() - lb_row_height;
+     if (pinned_preferred_height != 0 && unpinned_preferred_height != 0) {
+       remaining_height -= region_vertical_padding;
+     }
+@@ -317,6 +329,13 @@
+   layouts.child_layouts.emplace_back(tabs_separator, should_show_separator,
+                                      separator_bounds);
+ 
++  if (lb_row) {
++    layouts.child_layouts.emplace_back(
++        lb_row, lb_row_height > 0,
++        gfx::Rect(0, y, size_bounds.width().value(), lb_row_height));
++    y += lb_row_height;
++  }
++
+   // Place the unpinned container using the entire available width, we do not
+   // inset the x value by `region_horizontal_padding` here because, when the tab
+   // strip is collapsed, tab groups need to draw the group colored line in this

@@ -1,0 +1,13 @@
+# Little Browser: the vertical strip has no saved tab groups button next to tab search.
+--- a/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
++++ b/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
+@@ -72,7 +72,8 @@
+           LayoutConstant::kVerticalTabStripFlatEdgeButtonPadding)));
+ 
+   std::unique_ptr<TabStripFlatEdgeButton> start_button;
+-  if (context_ == Context::kVerticalTabStrip) {
++  // Little Browser: no saved tab groups button in the vertical strip.
++  if (false && context_ == Context::kVerticalTabStrip) {
+     if (tab_groups::SavedTabGroupUtils::IsEnabledForProfile(
+             browser_->GetProfile()) &&
+         !organizer_panel::IsOrganizerPanelFeatureEnabled()) {

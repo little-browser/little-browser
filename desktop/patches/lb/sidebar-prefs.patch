@@ -1,4 +1,4 @@
-# Little Browser: register the sidebar's prefs — profile (favourites, active space) and Local State (spaces, browser-wide).
+# Little Browser: register the sidebar's prefs — profile (active space) and Local State (spaces, browser-wide).
 
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
@@ -22,7 +22,7 @@
    side_panel_prefs::RegisterProfilePrefs(registry);
  
    tabs::RegisterProfilePrefs(registry);
-+  lb::RegisterProfilePrefs(registry);  // Little Browser: favourites, active space
++  lb::RegisterProfilePrefs(registry);  // Little Browser: active space
  
    CertificateManagerPageHandler::RegisterProfilePrefs(registry);
  

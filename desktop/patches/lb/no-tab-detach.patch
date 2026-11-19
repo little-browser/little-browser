@@ -1,0 +1,22 @@
+# Little Browser: a dragged tab outside every tab strip stays in its strip instead of detaching into
+# a new window (docs/ux.md). Dragging itself is unchanged. Over the page it can still be dropped to
+# make a split view, except as a window's only tab, which has nothing to be split with.
+--- a/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
++++ b/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
+@@ -1085,6 +1085,16 @@
+         delegate_context = attached_context_;
+       }
+       target_context = delegate_context;
++    }
++  }
++
++  // Little Browser: a tab dragged outside every tab strip stays where it is instead of opening a
++  // new window. Dropped on the page, it can still make a split view with the tab shown next,
++  // which a window's only tab doesn't have.
++  if (!target_context) {
++    target_context = attached_context_;
++    if (current_drag_target_ && attached_context_->GetTabStripModel()->count() <= 1) {
++      UpdateDragTarget(nullptr, point_in_screen);
+     }
+   }
+ 

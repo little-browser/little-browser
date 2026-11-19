@@ -80,10 +80,10 @@ struct Item {
   base::RepeatingClosure run;
 };
 
-// Opens `url` in a new tab, or (edit-address mode) in the current one. Free function so result
-// actions don't depend on the command bar, which closes before they run.
+// Opens `url` in a new tab, or (open-here and edit-address modes) in the current one. Free
+// function so result actions don't depend on the command bar, which closes before they run.
 void OpenUrlIn(BrowserWindowInterface* browser, CommandBarMode mode, const GURL& url) {
-  if (mode == CommandBarMode::kEditAddress) {
+  if (mode == CommandBarMode::kOpenHere || mode == CommandBarMode::kEditAddress) {
     NavigateParams params(browser, url, ui::PAGE_TRANSITION_TYPED);
     params.disposition = WindowOpenDisposition::CURRENT_TAB;
     Navigate(&params);
@@ -332,8 +332,6 @@ class CommandBarView : public views::View, public views::TextfieldController {
                }
              },
              c)},
-        {u"Add page to favourites", u"Command", u"", 0,
-         base::BindRepeating(&SidebarController::AddCurrentTabToFavourites, c)},
         {u"Tabs on top", u"Command", u"", 0,
          base::BindRepeating(
              [](BrowserWindowInterface* b) {
@@ -395,17 +393,6 @@ class CommandBarView : public views::View, public views::TextfieldController {
         items_.push_back(tab_item(tab, s + 0.3));
       }
     }
-    const auto favourites = controller_->GetFavourites();
-    for (size_t i = 0; i < favourites.size(); ++i) {
-      const std::u16string title = base::UTF8ToUTF16(favourites[i].title);
-      if (double s = MatchScore(query, title + u" " + base::UTF8ToUTF16(favourites[i].url.spec()));
-          s > 0) {
-        items_.push_back(
-            {title, u"Favourite · " + DisplayHost(favourites[i].url),
-             u"⌘" + base::NumberToString16(i + 1), s + 0.25,
-             base::BindRepeating(&SidebarController::OpenFavourite, controller_->GetWeakPtr(), i)});
-      }
-    }
     for (Item& command : Commands()) {
       if (double s = MatchScore(query, command.title); s > 0) {
         command.score = s + 0.2;
@@ -426,7 +413,7 @@ class CommandBarView : public views::View, public views::TextfieldController {
     if (address) {
       // A clear address first, then the search; something like "node.js" the other way round.
       Item go = {base::UTF8ToUTF16(address->url.spec()),
-                 mode_ == CommandBarMode::kEditAddress ? u"Go" : u"Open in new tab", u"", 100,
+                 mode_ == CommandBarMode::kNewTab ? u"Open in new tab" : u"Go", u"", 100,
                  Open(address->url)};
       items_.insert(items_.begin(), address->certain ? std::move(go) : std::move(search));
       items_.insert(items_.begin() + 1, address->certain ? std::move(search) : std::move(go));

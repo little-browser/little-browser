@@ -6,7 +6,7 @@
 
 **Built so far (macOS desktop):** the sidebar layout on upstream's vertical tabs, the command bar,
 spaces and profiles (new-space dialog, switching by shortcut, swipe or footer, per-space tint, saved
-tabs per space), favourites per profile, the first-run search-engine choice, the quit warning,
+tabs per space), pinned tabs as a list, the first-run search-engine choice, the quit warning,
 and Chromium's own tab groups. Everything else here — auto-archive, group suggestions and
 auto-grouping, Peek, the little window, the distinct incognito look, top-mode additions and the
 whole mobile section — is specified but not built.
@@ -17,7 +17,7 @@ whole mobile section — is specified but not built.
 
 1. **Content first.** The page fills almost the whole window. No toolbar row, no bookmarks bar, no
    status bar. All browser chrome lives in one sidebar (or one slim row in top mode).
-2. **One place for everything.** Address, tabs, favourites and spaces are all in the sidebar.
+2. **One place for everything.** Address, tabs and spaces are all in the sidebar.
 3. **Keyboard first.** A command bar opens everything: new tab, search, switch tab, commands.
    Every action has a shortcut; nothing needs a mouse.
 4. **Calm.** No badges, promos, pop-ups, "what's new" pages or permission nags. Nothing moves unless
@@ -37,9 +37,8 @@ whole mobile section — is specified but not built.
 │ ╭───────────────╮ ││                                                ││
 │ │ 🔒 github.com  │ ││                                                ││
 │ ╰───────────────╯ ││                                                ││
-│ ┌──┐┌──┐┌──┐┌──┐  ││                                                ││
-│ │W ││GH││YT││M │  ││             page (rounded, inset)              ││
-│ └──┘└──┘└──┘└──┘  ││                                                ││
+│                   ││                                                ││
+│                   ││             page (rounded, inset)              ││
 │ ▸ Personal        ││                                                ││
 │   📌 Calendar     ││                                                ││
 │   📌 Mail         ││                                                ││
@@ -59,12 +58,11 @@ window height, and with the sidebar hidden the domain is one hover or Cmd+L away
 |---|---|---|
 | Title row | Window controls, back / forward / reload | Drag area for the window |
 | Address pill | Domain only (`github.com`), lock/shield state, loading bar underneath | Click or Cmd+L → command bar with the full URL selected |
-| Favourites | Icon grid, 4 per row, **per profile**: shared by all spaces that use the same profile | Each favourite keeps its own page; audio indicator on the tile; Cmd+1…9 |
 | Space header | Name + icon of the current space; profile badge if it isn't the default profile | Space colour tints the sidebar |
-| Pinned tabs | Per space, persistent | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
-| Divider + New tab | | |
+| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles. Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
+| Divider + New tab | "+ New Tab" row, opens the command bar (Cmd+T) | The divider shows only when the space has pinned tabs |
 | Today tabs | Unpinned tabs, newest first | Optional auto-archive (section 6) |
-| Footer | Downloads, space switcher (dots/icons), new space | |
+| Footer | Downloads, space switcher (dots/icons), **＋** in the bottom-right corner | ＋ opens a menu: New space, then, set apart, the tab actions: New tab, New split view (only while a page is open), New tab group |
 
 - **Page area** is inset by 8 px with rounded corners and a soft shadow; this frames the page and
   makes the sidebar feel like part of the window, not a toolbar.
@@ -87,11 +85,11 @@ full address — upstream Chromium's own layout:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- Favourites and pinned tabs shrink to icons; today tabs are chips with titles.
+- Pinned tabs shrink to icons; today tabs are chips with titles.
 - Command bar, Peek, Little window and all shortcuts work the same as in sidebar mode. A sideways
   swipe on the tab row switches space.
-- In the real browser this is Chromium's upstream horizontal tab strip and toolbar plus our space and
-  favourites controls; no layout patches.
+- In the real browser this is Chromium's upstream horizontal tab strip and toolbar plus our space
+  controls; no layout patches.
 
 ## 4. Command bar
 
@@ -103,7 +101,7 @@ The centre of the browser. A floating palette in the middle of the window.
 | Cmd+L / click address pill | Edit current URL: full URL, selected |
 
 - Results, in one list, ranked by fuzzy match: **open tabs** (switch, across all spaces) ·
-  favourites · pinned · history · archived tabs · **commands** (“Toggle sidebar”, “New space”,
+  pinned · history · archived tabs · **commands** (“Toggle sidebar”, “New space”,
   “Tabs on top”, “Incognito window”, “Copy URL”…) · URL / “Search with ‹engine›”.
 - Enter takes the top result; ↑/↓ moves; Esc closes and returns focus to the page.
 - Opens in < 50 ms; it's a native/overlay view, not a page.
@@ -116,13 +114,13 @@ The centre of the browser. A floating palette in the middle of the window.
   (on the tab row in top mode). The sidebar contents slide in the swipe direction; the page
   cross-fades to that space's last active tab. On the page itself the swipe stays **back /
   forward**, as in Chrome and Safari, and sideways-scrolling content keeps working.
-- A **profile** is one set of logins, cookies, history and favourites. Every space uses a
+- A **profile** is one set of logins, cookies and history. Every space uses a
   profile; several spaces can share one. Everyone starts with just the **default profile**, named
   **Personal** like its first space, so the concept stays out of sight until it's needed.
 - Space menu (right-click its dot or header) → **Profile ▸** Personal / Work / … / New profile. A space
   outside the default profile shows a small 🔒 badge with the profile's name, so it's clear its logins
   are separate. Moving a space or tab to another profile reloads it in that profile's cookie jar.
-- **New space** ("+" in the footer, or the command bar) opens a small dialog: **name**, **profile**
+- **New space** (the footer's ＋ menu, or the command bar) opens a small dialog: **name**, **profile**
   (an existing one, preselected to the current space's, or **New profile…** with its name) and
   **theme** (colour and icon); **Cancel** or **Create**.
 - Spaces are browser-wide. A Chromium window belongs to one profile, so switching to a space in
@@ -135,13 +133,26 @@ The centre of the browser. A floating palette in the middle of the window.
 
 ## 6. Tabs
 
-- **Pinned** tabs are the space's permanent set. Cmd+W on a pinned tab puts it to sleep instead of
-  deleting it. Cmd+D pins/unpins.
+- **Pinned** tabs are the space's permanent set. Closing a pinned tab (Cmd+W, its ✕, the tab menu,
+  a middle click) puts it to sleep instead of deleting it, without asking: it keeps its place, its
+  page unloads, it is drawn faded, and clicking it loads the page again. The sidebar shows the tab
+  used last instead (a new tab if there is none). A sleeping pinned tab's button is "−", which
+  removes it; closing it any other way removes it too. A page that asks before it is left (it may
+  hold unsaved input) is only hidden, not unloaded, and a pinned tab in a split view closes as
+  usual. A pinned tab that hasn't loaded since a
+  restart or a space switch counts as sleeping. Cmd+D pins/unpins.
 - **Today** tabs are everything else. **Auto-archive**: today tabs not used for a while are
   closed and moved to the archive (searchable in the command bar). This keeps the sidebar short and
   memory low. Choices: 12 h, **24 h (default)**, 7 days, 30 days, or Never. The first-run screen asks
   for it right after the search engine choice, with 24 h suggested; Settings can change it later.
-- Drag to reorder, or drag between pinned and today.
+- Drag to reorder pinned tabs, today tabs and groups. Dragging a tab across "+ New Tab" pins or
+  unpins it, live, and it can go anywhere in the other area, a group included; the right-click
+  menu pins and unpins too. Groups stay among the today tabs and can't be dragged into the pinned
+  area. Tabs never leave the window by dragging: dragging past the sidebar doesn't open a new
+  window. A tab dragged out of a group leaves it; dropped between two groups, or between a
+  group's tabs, it lands there (joining the group only when dropped inside it).
+- **Split view** is Chromium's own: two tabs side by side in one sidebar row. The footer's ＋ menu
+  (New split view) pairs the current page with a new tab; Chromium's tab menu adds more ways.
 - Middle-click or ✕ on hover closes. Speaker icon on tabs playing audio; click to mute.
 - Ctrl+Tab / Ctrl+Shift+Tab cycle tabs in sidebar order.
 
@@ -186,6 +197,7 @@ Named, collapsible runs of tabs — Arc-style folders — inside pinned or today
   have mixed in every other gitlab.com project.
 
 **Living with groups**
+- **New Tab Group** (the footer's ＋ menu) makes a group with one blank placeholder tab; clicking it opens the command bar, and the chosen page opens in the placeholder, inside the group. The placeholder closes by itself when another tab joins the group.
 - Click the header to collapse / expand; double-click (or its ⋯ menu) to rename; the menu also has
   Ungroup and Close tabs in group. Tabs removed from a group are never auto-grouped again.
 - Collapsed groups' tabs **sleep sooner**: after a third of the normal sleep time, at least
@@ -193,7 +205,7 @@ Named, collapsible runs of tabs — Arc-style folders — inside pinned or today
 - **Archive**: a group in today is archived **as a unit**, once none of its tabs has been used
   for the auto-archive time; the command bar finds it by name and restores the whole named group.
   Groups in pinned are never archived.
-- Moving a tab to another space, pinning it alone, or making it a favourite takes it out of its
+- Moving a tab to another space, or pinning it alone takes it out of its
   group.
 - **Phones**: groups sync. In the all-tabs view each group is a collapsible section (name,
   count) among today's cards; a tab's hold menu has *Add to New Group*, *Add to Group ▸* and
@@ -208,7 +220,7 @@ suggestion logic sit on top. Each group gets one of Chromium's group colours, pi
 
 - **Shift+click** a link (configurable: Option/Alt+click). It replaces Chromium's "open in new
   window", which we hardly need; Alt+click stays "download link". Optional: links that leave the site of a
-  favourite/pinned tab always open in Peek.
+  pinned tab always open in Peek.
 - The card grows from the click point to ~85% of the page area over a dimmed backdrop.
 - Controls at the card's top-right: **Open as tab** (the card expands into the page area and becomes
   a today tab — the page is *not* reloaded), **Open in Little window**, **Close** (Esc or click the
@@ -225,11 +237,11 @@ suggestion logic sit on top. Each group gets one of Chromium's group colours, pi
 ## 9. Incognito
 
 - Its own window, Cmd+Shift+N. Visually distinct: dark tint, “Incognito” label in the sidebar.
-- No favourites or spaces in the sidebar — only today tabs, so it's obvious nothing is saved.
+- No spaces in the sidebar — only today tabs, so it's obvious nothing is saved.
 
 ## 10. Mobile (phones)
 
-Same model as desktop — profiles, spaces, favourites per profile, pinned and today tabs, archive —
+Same model as desktop — profiles, spaces, pinned and today tabs, archive —
 arranged for one thumb. Everything touched often sits in the bottom third.
 
 ```
@@ -251,20 +263,19 @@ arranged for one thumb. Everything touched often sits in the bottom third.
 **The bar** (bottom by default, top in Settings) — space icon · address pill (domain only) ·
 tab count · ⋯ menu.
 - Tap the address → **search**: full screen, the input sits right above the keyboard, results grow
-  upward with the best match nearest the thumb. Empty input shows recent tabs and the profile's
-  favourites.
+  upward with the best match nearest the thumb. Empty input shows recent tabs.
 - **Drag the address sideways** → previous / next tab in the space, pinned first, then today.
 - **Drag the bar up** (or tap the tab count) → **all tabs**.
 - Tap the space icon → **spaces sheet**: switch space, incognito, new space, space options
   (rename, icon, colour, **profile**).
-- ⋯ → back / forward / reload / copy link, pin, add to favourites, move to space, new (incognito)
+- ⋯ → back / forward / reload / copy link, pin, move to space, new (incognito)
   tab, archive now, settings.
 - While reading, scrolling down **hides the bar completely**; scrolling up, or tapping the
   bottom edge, brings it back.
 
 **All tabs** — one page per space; drag sideways to move between spaces (the space names on top
-also jump). Each page: the profile's favourites (icons), pinned tabs (rows), today's tabs as
-**cards with page previews** (rows in Settings). Hold a tab for pin / favourite / move / close.
+also jump). Each page: pinned tabs (rows), today's tabs as
+**cards with page previews** (rows in Settings). Hold a tab for pin / move / close.
 Footer: ＋ (new tab) · Done — only tab actions here; new spaces come from the spaces sheet. The mask button switches to incognito tabs (dark tint, "Close all").
 Previews are kept in memory only.
 
@@ -272,10 +283,9 @@ Previews are kept in memory only.
 the rest sleep and keep their preview.
 
 **Peek** — on **iPhone**, holding a link shows the **system link preview** (UIContextMenu via
-`WKUIDelegate`) with our actions: Open in New Tab (also: tap the preview), Open in Background, Add
-to Favourites, Copy Link, Share. On **Android** it opens our **Peek sheet**: a scrollable bottom
+`WKUIDelegate`) with our actions: Open in New Tab (also: tap the preview), Open in Background, Copy Link, Share. On **Android** it opens our **Peek sheet**: a scrollable bottom
 sheet; drag up or tap Open = open as tab (no reload), drag down = close. Auto-peek from pinned
-tabs / favourites works as on desktop.
+tabs works as on desktop.
 
 **Tablets** — at ~700 pt width and above (iPad, Android tablets, open foldables) the **desktop
 sidebar layout** is used (section 2); narrower (Split View, Slide Over) uses the phone layout.
@@ -301,4 +311,4 @@ work.
 ## 12. What we leave out of Arc
 
 Boosts, Easels, Notes, Library media view, AI features, accounts, Air Traffic Control (rule-based link
-routing), split view, right/bottom tabs. Candidates for later: split view, link routing rules.
+routing), right/bottom tabs. Candidate for later: link routing rules.
