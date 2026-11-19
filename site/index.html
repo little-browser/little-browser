@@ -47,7 +47,7 @@
     <nav aria-label="Sections">
       <a href="#features">Features</a>
       <a href="#privacy">Privacy</a>
-      <a href="#download">Download</a>
+      <a href="/downloads">Download</a>
     </nav>
     <div class="theme" role="group" aria-label="Colour theme">
       <button data-t="auto" aria-pressed="true" aria-label="Match system" title="Match system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
@@ -65,10 +65,9 @@
         <h1>A little browser<br>for a calmer web.</h1>
         <p class="lead">Everything lives in one quiet sidebar, with a space for each part of your life. No account, no telemetry. Alpha builds for Macs with Apple silicon are here to try: expect rough edges.</p>
         <div class="ctas">
-          <a class="btn primary" href="#download" data-dl-primary>Download</a>
-          <a class="btn ghost" href="#" data-peek>Preview the design</a>
+          <a class="btn primary" href="/downloads" data-dl-primary>Download</a>
         </div>
-        <p class="dl-meta" data-dl-meta><a href="#download">Other platforms and previous releases</a></p>
+        <p class="dl-meta" data-dl-meta><a href="/downloads">All downloads</a></p>
       </div>
 
       <div class="mock" aria-label="Little Browser window: a sidebar on the left and a page on the right">
@@ -200,43 +199,6 @@
     </div>
   </section>
 
-  <section id="download" data-releases="https://downloads.littlebrowser.app/releases.json">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow">Download</span>
-        <h2>Mac first, then the rest.</h2>
-        <p>The same calm layout everywhere, built on whatever each platform allows. Only macOS exists so far, as an alpha for Macs with Apple silicon.</p>
-      </div>
-
-      <div class="callout" role="note">
-        <b>This is an alpha.</b> It's for trying out, not yet for daily use: expect bugs, missing
-        features and changes between builds, and keep another browser around. Builds aren't signed
-        with an Apple Developer ID yet, so the first time you open one, macOS stops it: open
-        <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b>. There are no
-        automatic updates yet; new builds appear here.
-      </div>
-
-      <div class="platforms" id="platforms">
-        <div class="platform" data-platform="macos"><b>macOS</b><span>Chromium · Apple silicon</span><em data-platform-status>Alpha</em></div>
-        <div class="platform" data-platform="windows"><b>Windows</b><span>Chromium</span><em data-platform-status>Coming soon</em></div>
-        <div class="platform" data-platform="linux"><b>Linux</b><span>Chromium</span><em data-platform-status>Coming soon</em></div>
-        <div class="platform" data-platform="ios"><b>iPhone &amp; iPad</b><span>WebKit, as Apple requires</span><em data-platform-status>Coming soon</em></div>
-        <div class="platform" data-platform="android"><b>Android</b><span>Chromium</span><em data-platform-status>Coming soon</em></div>
-      </div>
-
-      <h3 class="releases-title">All releases</h3>
-      <p class="releases-empty" data-releases-empty>The first alpha build is on its way. Check back soon.</p>
-      <div class="releases-wrap" hidden data-releases-list>
-        <table class="releases">
-          <thead><tr><th scope="col">Version</th><th scope="col">Date</th><th scope="col">Chromium</th><th scope="col">Downloads</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <noscript><p class="releases-empty">Turn on JavaScript to see the downloads, or read the list at
-        <a href="https://downloads.littlebrowser.app/releases.json">downloads.littlebrowser.app/releases.json</a>.</p></noscript>
-    </div>
-  </section>
-
   <section class="alt">
     <div class="wrap oss">
       <div class="section-head" style="margin:0">
@@ -260,7 +222,7 @@
       <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
     </a>
     <nav aria-label="Footer">
-      <a href="#download">Download</a>
+      <a href="/downloads">Download</a>
       <a href="#privacy">Privacy</a>
     </nav>
     <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · This site uses no cookies or analytics.</span>
