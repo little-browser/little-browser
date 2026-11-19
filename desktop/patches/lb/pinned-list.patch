@@ -1,0 +1,95 @@
+# Little Browser: pinned tabs in the vertical strip are list rows (icon, title) like the other tabs,
+# one per row, with a close button (which puts a pinned tab to sleep, lb/browser/ui/tabs). Only
+# while the strip is collapsed do they stay outlined icon tiles.
+--- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+@@ -410,14 +410,9 @@
+ 
+     // When we are in collapsed state, only one child should be shown per row.
+     // During collapse animation and other cases, fit as many as possible.
+-    children_on_row =
+-        collapse_state == tabs::VerticalTabStripCollapseState::kCollapsed
+-            ? 1
+-            : std::min(
+-                  children_on_row,
+-                  static_cast<int>(std::floor((available_width - child_width) /
+-                                              (child_width + kTabPadding)) +
+-                                   1));
++    // Little Browser: one pinned tab per row, as a list.
++    (void)collapse_state;
++    children_on_row = 1;
+ 
+     // Allocate extra space to the tabs.
+     available_width -=
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -1104,6 +1104,7 @@
+ void TabView::OnCollapseStateChanged(
+     tabs::VerticalTabStripCollapseState state) {
+   collapsed_ = state == tabs::VerticalTabStripCollapseState::kCollapsed;
++  UpdateBorder();  // Little Browser: pinned tabs are outlined tiles only while collapsed.
+ }
+ 
+ void TabView::OnTabStateChanged() {
+@@ -1224,7 +1225,8 @@
+     return;
+   }
+ 
+-  if (pinned_) {
++  // Little Browser: expanded, pinned tabs are list rows like the others (no outline).
++  if (pinned_ && (collapsed_ || split_)) {
+     if (split_) {
+       // Insets for border handled by the `SplitTabView`.
+       SetBorder(views::CreateEmptyBorder(gfx::Insets(GetLayoutConstant(
+--- a/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
+@@ -50,9 +50,11 @@
+     const views::SizeBounds& size_bounds) const {
+   const int width =
+       size_bounds.width().value_or(tabs::kVerticalTabStripUncollapsedMaxWidth);
+-  const int height = GetLayoutConstant(
+-      TabView().pinned_ ? LayoutConstant::kVerticalTabPinnedHeight
+-                        : LayoutConstant::kVerticalTabHeight);
++  // Little Browser: pinned tabs are icon tiles only while the strip is collapsed; expanded they
++  // are rows with a title, like the other tabs.
++  const bool pinned_tile = TabView().pinned_ && TabView().collapsed_;
++  const int height = GetLayoutConstant(pinned_tile ? LayoutConstant::kVerticalTabPinnedHeight
++                                                   : LayoutConstant::kVerticalTabHeight);
+   views::ProposedLayout layouts;
+   layouts.host_size = gfx::Size(width, height);
+ 
+@@ -61,8 +63,7 @@
+ 
+   // If the tab is collapsed but animating with a wider width then we shouldn't
+   // center the contents.
+-  const bool is_centered = (TabView().pinned_ || TabView().collapsed_) &&
+-                           !TabView().IsInExpandOnHover(width);
++  const bool is_centered = TabView().collapsed_ && !TabView().IsInExpandOnHover(width);
+ 
+   int placed_children = 0;
+   for (const auto& child : tab_children_configs_) {
+@@ -148,7 +149,7 @@
+   if (child_view == TabView().title_) {
+     // Pinned titles should be visible in the expand on hover state when the
+     // width is sufficient to show the title.
+-    return !TabView().pinned_ || TabView().IsInExpandOnHover(width);
++    return !(TabView().pinned_ && TabView().collapsed_) || TabView().IsInExpandOnHover(width);
+   }
+ 
+   if (child_view == TabView().alert_indicator_) {
+@@ -164,12 +165,13 @@
+   }
+ 
+   if (child_view == TabView().icon_) {
+-    return !TabView().pinned_ ||
++    return !(TabView().pinned_ && TabView().collapsed_) ||
+            !IsChildVisible(TabView().alert_indicator_, width);
+   }
+ 
+   if (child_view == TabView().close_button_) {
+-    if (TabView().pinned_) {
++    // Little Browser: pinned rows have a close button too; it puts the tab to sleep.
++    if (TabView().pinned_ && TabView().collapsed_) {
+       return false;
+     }
+ 

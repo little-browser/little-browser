@@ -8,6 +8,7 @@
 #include <optional>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/containers/span.h"
@@ -45,6 +46,11 @@
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
+#include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
+#include "chrome/browser/ui/views/tabs/common/tab_drag_handler.h"
+#include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
+#include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -68,18 +74,125 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/base_window.h"
+#include "ui/base/models/list_selection_model.h"
 #include "ui/base/page_transition_types.h"
+#include "ui/events/event.h"
+#include "ui/events/event_utils.h"
+#include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/view_tracker.h"
+#include "ui/views/view_utils.h"
 #include "url/url_constants.h"
 
 namespace lb {
 
 namespace {
 
-constexpr char kFavouritesPref[] = "lb.favourites";
+// Demo check (--lb-sidebar-demo=pinned-*): logs each pinned row's close button, which reads
+// "Remove pinned tab" ("−") while the tab sleeps and "Close" ("✕") while it is awake.
+void CollectTabViews(views::View* view, std::vector<TabView*>& out) {
+  if (auto* tab_view = views::AsViewClass<TabView>(view)) {
+    out.push_back(tab_view);
+    return;
+  }
+  for (views::View* child : view->children()) {
+    CollectTabViews(child, out);
+  }
+}
+
+void LogPinnedRows(BrowserWindowInterface* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  if (!browser_view) {
+    return;
+  }
+  std::vector<TabView*> rows;
+  CollectTabViews(browser_view, rows);
+  for (TabView* row : rows) {
+    const tabs::TabInterface* tab = row->collection_node() ? row->GetTabInterface() : nullptr;
+    if (tab && tab->IsPinned()) {
+      VLOG(1) << "pinned row: " << tab->GetContents()->GetTitle() << " button="
+              << row->close_button_for_testing()->GetViewAccessibility().GetCachedName();
+    }
+  }
+}
+
+TabView* FindTabView(BrowserWindowInterface* browser, const tabs::TabInterface* tab) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  if (!browser_view || !tab) {
+    return nullptr;
+  }
+  std::vector<TabView*> rows;
+  CollectTabViews(browser_view, rows);
+  for (TabView* row : rows) {
+    if (row->collection_node() && row->GetTabInterface() == tab) {
+      return row;
+    }
+  }
+  return nullptr;
+}
+
+// Demo check (--lb-sidebar-demo=drag-pins): drags `tab`'s row the way the mouse does, through
+// the screen y coordinates `screen_ys` at the row's middle x, all within one task (so fast, as a
+// quick real drag), then drops it (`drop`) or cancels it as Esc does.
+void SimulateTabDrag(BrowserWindowInterface* browser,
+                     tabs::TabInterface* tab,
+                     const std::vector<int>& screen_ys,
+                     bool drop) {
+  TabView* row = FindTabView(browser, tab);
+  if (!row) {
+    VLOG(1) << "drag-pins: no row";
+    return;
+  }
+  views::ViewTracker tracker(row);
+  const gfx::Point start = row->GetLocalBounds().CenterPoint();
+  const int screen_x = row->GetBoundsInScreen().CenterPoint().x();
+  ui::MouseEvent press(ui::EventType::kMousePressed, start, start, ui::EventTimeForNow(),
+                       ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
+  static_cast<views::View*>(row)->OnMousePressed(press);
+  for (int y : screen_ys) {
+    if (!tracker.view()) {
+      VLOG(1) << "drag-pins: row destroyed mid-drag";
+      return;
+    }
+    gfx::Point point(screen_x, y);
+    views::View::ConvertPointFromScreen(row, &point);
+    ui::MouseEvent drag(ui::EventType::kMouseDragged, point, point, ui::EventTimeForNow(),
+                        ui::EF_LEFT_MOUSE_BUTTON, 0);
+    static_cast<views::View*>(row)->OnMouseDragged(drag);
+  }
+  if (!tracker.view()) {
+    VLOG(1) << "drag-pins: row destroyed mid-drag";
+    return;
+  }
+  const_cast<TabStripCollectionController*>(row->collection_node()->GetController())
+      ->GetDragHandler()
+      .EndDrag(drop ? EndDragReason::kComplete : EndDragReason::kCancel);
+}
+
+// Screen y coordinates from `from` to `to` in a few steps, like a quick mouse move.
+std::vector<int> DragPath(int from, int to) {
+  std::vector<int> ys;
+  for (int step = 1; step <= 6; ++step) {
+    ys.push_back(from + (to - from) * step / 6);
+  }
+  return ys;
+}
+
+void LogTabs(BrowserWindowInterface* browser, const char* step) {
+  TabStripModel* model = browser->GetTabStripModel();
+  std::string line;
+  for (int i = 0; i < model->count(); ++i) {
+    tabs::TabInterface* tab = model->GetTabAtIndex(i);
+    line += base::UTF16ToUTF8(tab->GetContents()->GetTitle()) + (tab->IsPinned() ? "[P]" : "") +
+            (tab->GetGroup() ? "[G]" : "") + " ";
+  }
+  VLOG(1) << "drag-pins " << step << ": " << line;
+}
+
 constexpr char kSpacesPref[] = "lb.spaces";  // Local State
 // Local State: id -> the saved tabs of each space no window shows. Kept apart from lb.spaces so
 // saving tabs doesn't notify every window's sidebar (it observes lb.spaces).
@@ -247,9 +360,8 @@ std::vector<tabs::TabInterface*> SidebarController::ParkedSpace::Tabs() const {
 SidebarController::SidebarController(BrowserWindowInterface* browser)
     : browser_(browser), is_private_(browser->GetProfile()->IsOffTheRecord()) {
   Registry()[browser_] = this;
-  registrar_.Init(prefs());
-  registrar_.Add(kFavouritesPref,
-                 base::BindRepeating(&SidebarController::NotifyChanged, base::Unretained(this)));
+  // Private windows have no spaces to save, but New Tab Group placeholders work there too.
+  browser_->GetTabStripModel()->AddObserver(this);
   if (is_private_) {
     return;
   }
@@ -271,7 +383,6 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
   local_registrar_.Init(local_state());
   local_registrar_.Add(
       kSpacesPref, base::BindRepeating(&SidebarController::NotifyChanged, base::Unretained(this)));
-  browser_->GetTabStripModel()->AddObserver(this);
 
   static bool demo_done = false;  // first window only: windows it opens don't repeat it
   if (!demo_done && base::CommandLine::ForCurrentProcess()->HasSwitch(kDemoSwitch)) {
@@ -327,7 +438,7 @@ base::WeakPtr<SidebarController> SidebarController::GetWeakPtr() {
 
 PrefService* SidebarController::prefs() const {
   // The original profile's prefs, also in private windows: an incognito profile's prefs are an
-  // in-memory overlay, so favourites changed there would never reach the real profile.
+  // in-memory overlay, so a change made there would never reach the real profile.
   return browser_->GetProfile()->GetOriginalProfile()->GetPrefs();
 }
 
@@ -345,85 +456,58 @@ void SidebarController::NotifyChanged() {
   }
 }
 
-// ---------------------------------------------------------------- favourites
+// ---------------------------------------------------------------- new tab group
 
-namespace {
-
-// A saved favourite, or null for a malformed entry (skipped everywhere).
-std::optional<Favourite> FavouriteFromValue(const base::Value& value) {
-  if (!value.is_dict()) {
-    return std::nullopt;
-  }
-  const std::string* title = value.GetDict().FindString("title");
-  const std::string* url = value.GetDict().FindString("url");
-  if (!url || !GURL(*url).is_valid()) {
-    return std::nullopt;
-  }
-  return Favourite{title ? *title : *url, GURL(*url)};
-}
-
-}  // namespace
-
-std::vector<Favourite> SidebarController::GetFavourites() const {
-  std::vector<Favourite> result;
-  for (const base::Value& value : prefs()->GetList(kFavouritesPref)) {
-    if (std::optional<Favourite> favourite = FavouriteFromValue(value)) {
-      result.push_back(std::move(*favourite));
-    }
-  }
-  return result;
-}
-
-bool SidebarController::CanAddCurrentTab() const {
-  content::WebContents* contents = browser_->GetTabStripModel()->GetActiveWebContents();
-  if (is_private_ || !contents || !contents->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
-    return false;
-  }
-  const GURL url = contents->GetLastCommittedURL();
-  return std::ranges::none_of(GetFavourites(),
-                              [&](const Favourite& f) { return SameSite(f.url, url); });
-}
-
-void SidebarController::AddCurrentTabToFavourites() {
-  if (!CanAddCurrentTab()) {
+void SidebarController::NewTabGroup() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  if (!model->SupportsTabGroups()) {
     return;
   }
-  content::WebContents* contents = browser_->GetTabStripModel()->GetActiveWebContents();
-  base::DictValue dict;
-  dict.Set("title", base::UTF16ToUTF8(contents->GetTitle()));
-  dict.Set("url", contents->GetLastCommittedURL().spec());
-  ScopedListPrefUpdate(*prefs(), kFavouritesPref)->Append(std::move(dict));
+  chrome::ExecuteCommand(browser_, IDC_CREATE_NEW_TAB_GROUP);
+  if (tabs::TabInterface* tab = model->GetActiveTab(); tab && tab->GetGroup()) {
+    group_placeholders_.push_back(tab->GetHandle());
+    last_active_tab_ = tab->GetHandle();  // just created: no command bar yet
+  }
 }
 
-void SidebarController::RemoveFavourite(size_t index) {
-  // `index` counts only the valid entries GetFavourites() returns; skip malformed ones here too.
-  ScopedListPrefUpdate update(*prefs(), kFavouritesPref);
-  size_t valid = 0;
-  for (auto it = update->begin(); it != update->end(); ++it) {
-    if (!FavouriteFromValue(*it)) {
+void SidebarController::UpdateGroupPlaceholders() {
+  TabStripModel* model = browser_->GetTabStripModel();
+  const tabs::TabInterface* active = model->GetActiveTab();
+  const bool active_changed = !active || active->GetHandle() != last_active_tab_;
+  last_active_tab_ = active ? active->GetHandle() : tabs::TabHandle();
+  std::vector<tabs::TabHandle> keep;
+  std::vector<tabs::TabHandle> close;
+  bool open_command_bar = false;
+  for (const tabs::TabHandle& handle : group_placeholders_) {
+    tabs::TabInterface* tab = handle.Get();
+    if (!tab || !tab->GetGroup() || !IsBlankTab(tab->GetContents())) {
+      continue;  // gone, left its group or in use: an ordinary tab now
+    }
+    // Parked with its space, or moved to another window: check it again when it is back.
+    if (model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
+        !model->group_model()->ContainsTabGroup(*tab->GetGroup())) {
+      keep.push_back(handle);
       continue;
     }
-    if (valid++ == index) {
-      update->erase(it);
-      return;
+    if (model->group_model()->GetTabGroup(*tab->GetGroup())->tab_count() > 1) {
+      close.push_back(handle);
+      continue;
+    }
+    keep.push_back(handle);
+    open_command_bar |= active_changed && tab == active;
+  }
+  group_placeholders_ = std::move(keep);
+  for (const tabs::TabHandle& handle : close) {
+    if (tabs::TabInterface* tab = handle.Get()) {
+      const int index = model->GetIndexOfTab(tab);
+      if (index >= 0) {
+        model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+      }
     }
   }
-}
-
-void SidebarController::OpenFavourite(size_t index) {
-  const auto favourites = GetFavourites();
-  if (index >= favourites.size()) {
-    return;
+  if (open_command_bar) {
+    ShowCommandBar(CommandBarMode::kOpenHere);  // the page goes into the placeholder, in its group
   }
-  const GURL& url = favourites[index].url;
-  TabStripModel* model = browser_->GetTabStripModel();
-  for (int i = 0; i < model->count(); ++i) {
-    if (SameSite(model->GetWebContentsAt(i)->GetLastCommittedURL(), url)) {
-      model->ActivateTabAt(i);
-      return;
-    }
-  }
-  chrome::AddTabAt(browser_, url, -1, /*foreground=*/true);
 }
 
 // ---------------------------------------------------------------- spaces: storage
@@ -551,6 +635,12 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
                                                const TabStripModelChange& change,
                                                const TabStripSelectionChange& selection) {
   ScheduleSave();
+  if (!group_placeholders_.empty()) {
+    // Not inside the notification: closing a tab here would change the strip being notified.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&SidebarController::UpdateGroupPlaceholders, weak_factory_.GetWeakPtr()));
+  }
 }
 
 void SidebarController::OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) {
@@ -565,10 +655,20 @@ void SidebarController::ScheduleSave() {
                     base::BindOnce(&SidebarController::SaveActiveTabs, base::Unretained(this)));
 }
 
+void SidebarController::WillCloseAllTabs(TabStripModel* tab_strip_model) {
+  // The pending save would be lost with the window: a tab switched in the last second matters.
+  save_timer_.Stop();
+  SaveTabs(/*closing=*/true);
+}
+
 void SidebarController::SaveActiveTabs() {
+  SaveTabs(/*closing=*/false);
+}
+
+void SidebarController::SaveTabs(bool closing) {
   TabStripModel* model = browser_->GetTabStripModel();
   // A closing window empties its strip tab by tab; keep the last state instead.
-  if (is_private_ || model->closing_all() || model->empty()) {
+  if (is_private_ || (model->closing_all() && !closing) || model->empty()) {
     return;
   }
   base::ListValue records;
@@ -1258,14 +1358,6 @@ void SidebarController::GoToTab(const TabEntry& entry) {
   }
 }
 
-bool SidebarController::OpenFavouriteIfExists(size_t index) {
-  if (index >= GetFavourites().size()) {
-    return false;
-  }
-  OpenFavourite(index);
-  return true;
-}
-
 void SidebarController::SetShowCommandBarCallback(
     base::RepeatingCallback<void(CommandBarMode)> callback) {
   show_command_bar_ = std::move(callback);
@@ -1421,21 +1513,6 @@ void SidebarController::DeleteSpace(size_t index) {
 // ---------------------------------------------------------------- demo data
 
 void SidebarController::SeedDemoData() {
-  if (prefs()->GetList(kFavouritesPref).empty()) {
-    ScopedListPrefUpdate update(*prefs(), kFavouritesPref);
-    const std::pair<const char*, const char*> demo[] = {
-        {"Wikipedia", "https://en.wikipedia.org/wiki/Main_Page"},
-        {"GitHub", "https://github.com/"},
-        {"YouTube", "https://www.youtube.com/"},
-        {"MDN", "https://developer.mozilla.org/"},
-        {"Hacker News", "https://news.ycombinator.com/"}};
-    for (const auto& [title, url] : demo) {
-      base::DictValue dict;
-      dict.Set("title", title);
-      dict.Set("url", url);
-      update->Append(std::move(dict));
-    }
-  }
   if (GetSpaces().size() == 1) {
     Space work{base::Uuid::GenerateRandomV4().AsLowercaseString(),
                "Work",
@@ -1567,6 +1644,287 @@ void SidebarController::SeedDemoData() {
                       },
                       self),
                   base::Seconds(2));
+            } else if (demo == "pinned-sleep" || demo == "pinned-remove" || demo == "pinned-wake") {
+              // Pin Work's last tab, show it and press Cmd+W: it must stay pinned and in place,
+              // asleep, with another tab shown. "pinned-remove" then closes the sleeping tab
+              // (its "−" button), which must remove it. With --lb-demo-url=<url> the tab is a
+              // new one showing <url> (for example a page playing media), given time to load.
+              const std::string demo_url =
+                  base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("lb-demo-url");
+              if (!demo_url.empty()) {
+                chrome::AddAndReturnTabAt(self->browser(), GURL(demo_url), -1,
+                                          /*foreground=*/true);
+              }
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self, int mode) {
+                        if (!self) {
+                          return;
+                        }
+                        TabStripModel* model = self->browser()->GetTabStripModel();
+                        if (model->count() < 2) {
+                          return;
+                        }
+                        const int index = model->SetTabPinned(model->count() - 1, true);
+                        model->ActivateTabAt(index);
+                        tabs::TabInterface* tab = model->GetTabAtIndex(index);
+                        const int count = model->count();
+                        chrome::ExecuteCommand(self->browser(), IDC_CLOSE_TAB);
+                        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                            FROM_HERE,
+                            base::BindOnce(
+                                [](base::WeakPtr<SidebarController> self,
+                                   tabs::TabInterface::Handle handle, int count, int mode) {
+                                  if (!self) {
+                                    return;
+                                  }
+                                  TabStripModel* model = self->browser()->GetTabStripModel();
+                                  tabs::TabInterface* tab = handle.Get();
+                                  VLOG(1) << "pinned-sleep: kept=" << (tab != nullptr)
+                                          << " pinned=" << (tab && tab->IsPinned())
+                                          << " count_same=" << (model->count() == count)
+                                          << " shown_other=" << (model->GetActiveTab() != tab)
+                                          << " discarded="
+                                          << (tab && tab->GetContents()->WasDiscarded());
+                                  LogPinnedRows(self->browser());
+                                  if (!tab || mode == 0) {
+                                    return;
+                                  }
+                                  if (mode == 2) {
+                                    // Click the sleeping tab: it must load again.
+                                    model->ActivateTabAt(model->GetIndexOfTab(tab));
+                                    base::SingleThreadTaskRunner::GetCurrentDefault()
+                                        ->PostDelayedTask(
+                                            FROM_HERE,
+                                            base::BindOnce(
+                                                [](base::WeakPtr<SidebarController> self,
+                                                   tabs::TabInterface::Handle handle) {
+                                                  tabs::TabInterface* tab = handle.Get();
+                                                  if (!self || !tab) {
+                                                    return;
+                                                  }
+                                                  content::WebContents* contents =
+                                                      tab->GetContents();
+                                                  VLOG(1) << "pinned-wake: loaded="
+                                                          << (!contents->WasDiscarded() &&
+                                                              contents->GetPrimaryMainFrame()
+                                                                  ->IsRenderFrameLive())
+                                                          << " committed="
+                                                          << contents->GetLastCommittedURL().spec();
+                                                  LogPinnedRows(self->browser());
+                                                },
+                                                self, handle),
+                                            base::Seconds(2));
+                                    return;
+                                  }
+                                  model->CloseWebContentsAt(
+                                      model->GetIndexOfTab(tab),
+                                      TabCloseTypes::CLOSE_USER_GESTURE |
+                                          TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+                                  VLOG(1) << "pinned-remove: removed=" << !handle.Get()
+                                          << " count_one_less=" << (model->count() == count - 1);
+                                },
+                                self, tab->GetHandle(), count, mode),
+                            base::Seconds(1));
+                      },
+                      self,
+                      demo == "pinned-remove" ? 1
+                      : demo == "pinned-wake" ? 2
+                                              : 0),
+                  base::Seconds(demo_url.empty() ? 2 : 6));
+            } else if (demo == "drag-pins") {
+              // Drag tabs across the "+ New Tab" row both ways, into and out of a tab group,
+              // and cancel one drag, each as one quick move; log the tabs after each step.
+              TabStripModel* model = self->browser()->GetTabStripModel();
+              for (const char* url : {"https://example.com/?a", "https://example.com/?b"}) {
+                chrome::AddAndReturnTabAt(self->browser(), GURL(url), -1, /*foreground=*/false);
+              }
+              if (model->SupportsTabGroups() && model->count() >= 4) {
+                model->AddToNewGroup({model->count() - 2, model->count() - 1});
+              }
+              auto step = [](base::WeakPtr<SidebarController> self, int which) {
+                if (!self) {
+                  return;
+                }
+                BrowserWindowInterface* browser = self->browser();
+                TabStripModel* model = browser->GetTabStripModel();
+                auto center_y = [&](int index) {
+                  TabView* row = FindTabView(browser, model->GetTabAtIndex(index));
+                  return row ? row->GetBoundsInScreen().CenterPoint().y() : 0;
+                };
+                const int first_unpinned = model->IndexOfFirstNonPinnedTab();
+                const int last = model->count() - 1;
+                switch (which) {
+                  case 0: {  // An unpinned tab up onto the first pinned row.
+                    LogTabs(browser, "start");
+                    SimulateTabDrag(browser, model->GetTabAtIndex(first_unpinned),
+                                    DragPath(center_y(first_unpinned), center_y(0)), true);
+                    LogTabs(browser, "unpinned->pinned");
+                    break;
+                  }
+                  case 1: {  // The last pinned tab down onto the last tab (in the group).
+                    SimulateTabDrag(browser, model->GetTabAtIndex(first_unpinned - 1),
+                                    DragPath(center_y(first_unpinned - 1), center_y(last)), true);
+                    LogTabs(browser, "pinned->group");
+                    break;
+                  }
+                  case 2: {  // A grouped tab up onto the first pinned row.
+                    SimulateTabDrag(browser, model->GetTabAtIndex(last),
+                                    DragPath(center_y(last), center_y(0)), true);
+                    LogTabs(browser, "group->pinned");
+                    break;
+                  }
+                  case 3: {  // A pinned tab down to the bottom, then Esc.
+                    SimulateTabDrag(browser, model->GetTabAtIndex(0),
+                                    DragPath(center_y(0), center_y(last) + 40), false);
+                    LogTabs(browser, "pinned->down, cancelled");
+                    break;
+                  }
+                  case 4: {  // The first pinned tab down to the bottom.
+                    SimulateTabDrag(browser, model->GetTabAtIndex(0),
+                                    DragPath(center_y(0), center_y(last) + 40), true);
+                    LogTabs(browser, "pinned->bottom");
+                    break;
+                  }
+                  case 5: {  // One jump: an unpinned tab straight onto the first pinned row.
+                    SimulateTabDrag(browser, model->GetTabAtIndex(last), {center_y(0)}, true);
+                    LogTabs(browser, "jump unpinned->pinned");
+                    break;
+                  }
+                  case 6: {  // One jump: a pinned tab straight onto the last row.
+                    SimulateTabDrag(browser, model->GetTabAtIndex(0), {center_y(last)}, true);
+                    LogTabs(browser, "jump pinned->last");
+                    break;
+                  }
+                  case 7: {  // One jump: a grouped tab straight onto the first pinned row.
+                    for (int i = last; i >= 0; --i) {
+                      if (model->GetTabAtIndex(i)->GetGroup()) {
+                        SimulateTabDrag(browser, model->GetTabAtIndex(i), {center_y(0)}, true);
+                        break;
+                      }
+                    }
+                    LogTabs(browser, "jump group->pinned");
+                    break;
+                  }
+                }
+              };
+              for (int which = 0; which < 8; ++which) {
+                base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                    FROM_HERE, base::BindOnce(step, self, which), base::Seconds(3 + which));
+              }
+            } else if (demo == "pinned-close-all") {
+              // Pin every tab, select them all and press Cmd+W: all must sleep and a new tab must
+              // be shown. Then close a pinned tab twice in a row (a double click): it must sleep,
+              // not go.
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self) {
+                        if (!self) {
+                          return;
+                        }
+                        TabStripModel* model = self->browser()->GetTabStripModel();
+                        for (int i = 0; i < model->count(); ++i) {
+                          model->SetTabPinned(i, true);
+                        }
+                        ui::ListSelectionModel all;
+                        for (int i = 0; i < model->count(); ++i) {
+                          all.AddIndexToSelection(i);
+                        }
+                        all.set_active(0);
+                        all.set_anchor(0);
+                        model->SetSelectionFromModel(all);
+                        const int count = model->count();
+                        chrome::ExecuteCommand(self->browser(), IDC_CLOSE_TAB);
+                        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                            FROM_HERE,
+                            base::BindOnce(
+                                [](base::WeakPtr<SidebarController> self, int count) {
+                                  if (!self) {
+                                    return;
+                                  }
+                                  TabStripModel* model = self->browser()->GetTabStripModel();
+                                  int pinned = 0;
+                                  int asleep = 0;
+                                  for (tabs::TabInterface* tab : *model) {
+                                    pinned += tab->IsPinned();
+                                    asleep += tab->IsPinned() && IsAsleep(*tab);
+                                  }
+                                  VLOG(1) << "pinned-close-all: pinned_asleep=" << asleep << "/"
+                                          << pinned << " shown_tab_unpinned="
+                                          << !model->GetActiveTab()->IsPinned()
+                                          << " closed_before=" << count;
+                                  // A double click on the first pinned tab's close, once awake.
+                                  model->ActivateTabAt(0);
+                                },
+                                self, count),
+                            base::Seconds(1));
+                        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                            FROM_HERE,
+                            base::BindOnce(
+                                [](base::WeakPtr<SidebarController> self, int count) {
+                                  if (!self) {
+                                    return;
+                                  }
+                                  TabStripModel* model = self->browser()->GetTabStripModel();
+                                  tabs::TabInterface* tab = model->GetTabAtIndex(0);
+                                  const bool awake = !IsAsleep(*tab);
+                                  for (int click = 0; click < 2; ++click) {
+                                    if (const int index = model->GetIndexOfTab(tab); index >= 0) {
+                                      model->CloseWebContentsAt(
+                                          index, TabCloseTypes::CLOSE_USER_GESTURE |
+                                                     TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+                                    }
+                                  }
+                                  base::SingleThreadTaskRunner::GetCurrentDefault()
+                                      ->PostDelayedTask(
+                                          FROM_HERE,
+                                          base::BindOnce(
+                                              [](tabs::TabInterface::Handle handle, bool awake) {
+                                                VLOG(1)
+                                                    << "pinned-close-all: double close "
+                                                    << "awake_before=" << awake
+                                                    << " kept=" << !!handle.Get() << " asleep="
+                                                    << (handle.Get() && IsAsleep(*handle.Get()));
+                                              },
+                                              tab->GetHandle(), awake),
+                                          base::Seconds(1));
+                                },
+                                self, 0),
+                            base::Seconds(4));
+                      },
+                      self),
+                  base::Seconds(2));
+            } else if (demo == "pinned-unloaded") {
+              // Pin Work's last tab without showing it: it hasn't loaded since the space switch,
+              // so it must look asleep (faded, "−") like a tab after a restart.
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self) {
+                        if (!self) {
+                          return;
+                        }
+                        TabStripModel* model = self->browser()->GetTabStripModel();
+                        if (model->count() < 2 ||
+                            model->GetActiveTab() == model->GetTabAtIndex(model->count() - 1)) {
+                          return;
+                        }
+                        model->SetTabPinned(model->count() - 1, true);
+                        base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                            FROM_HERE,
+                            base::BindOnce(
+                                [](base::WeakPtr<SidebarController> self) {
+                                  if (self) {
+                                    LogPinnedRows(self->browser());
+                                  }
+                                },
+                                self),
+                            base::Seconds(1));
+                      },
+                      self),
+                  base::Seconds(2));
             } else if (demo == "search-again") {
               // "Not now", then a search: the choice must come back.
               ShowSearchChoice(self->browser(), base::OnceClosure());
@@ -1599,17 +1957,20 @@ bool HandleCommand(BrowserWindowInterface* browser, int command_id) {
       return controller->ShowCommandBar(CommandBarMode::kNewTab);
     case IDC_FOCUS_LOCATION:
       return controller->ShowCommandBar(CommandBarMode::kEditAddress);
-    case IDC_SELECT_TAB_0:
-    case IDC_SELECT_TAB_1:
-    case IDC_SELECT_TAB_2:
-    case IDC_SELECT_TAB_3:
-    case IDC_SELECT_TAB_4:
-    case IDC_SELECT_TAB_5:
-    case IDC_SELECT_TAB_6:
-    case IDC_SELECT_TAB_7:
-      return controller->OpenFavouriteIfExists(command_id - IDC_SELECT_TAB_0);
-    case IDC_SELECT_LAST_TAB:
-      return controller->OpenFavouriteIfExists(8);
+    case IDC_CLOSE_TAB: {
+      // Chromium asks for a second ⌘W before closing pinned tabs. Here closing a pinned tab
+      // only puts it to sleep (pinned_tab_sleep.h), so close straight away.
+      TabStripModel* model = browser->GetTabStripModel();
+      const auto& selected = model->selection_model().selected_tabs();
+      tabs::TabInterface* active = model->GetActiveTab();
+      if (selected.empty() || !active || active->IsSplit() ||
+          !std::ranges::all_of(selected,
+                               [](const tabs::TabInterface* tab) { return tab->IsPinned(); })) {
+        return false;
+      }
+      model->CloseSelectedTabs();
+      return true;
+    }
     default:
       return false;
   }
@@ -1621,7 +1982,6 @@ bool HandleNewTab(BrowserWindowInterface* browser) {
 }
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
-  registry->RegisterListPref(kFavouritesPref);
   registry->RegisterStringPref(kActiveSpacePref, std::string());
   registry->RegisterBooleanPref(kSearchChoiceShownPref, false);
 }

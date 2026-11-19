@@ -12,16 +12,60 @@ custom window frame, so the 4-weekly Chromium rebase touches as little as possib
 | Piece | Where |
 |---|---|
 | Vertical tabs on by default | `patches/lb/vertical-tabs-default.patch` |
-| Sidebar header (address pill, favourites grid, space name) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
-| Space switcher in the strip's bottom container | `lb/browser/ui/views/sidebar/sidebar_footer_view.*` |
+| Sidebar header (address pill, space name) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
+| Footer: space switcher and the "+" menu (new space; new tab, split view, tab group), below the strip | `lb/browser/ui/views/sidebar/sidebar_footer_view.*` |
+| "+ New Tab" between pinned and today's tabs, replacing Chromium's new-tab button | `lb/browser/ui/views/sidebar/new_tab_row_view.*`, in a slot added by `patches/lb/new-tab-row.patch` |
+| Pinned tabs as list rows | `patches/lb/pinned-list.patch` (`tab_view.cc`, `tab_view_vertical_layout.cc`, `pinned_tab_container_view.cc`) |
 | The page as an inset card with rounded corners | `lb/browser/ui/views/frame/contents_card.h`, `patches/lb/contents-card.patch` |
 | Command bar | `lb/browser/ui/views/command_bar/`, `patches/lb/command-hooks.patch` |
-| Spaces, favourites, saved tabs | `lb/browser/ui/views/sidebar/sidebar_controller.*`, `lb/browser/spaces/` |
+| Spaces, saved tabs | `lb/browser/ui/views/sidebar/sidebar_controller.*`, `lb/browser/spaces/` |
 
 Upstream's vertical tab strip already provides collapse and expand, expand on hover, resizing, tab
-groups, drag and drop, keyboard focus and a two-finger swipe controller. We add views around it
-instead of forking it: the header goes in at index 0 of the strip's flex layout, and the space
-switcher goes in the bottom container beside the new-tab button.
+groups, split views, drag and drop, keyboard focus and a two-finger swipe controller. We add views
+around it instead of forking it: the header goes in at index 0 of the strip's flex layout, the
+footer at the end, and the "+ New Tab" row in a slot of the tab list's vertical layout. Chromium's
+new-tab button is hidden; its bottom container stays, because it is what fills the space between
+the tabs and the footer.
+
+**New Tab Group** runs `IDC_CREATE_NEW_TAB_GROUP` through `SidebarController::NewTabGroup()`, which
+remembers the blank tab the group starts with. When another tab joins that group the controller
+closes the placeholder; moving onto it opens the command bar in `kOpenHere` mode, so the chosen page
+opens in the placeholder, inside its group. Placeholders work in private windows too.
+
+The footer's "+" menu runs Chromium's own commands: `IDC_NEW_TAB` (the command bar),
+`chrome::NewSplitTab` and `IDC_CREATE_NEW_TAB_GROUP`. New split view is offered only while the
+active tab shows a page and isn't split already.
+
+**Pinned tabs as a list.** Upstream draws pinned tabs as outlined icon tiles in a flow layout. With
+`patches/lb/pinned-list.patch` an expanded strip draws them as rows, one per line with icon and
+title, like the other tabs, and a close button; only the collapsed strip keeps icon tiles.
+
+**Sleeping pinned tabs.** Every tab close passes through `lb::SleepInsteadOfClose`
+(`lb/browser/ui/tabs/pinned_tab_sleep.*`, hooked into `TabStripModel::CloseTabs` by
+`patches/lb/pinned-tab-sleep.patch`). A pinned tab the user closes is kept, and right after the
+close returns another tab is shown (the one focused last, preferring awake tabs and leaving out
+tabs closed together with it, or a new tab) and the pinned tab's page is unloaded with Chromium's
+own discard (`TabLifecycleUnitExternal::DiscardTab`, the call `chrome.tabs.discard` makes, which
+has no eligibility policy), marked `NeedsReload()` so it loads again whenever it is shown. A tab
+muted on its own stays muted. A page with a beforeunload handler (it may hold unsaved input) is
+only hidden, not unloaded. The patch also makes a discard clear the old page's media, capture and
+device alerts, which Chromium otherwise keeps, since its own policy never discards such tabs; a
+tab replaced in a split view closes with `CLOSE_NONE`, so it doesn't sleep.
+
+Closing a pinned tab that is already asleep removes it, as do closes without a user gesture,
+closing the window, and closing a pinned tab in a split view (Chromium takes it out of the split). A pinned tab counts as asleep when it is discarded or not loaded yet (as after a
+restart or a space switch). The same patch draws a sleeping pinned tab faded (`TabIcon` and the
+title) with "−" instead of "✕" on its close button. Chromium's "press ⌘W again to close a pinned
+tab" toast is skipped: `lb::HandleCommand` closes the selected pinned tabs itself.
+
+**Dragging** is Chromium's own, with two changes. `patches/lb/drag-pins.patch` lets a tab cross
+between the pinned and the today area the way it crosses into a group. The pointer picks the area
+(above the middle of the "+ New Tab" row is pinned), and entering the other area pins or unpins the
+dragged tabs, split views whole; the drag then places them as within any area. A drag that includes
+a tab group stays among the today tabs, since Chromium's model has no pinned groups. Upstream
+rebuilds a tab's view when its pin state changes, which would free the views the drag holds, so a
+dragged tab keeps its view; Esc restores the original pin state. `patches/lb/no-tab-detach.patch`
+makes a dragged tab never detach into a new window.
 
 The toolbar stays Chromium's, as a **slim toolbar** above the page card: back, forward, reload, the
 address bar, extensions, downloads, profile and menu. Moving them into the sidebar would be a large
@@ -33,25 +77,25 @@ vertical tabs are new upstream. The page-card patch there stays a few lines; all
 ## Command bar
 
 Cmd+T, the new-tab buttons, Cmd+L and the address pill open the command bar. It lists open tabs
-across spaces, favourites, history, commands and the address or search entry, and has a
+across spaces, history, commands and the address or search entry, and has a
 rename-space mode. Two hooks in `patches/lb/command-hooks.patch` route into it: the command
 controller's entry point (keyboard and menus) and the `kActionNewTab` action in
 `browser_actions.cc`, because Chromium runs some commands through its actions framework, which
 bypasses `HandleCommandWithDisposition`. Both work with tabs on top too.
 
-Shortcuts: Cmd+1…9 open favourites (command hook); Ctrl+1…9 and Ctrl+Option+←/→ switch spaces
+Shortcuts: Ctrl+1…9 and Ctrl+Option+←/→ switch spaces
 (view accelerators, since plain Ctrl+arrows belong to macOS); a two-finger sideways swipe on the
 sidebar switches space, once per gesture and without wrap-around.
 
 ## Spaces
 
 - **Model.** Spaces are browser-wide and live in Local State (`lb.spaces`); each names its
-  profile. Favourites are per profile (`lb.favourites`), and each profile remembers its last
-  active space (`lb.active_space`).
+  profile. Each profile remembers its last active
+  space (`lb.active_space`).
 - **Tint.** A space's colour tints each window on its own (`BrowserWidget::SetUserColorOverride`),
   so two windows of one profile can show different spaces.
 - **Animation.** The sidebar contents slide and fade on a space switch (180 ms).
-- **Collapsed strip.** Favourites become one column of icons, for the active space only.
+- **Collapsed strip.** The header hides; pinned tabs stay as icon tiles.
 - **Editing.** Right-click a space → Rename…, Icon, Colour, Delete; the same actions are
   commands. The new-space dialog (`new_space_dialog.*`) asks for name, profile (existing or new),
   colour and icon.

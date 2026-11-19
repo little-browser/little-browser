@@ -35,7 +35,7 @@ inline constexpr SpaceColour kSpaceColours[] = {{u"Blue", 222}, {u"Teal", 180}, 
 inline constexpr int kFirstSpaceHue = 222;
 
 // A space (docs/ux.md §5): a named set of tabs with an icon, a colour and a profile.
-// Spaces are browser-wide; each runs in one profile (its logins, history, favourites), and
+// Spaces are browser-wide; each runs in one profile (its logins and history), and
 // several spaces can share a profile.
 struct Space {
   std::string id;
@@ -72,9 +72,6 @@ std::optional<std::string> ChooseSpaceForWindow(
 
 // A page nobody has used yet: empty, about:blank or the new-tab page.
 bool IsBlankTabUrl(const GURL& url);
-
-// Same host (favourites match open tabs this way).
-bool SameSite(const GURL& a, const GURL& b);
 
 // A saved tab of a space, as in Local State lb.space_tabs[space id]. Every space is saved
 // there, also those a window shows (continuously), so their tabs survive a restart.

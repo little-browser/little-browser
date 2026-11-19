@@ -147,12 +147,6 @@ TEST(SpaceModelTest, BlankTabUrls) {
   EXPECT_FALSE(IsBlankTabUrl(GURL("https://example.com/")));
 }
 
-TEST(SpaceModelTest, SameSite) {
-  EXPECT_TRUE(SameSite(GURL("https://a.com/x"), GURL("http://a.com/y")));
-  EXPECT_FALSE(SameSite(GURL("https://a.com/"), GURL("https://b.a.com/")));
-  EXPECT_FALSE(SameSite(GURL(), GURL()));
-}
-
 TEST(SavedTabsTest, RoundTrip) {
   base::ListValue list;
   list.Append(SavedTabToDict({GURL("https://a.com/"), u"A", /*pinned=*/true, /*active=*/false}));

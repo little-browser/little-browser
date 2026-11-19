@@ -26,6 +26,7 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "lb/browser/spaces/space_model.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/gfx/geometry/point.h"
 #include "url/gurl.h"
 
 class BrowserWindowInterface;
@@ -39,14 +40,9 @@ class PrefRegistrySyncable;
 
 namespace lb {
 
-// A favourite (docs/ux.md §2): per profile, shared by all spaces that use the profile.
-struct Favourite {
-  std::string title;
-  GURL url;
-};
-
-// What the command bar can open.
-enum class CommandBarMode { kNewTab, kEditAddress, kRenameSpace };
+// What the command bar can open: a new tab; a page in the current tab (a New Tab Group's blank
+// first tab); the current tab's address, to edit; or the space's name, to rename.
+enum class CommandBarMode { kNewTab, kOpenHere, kEditAddress, kRenameSpace };
 
 // A space colour as the window tint and the colour swatches show it.
 SkColor SpaceTint(int hue);
@@ -70,8 +66,8 @@ struct ProfileChoice {
 // Session-restore key for the space a window shows (window extra data).
 inline constexpr char kWindowSpaceKey[] = "lb_space";
 
-// The sidebar's model for one browser window: favourites (profile prefs), spaces (Local State,
-// browser-wide) and switching between spaces.
+// The sidebar's model for one browser window: spaces (Local State, browser-wide) and switching
+// between spaces.
 //
 // Switching within a profile detaches the current space's tabs from the window (pages stay
 // alive and frozen, so scroll position and forms survive) and inserts the target space's tabs.
@@ -110,14 +106,8 @@ class SidebarController : public TabStripModelObserver {
 
   BrowserWindowInterface* browser() { return browser_; }
 
-  // Favourites.
-  std::vector<Favourite> GetFavourites() const;
-  bool CanAddCurrentTab() const;
-  void AddCurrentTabToFavourites();
-  void RemoveFavourite(size_t index);
-  // Switches to the favourite's tab if one is open on that site, else opens it.
-  void OpenFavourite(size_t index);
-
+  // Creates a tab group holding a blank placeholder tab (see `group_placeholders_`).
+  void NewTabGroup();
   // Spaces.
   std::vector<Space> GetSpaces() const;
   size_t GetActiveIndex() const;
@@ -147,9 +137,6 @@ class SidebarController : public TabStripModelObserver {
   std::vector<TabEntry> GetAllTabs() const;
   void GoToTab(const TabEntry& entry);
 
-  // Opens favourite `index` if it exists (Cmd+1…9). Returns false otherwise.
-  bool OpenFavouriteIfExists(size_t index);
-
   // Command bar, shown by the sidebar view that registered the callback.
   void SetShowCommandBarCallback(base::RepeatingCallback<void(CommandBarMode)> callback);
   bool ShowCommandBar(CommandBarMode mode);
@@ -166,8 +153,13 @@ class SidebarController : public TabStripModelObserver {
                               const TabStripModelChange& change,
                               const TabStripSelectionChange& selection) override;
   void OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) override;
+  // Saves the tabs, active one included, before the window empties its strip.
+  void WillCloseAllTabs(TabStripModel* tab_strip_model) override;
 
  private:
+  // Closes placeholders of groups that gained a real tab; moving onto one opens the command bar.
+  void UpdateGroupPlaceholders();
+
   // A space's tabs while the window shows another space. Groups and splits are kept whole, so
   // their members, titles and colours survive the switch.
   struct ParkedSpace {
@@ -226,6 +218,7 @@ class SidebarController : public TabStripModelObserver {
                           tabs::TabHandle old_active);
   void ScheduleSave();
   void SaveActiveTabs();
+  void SaveTabs(bool closing);
   // The saved tabs of a space in Local State, or null.
   const base::ListValue* SavedTabs(const std::string& space_id) const;
   void SaveWindowSpace();
@@ -252,15 +245,20 @@ class SidebarController : public TabStripModelObserver {
   std::string active_id_;
   // Live tabs of inactive spaces in this window, by space id.
   std::map<std::string, ParkedSpace> detached_;
-  PrefChangeRegistrar registrar_;
+  // The blank tabs a new tab group starts with. One goes away once another tab joins its group
+  // and is forgotten once it is used; activating one (a click) opens the command bar.
+  std::vector<tabs::TabHandle> group_placeholders_;
+  // The active tab at the last placeholder check, so that only moving onto a placeholder (not
+  // creating it) opens the command bar.
+  tabs::TabHandle last_active_tab_;
   PrefChangeRegistrar local_registrar_;
   base::ObserverList<Observer> observers_;
   base::WeakPtrFactory<SidebarController> weak_factory_{this};
 };
 
 // Little Browser's hook into Chromium's command dispatch
-// (desktop/patches/lb/command-hooks.patch): Cmd+T / Cmd+L open the command bar, Cmd+1…9 open
-// favourites. Returns true if handled.
+// (desktop/patches/lb/command-hooks.patch): Cmd+T / Cmd+L open the command bar. Returns
+// true if handled.
 bool HandleCommand(BrowserWindowInterface* browser, int command_id);
 
 // Little Browser's hook into the new-tab action (kActionNewTab: buttons, menus): opens the
@@ -268,7 +266,7 @@ bool HandleCommand(BrowserWindowInterface* browser, int command_id);
 // Returns true if handled.
 bool HandleNewTab(BrowserWindowInterface* browser);
 
-// Registers lb.favourites, lb.active_space and lb.search_choice_shown (desktop/patches/lb/sidebar-prefs.patch).
+// Registers lb.active_space and lb.search_choice_shown (desktop/patches/lb/sidebar-prefs.patch).
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 // Registers lb.spaces and lb.space_tabs in Local State (browser-wide).
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry);

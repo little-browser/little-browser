@@ -56,7 +56,7 @@ index 2bb75f8..c771d9a 100644
    std::string GetMimeType(const GURL& url) { return "text/html"; }
    std::string GetContentSecurityPolicy(network::mojom::CSPDirectiveName directive) {
      if (directive == network::mojom::CSPDirectiveName::ScriptSrc)
-@@ -25,92 +25,104 @@ class UFRDataSource : public content::URLDataSource {
+@@ -25,92 +25,103 @@ class UFRDataSource : public content::URLDataSource {
                          const content::WebContents::Getter& wc_getter,
                          GotDataCallback callback) {
      std::string source = R"(
@@ -191,7 +191,6 @@ index 2bb75f8..c771d9a 100644
 +  <ul>
 +   <li><kbd>⌘T</kbd> or <kbd>⌘L</kbd> opens the command bar: type an address or a search, find an
 +    open tab or a page from your history, or run a command.</li>
-+   <li>Favourites sit at the top of the sidebar; <kbd>⌘1</kbd>…<kbd>⌘9</kbd> opens them.</li>
 +   <li>Quit and come back later: every window returns to its space with its tabs.</li>
 +  </ul>
 + </section>
@@ -240,7 +239,7 @@ index 2bb75f8..c771d9a 100644
  <script>
   document.getElementById("bdic").onchange = function(e){
    var f = new FileReader;
-@@ -129,7 +141,7 @@ class UFRDataSource : public content::URLDataSource {
+@@ -129,7 +140,7 @@ class UFRDataSource : public content::URLDataSource {
  class UngoogledFirstRun;
  class UngoogledFirstRunUIConfig : public content::DefaultWebUIConfig<UngoogledFirstRun> {
    public:

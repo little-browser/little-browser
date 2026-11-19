@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iterator>
 #include <utility>
+#include <vector>
 
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -91,10 +92,6 @@ bool IsBlankTabUrl(const GURL& url) {
   const std::string_view spec = url.possibly_invalid_spec();
   return url.is_empty() || url == GURL(url::kAboutBlankURL) ||
          spec.starts_with("chrome://newtab") || spec.starts_with("chrome://new-tab-page");
-}
-
-bool SameSite(const GURL& a, const GURL& b) {
-  return a.is_valid() && b.is_valid() && a.host() == b.host();
 }
 
 base::DictValue SavedTabToDict(const SavedTab& tab) {

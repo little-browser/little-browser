@@ -20,7 +20,7 @@ class CommandBarView;
 
 // The command bar (docs/ux.md §4): a palette floating over the page. Cmd+T opens it empty
 // (results open in a new tab), Cmd+L / the address pill open it with the current address
-// (results replace the page). Lists open tabs across spaces, favourites, history, commands
+// (results replace the page). Lists open tabs across spaces, history, commands
 // and a web address or search. It also hosts "Rename space".
 class CommandBar : public views::WidgetObserver {
  public:

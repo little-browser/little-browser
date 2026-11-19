@@ -1,0 +1,151 @@
+# Little Browser: in the vertical strip a tab can be dragged between the pinned and the unpinned
+# area, live, the way it moves into and out of a tab group. The pointer picks the area (above the
+# middle of the "+ New Tab" row is pinned), and entering the other area pins or unpins the dragged
+# tabs; split views move whole. A drag that includes a tab group stays among the unpinned tabs,
+# since pinned tabs can't be grouped. Upstream rebuilds a tab's view when its pin state changes,
+# which would free the views the drag holds, so a dragged tab keeps its view instead. Cancelling
+# the drag restores the original pin state; tabs dragged on into another window keep the state they
+# have when they leave.
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -512,6 +512,12 @@
+   // been moved to maintain contiguity of pinned tabs at the beginning of the
+   // tabstrip).)
+   int SetTabPinned(int index, bool pinned);
++
++  // Little Browser: pins or unpins the tabs at `indices` (ascending), keeping split views whole.
++  // A tab drag across the vertical strip's pinned area uses it.
++  void LbSetTabsPinned(const std::vector<int>& indices, bool pinned) {
++    SetTabsPinned(indices, pinned);
++  }
+ 
+   // Returns true if the tab at `index` is pinned.
+   // See description above class for details on pinned tabs.
+--- a/chrome/browser/ui/views/frame/base_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/base_tab_strip_region_view.cc
+@@ -413,6 +413,25 @@
+     return nullptr;
+   }
+ 
++  // Little Browser: in the vertical strip the pointer picks the area. Above the middle of the
++  // "+ New Tab" row is the pinned area, so a tab dragged across the row is pinned or unpinned on
++  // the way (see TabDragHandlerImpl::HandleDraggedTabsIntoNode). A drag that includes a tab group
++  // stays among the unpinned tabs, since pinned tabs can't be grouped.
++  if (orientation_ == TabStripOrientation::kVertical && tab_strip_view_ &&
++      !drag_handler_->IsDraggingGroups()) {
++    const views::View* const row = tab_strip_view_->lb_new_tab_row();
++    const int pinned_area_bottom =
++        row && row->GetVisible() && !row->bounds().IsEmpty()
++            ? row->GetBoundsInScreen().CenterPoint().y()
++            : tab_strip_view_->unpinned_tabs_scroll_view()
++                  ->GetBoundsInScreen()
++                  .y();
++    if (point_in_screen.y() < pinned_area_bottom) {
++      return &GetPinnedTabsContainer()->GetTabDragTarget(point_in_screen);
++    }
++    return &GetUnpinnedTabsContainer()->GetTabDragTarget(point_in_screen);
++  }
++
+   // Note: if the drag has not attached to this tab strip yet, it doesn't matter
+   // which container is used because the first drag loop iteration just attaches
+   // it.
+--- a/chrome/browser/ui/views/tabs/common/root_tab_collection_node.cc
++++ b/chrome/browser/ui/views/tabs/common/root_tab_collection_node.cc
+@@ -146,7 +146,15 @@
+ 
+   bool pin_state_changed = src_pinned != dst_pinned;
+ 
+-  if (pin_state_changed) {
++  // Little Browser: a dragged tab whose pin state changes (a drag across the vertical strip's
++  // pinned area, or its revert) keeps its node and view, because the drag holds on to them.
++  const TabCollectionNode* const moved_node =
++      src_parent_node->GetNodeForHandle(moved_node_handle);
++  const bool is_dragged_node =
++      moved_node && moved_node->view() &&
++      GetController()->GetDragHandler().IsViewDragging(*moved_node->view());
++
++  if (pin_state_changed && !is_dragged_node) {
+     // Pin state change is treated as a remove and add instead of an attach and
+     // detach since we have separate concurrent animations in each container.
+     src_parent_node->RemoveChild(GetPassKey(), moved_node_handle,
+--- a/chrome/browser/ui/views/tabs/common/tab_drag_handler.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_drag_handler.cc
+@@ -400,6 +400,31 @@
+     return;
+   }
+ 
++  // Little Browser: in the vertical strip a tab dragged across the "+ New Tab" row enters the
++  // other area, so it is pinned or unpinned here. A pinned tab lands last among the pinned tabs,
++  // an unpinned one first among the others (or in the group it enters); dragging on within the
++  // area places it. Tab groups never get here: they stay among the unpinned tabs.
++  const bool into_pinned = node.type() == TabCollectionNode::Type::PINNED;
++  if (tabs::TabInterface::GetFromContents(source_contents)->IsPinned() !=
++      into_pinned) {
++    std::vector<int> indices;
++    for (const TabDragData& tab_drag_data : drag_session_data.tab_drag_data_) {
++      if (!tab_drag_data.contents) {
++        continue;
++      }
++      const int index =
++          tab_strip_model_->GetIndexOfWebContents(tab_drag_data.contents);
++      if (index != TabStripModel::kNoTab) {
++        indices.push_back(index);
++      }
++    }
++    std::ranges::sort(indices);
++    tab_strip_model_->LbSetTabsPinned(indices, into_pinned);
++    if (into_pinned) {
++      return;
++    }
++  }
++
+   int target_index;
+   std::optional<tab_groups::TabGroupId> target_group_id;
+   if (node.type() == TabCollectionNode::Type::GROUP) {
+--- a/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
++++ b/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
+@@ -1692,6 +1692,18 @@
+     tab_drag_datum.attached_view = nullptr;
+   }
+ 
++  // Little Browser: a drag across the vertical strip's pinned area may have pinned or unpinned
++  // the dragged tabs. They go into the next window as they are now, like the splits detached
++  // with them, which take their state from the model.
++  for (TabDragData& data : drag_data_.tab_drag_data_) {
++    if (data.contents) {
++      const int index = attached_model->GetIndexOfWebContents(data.contents);
++      if (index != TabStripModel::kNoTab) {
++        data.pinned = attached_model->IsTabPinned(index);
++      }
++    }
++  }
++
+   std::vector<int> dragged_indices;
+   for (const auto& data : drag_data_.tab_drag_data_) {
+     if (data.contents) {
+@@ -2193,6 +2205,25 @@
+       tab_datum.attached_view->set_detached();
+       tab_datum.attached_view = nullptr;
+     }
++  } else {
++    // Little Browser: a drag across the vertical strip's pinned area may have pinned or unpinned
++    // the dragged tabs. Give them back their pin state first, so the moves below stay within an
++    // area.
++    TabStripModel* const model = source_context_->GetTabStripModel();
++    for (const bool pinned : {true, false}) {
++      std::vector<int> indices;
++      for (const TabDragData& tab_datum : drag_data_.tab_drag_data_) {
++        if (!tab_datum.contents || tab_datum.pinned != pinned) {
++          continue;
++        }
++        const int index = model->GetIndexOfWebContents(tab_datum.contents);
++        if (index != TabStripModel::kNoTab && model->IsTabPinned(index) != pinned) {
++          indices.push_back(index);
++        }
++      }
++      std::ranges::sort(indices);
++      model->LbSetTabsPinned(indices, pinned);
++    }
+   }
+ 
+   // Revert each tab, split and group. We manually increment `i` because

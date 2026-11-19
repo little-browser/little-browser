@@ -3,7 +3,7 @@
 A minimal, private, fast browser — Chromium on macOS, Windows, Linux and Android; WebKit on iOS.
 Sidebar-first UI inspired by Arc. Open source under [MPL-2.0](LICENSE).
 
-> **Status:** the macOS desktop build runs: sidebar with spaces and favourites, command bar,
+> **Status:** the macOS desktop build runs: sidebar with spaces, pinned tabs and groups, command bar,
 > first-run search-engine choice, Safe Browsing in standard mode. Windows, Linux, iOS and Android
 > don't exist yet. Sync, the native content blocker, Peek and the little window are designed but
 > not built. There are no public releases yet.

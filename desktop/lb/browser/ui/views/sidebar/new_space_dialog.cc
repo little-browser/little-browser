@@ -147,7 +147,7 @@ class NewSpaceDialog : public views::DialogDelegate,
 
     // Profile: the current window's by default (docs/ux.md §5: new spaces use the current
     // space's profile).
-    AddCaption(contents_, u"Profile — logins, history and favourites");
+    AddCaption(contents_, u"Profile — logins and history");
     std::vector<ui::SimpleComboboxModel::Item> items;
     size_t selected = 0;
     for (size_t i = 0; i < profiles_.size(); ++i) {

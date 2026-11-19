@@ -74,7 +74,7 @@ same UI concepts, the same Rust core and the same sync.
 │                     │    lb-core (Rust)      │                        │
 │                     ├────────────────────────┤                        │
 │                     │ data model: spaces,    │                        │
-│                     │  profiles, favourites, │                        │
+│                     │  profiles,             │                        │
 │                     │  tabs,                 │                        │
 │                     │  settings, addresses   │                        │
 │                     │ sync engine (CRDT+E2EE)│                        │
@@ -178,7 +178,7 @@ magic. Targets must be measured, not promised.
 
 **Sleep more**
 - Memory Saver on by default; tabs in **inactive spaces** are discarded after N minutes
-  (configurable), favourites/pinned tabs keep only their state.
+  (configurable), pinned tabs keep only their state.
 - Lazy session restore: restore tabs as placeholders, load on first focus.
 - Freeze background tabs that are not playing media or holding a WebRTC/WebSocket connection.
 - Preloading limited to "standard" (no aggressive prerendering of search results).
@@ -195,10 +195,10 @@ magic. Targets must be measured, not promised.
 
 Legend: ✅ planned for the platform · 🟡 adapted · ⏳ later · ❌ not on this platform
 
-Built so far, on macOS desktop: spaces and profiles, favourites, the command bar, the first-run
-search-engine choice, tab groups (Chromium's own), Safe Browsing in standard mode, the quit warning,
-and everything Chromium already provides (incognito, DevTools, PiP, import). The rest of the table
-is specified but not built.
+Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run
+search-engine choice, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
+the quit warning, and everything Chromium already provides (incognito, DevTools, PiP, import). The
+rest of the table is specified but not built.
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -206,7 +206,6 @@ is specified but not built.
 | Peek (link preview overlay) | ✅ Shift+click | 🟡 long-press → sheet | 🟡 long-press → sheet |
 | Tab position left/top | ✅ | 🟡 address bar top/bottom | 🟡 address bar top/bottom |
 | Little window | ✅ | 🟡 as Custom Tabs provider | ⏳ |
-| Favourites | ✅ | ✅ | ✅ |
 | Import from other browsers | ✅ | 🟡 file / via sync | 🟡 file / via sync |
 | Incognito | ✅ | ✅ | ✅ |
 | Form autofill | ✅ addresses | 🟡 OS autofill + addresses | 🟡 OS AutoFill |
@@ -217,7 +216,7 @@ is specified but not built.
 
 ### 7.1 Spaces and profiles
 - A **space** = name, icon/colour, its own pinned and today tabs, and the **profile** it runs in.
-- A **profile** = one Chromium profile: logins, cookies, history, extensions and favourites.
+- A **profile** = one Chromium profile: logins, cookies, history and extensions.
   Profiles are named (Arc model). Everyone starts with the **default profile** and all spaces share
   it, like Arc Spaces. A space can switch to another profile or a new one (e.g. "Work" vs
   "Personal" Google accounts); **several spaces can share a profile**. Each extra profile costs
@@ -229,7 +228,7 @@ is specified but not built.
 
 ### 7.2 Peek (quick preview overlay)
 - Trigger: Shift+click by default (configurable: Alt+click, middle-click, long-press). Optional rule:
-  links from a favourite/pinned tab that leave its site open in Peek (Arc does this).
+  links from a pinned tab that leave its site open in Peek (Arc does this).
 - UI: a floating card over the current page, with "open as tab", "open in little window", "close"
   (Esc / click outside). Scrolling and interaction work inside it.
 - Implementation: a separate `WebContents` hosted in an overlay widget; on "open as tab" we **move**
@@ -241,7 +240,7 @@ is specified but not built.
 ### 7.3 Tabs with configurable position
 - **Left or top only** — exactly what upstream Chromium supports (Chrome shipped native vertical
   tabs in 2026). We add no layout patches; we only expose the choice in our settings and make sure
-  our sidebar (favourites, space switcher) sits with the vertical tab strip.
+  our sidebar (space switcher) sits with the vertical tab strip.
 - If upstream later adds more positions, we get them for free.
 - Mobile: address bar at the bottom by default (top as an option), all-tabs view with page
   previews; tablets use the sidebar layout when wide (ux.md §10).
@@ -264,12 +263,10 @@ is specified but not built.
 - Android equivalent: serve **Custom Tabs** for other apps — a small overlay browser that other apps
   open, which is exactly the "little window" idea on mobile.
 
-### 7.5 Favourites
-- Icon grid at the top of the sidebar, **per profile** (Arc-style): all spaces that use the
-  same profile share it, so a favourite always runs with that profile's logins. Each space also has
-  pinned tabs.
-- Stored as a special bookmarks folder so import/export and Chromium's bookmark tooling keep working.
-- Synced (section 8).
+### 7.5 Pinned tabs and tab groups
+- Per space, shown as list rows (icon and title) under the space name; groups (Arc-style folders)
+  are Chromium's own tab groups, in pinned or today.
+- Pinned tabs and groups are saved with the space (Local State, section 8 for sync).
 
 ### 7.6 Import
 - Desktop: bookmarks, history, search engines, open tabs where possible, autofill addresses from
@@ -379,7 +376,7 @@ log; a transport just moves opaque encrypted blobs. We run no server that stores
 - **Recovery:** optional recovery phrase (24 words). If you lose every device and the phrase, the
   synced data is gone — that's the price of us holding nothing, and the UI must say so clearly.
 - **Removing a device:** rotate the key and re-share it with the remaining devices.
-- **Merging:** a CRDT so devices can edit offline and merge without conflicts. Bookmarks/favourites
+- **Merging:** a CRDT so devices can edit offline and merge without conflicts. Bookmarks
   need a *movable tree*. The CRDT library is not chosen yet: candidates are **Loro** (has a
   movable-tree type) and **Automerge** (both Rust), with simple last-writer-wins records with hybrid logical clocks for flat data as the fallback.
 - **Encryption:** XChaCha20-Poly1305 for payloads, keys derived per data type; metadata (sizes,
@@ -432,7 +429,7 @@ carrier networks.
 
 | Data | Default | Note |
 |---|---|---|
-| Favourites & bookmarks | On | |
+| Bookmarks | On | |
 | Spaces, profiles & pinned tabs | On | Space layout only on desktop; logins don't sync |
 | Open tabs | On | "Send tab to device" for free |
 | Settings | On | Platform-specific settings stay local |
@@ -473,7 +470,7 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, favourites, command bar, search-engine choice, Safe Browsing (standard), branding, quit warning |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine choice, Safe Browsing (standard), branding, quit warning |
 | Windows, Linux desktop | Not built: the platform recipes aren't wired up |
 | Native blocker, tracking-parameter stripping, Peek, little window, import, auto-PiP, on-demand Widevine | Specified, not built |
 | `lb-core` | Data model and the sync `Transport` trait with an in-memory transport; no dependencies yet |
