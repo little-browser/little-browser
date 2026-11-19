@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// littlebrowser.app: theme switch, product-mock demo, colour-swatch copy. No tracking, no cookies.
+// littlebrowser.app: theme switch, product-mock demo, downloads, colour-swatch copy. No tracking, no cookies.
 
 (() => {
   const root = document.documentElement;
@@ -37,7 +37,23 @@
     };
     spaces.forEach((b) => b.addEventListener('click', () => setSpace(b)));
 
+    // Grow the card from the link in the article, wherever the text wrapped it.
+    const page = mock.querySelector('.m-page');
+    const link = mock.querySelector('[data-peek-link]');
+    const card = mock.querySelector('.m-card');
+    const aim = () => {
+      if (!page || !link || !card) return;
+      const p = page.getBoundingClientRect();
+      const l = link.getBoundingClientRect();
+      const x = l.left + l.width / 2 - p.left;
+      const y = l.top + l.height / 2 - p.top;
+      mock.style.setProperty('--peek-x', `${x}px`);
+      mock.style.setProperty('--peek-y', `${y}px`);
+      mock.style.setProperty('--peek-origin', `${x - card.offsetLeft}px ${y - card.offsetTop}px`);
+    };
+
     const peek = () => {
+      aim();
       mock.classList.remove('peeking');
       void mock.offsetWidth; // restart the animation
       mock.classList.add('peeking');
@@ -56,6 +72,131 @@
       if (entries.some((x) => x.isIntersecting)) { setTimeout(peek, 700); io.disconnect(); }
     }, { threshold: 0.5 });
     io.observe(mock);
+  }
+
+  // Downloads: suggest the build for this visitor's system, list every release.
+  // The list is releases.json on downloads.littlebrowser.app, written by the release pipeline:
+  //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "alpha",
+  //       "chromium": "157.0.8103.78", "files": [ { "platform": "macos", "arch": "arm64",
+  //       "url": "https://downloads.littlebrowser.app/...dmg", "size": 123, "sha256": "..." } ] } ] }
+  // Newest first. Nothing here is sent anywhere: the system is guessed locally from the browser.
+  const dl = document.getElementById('download');
+  if (dl) {
+    const PLATFORMS = {
+      macos: 'macOS', windows: 'Windows', linux: 'Linux', ios: 'iPhone and iPad', android: 'Android',
+    };
+    const ARCHES = { arm64: 'Apple silicon', x64: 'Intel' };
+    const DOWNLOAD_ORIGIN = 'https://downloads.littlebrowser.app';
+    const primary = document.querySelector('[data-dl-primary]');
+    const meta = document.querySelector('[data-dl-meta]');
+
+    // Best guess at the OS (and on a Mac, the chip). iPadOS reports itself as a Mac with touch.
+    const detect = async () => {
+      const ua = navigator.userAgent;
+      const uad = navigator.userAgentData;
+      const p = (uad && uad.platform) || navigator.platform || '';
+      let os = null;
+      if (/iPhone|iPad|iPod/.test(ua) || (/Mac/i.test(p) && navigator.maxTouchPoints > 1)) os = 'ios';
+      else if (/Android/i.test(ua)) os = 'android';
+      else if (/Mac/i.test(p)) os = 'macos';
+      else if (/Win/i.test(p)) os = 'windows';
+      else if (/Linux|X11|CrOS/i.test(p)) os = 'linux';
+      let arch = null; // Safari and Firefox don't say; most Macs sold since 2021 are Apple silicon
+      if (os === 'macos' && uad && uad.getHighEntropyValues) {
+        try {
+          const v = await uad.getHighEntropyValues(['architecture']);
+          arch = v.architecture === 'arm' ? 'arm64' : v.architecture === 'x86' ? 'x64' : null;
+        } catch {}
+      }
+      return { os, arch };
+    };
+
+    // Only ever link to our own download host (local previews may point at a file next to the page).
+    const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+    const safeUrl = (u) => {
+      try {
+        const url = new URL(u, location.href);
+        return url.origin === DOWNLOAD_ORIGIN || (local && url.origin === location.origin) ? url.href : null;
+      } catch { return null; }
+    };
+    const size = (b) => (b > 0 ? `${Math.round(b / 1048576)} MB` : '');
+    const label = (f) => `${PLATFORMS[f.platform] || f.platform}${ARCHES[f.arch] ? ` (${ARCHES[f.arch]})` : ''}`;
+    const el = (tag, props = {}, ...kids) => {
+      const n = Object.assign(document.createElement(tag), props);
+      for (const k of kids) n.append(k);
+      return n;
+    };
+
+    const load = async () => {
+      let src = dl.dataset.releases;
+      const override = new URLSearchParams(location.search).get('releases');
+      if (local && override) src = override; // preview against a sample file
+      try {
+        const r = await fetch(src, { cache: 'no-cache' });
+        if (!r.ok) return [];
+        const j = await r.json();
+        return Array.isArray(j.releases) ? j.releases : [];
+      } catch { return []; }
+    };
+
+    (async () => {
+      const [{ os, arch }, releases] = await Promise.all([detect(), load()]);
+
+      // Platform cards: which ones have a build.
+      for (const card of dl.querySelectorAll('[data-platform]')) {
+        const has = releases.some((r) => (r.files || []).some((f) => f.platform === card.dataset.platform));
+        if (has) card.querySelector('[data-platform-status]').textContent = 'Alpha · download below';
+        if (card.dataset.platform === os) card.classList.add('yours');
+      }
+
+      // Releases table.
+      const rows = releases.filter((r) => r && r.version && Array.isArray(r.files) && r.files.length);
+      if (rows.length) {
+        dl.querySelector('[data-releases-empty]').hidden = true;
+        dl.querySelector('[data-releases-list]').hidden = false;
+        const tbody = dl.querySelector('.releases tbody');
+        rows.forEach((r, i) => {
+          const files = el('td');
+          for (const f of r.files) {
+            const href = safeUrl(f.url);
+            if (!href) continue;
+            const a = el('a', { href, className: 'file' }, label(f));
+            if (f.size) a.append(el('span', { className: 'dim' }, ` · ${size(f.size)}`));
+            const item = el('div', {}, a);
+            if (f.sha256) item.append(el('code', { className: 'sha', title: `SHA-256 ${f.sha256}` }, `SHA-256 ${String(f.sha256).slice(0, 12)}…`));
+            files.append(item);
+          }
+          const version = el('td', {}, el('b', {}, r.version));
+          if (r.channel) version.append(el('span', { className: 'tag' }, r.channel));
+          if (i === 0) version.append(el('span', { className: 'tag latest' }, 'latest'));
+          tbody.append(el('tr', {}, version, el('td', {}, r.date || ''), el('td', {}, r.chromium || ''), files));
+        });
+      }
+
+      // Hero button: the newest build for this system, if there is one.
+      if (!primary || !meta) return;
+      const latest = rows[0];
+      const forMe = latest && latest.files.find((f) => f.platform === os && (!arch || !f.arch || f.arch === arch));
+      const href = forMe && safeUrl(forMe.url);
+      const other = el('a', { href: '#download' }, 'Other platforms and previous releases');
+      if (href) {
+        primary.href = href;
+        primary.textContent = `Download for ${PLATFORMS[os]}`;
+        meta.replaceChildren(`Alpha ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, other);
+      } else if (os === 'macos' && latest && arch === 'x64') {
+        primary.textContent = 'See downloads';
+        meta.replaceChildren('This Mac has an Intel chip; the alpha needs Apple silicon (M1 or later). ', other);
+      } else if (latest && os && os !== 'macos') {
+        primary.textContent = 'See downloads';
+        meta.replaceChildren(`Not available for ${PLATFORMS[os]} yet; the alpha is macOS only. `, other);
+      } else if (!latest) {
+        primary.textContent = 'Download';
+        meta.replaceChildren('The first alpha build is on its way. ', other);
+      } else {
+        primary.textContent = 'See downloads';
+        meta.replaceChildren(other);
+      }
+    })();
   }
 
   // Brand page: click a swatch to copy its hex value.
