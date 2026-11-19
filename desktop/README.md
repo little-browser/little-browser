@@ -64,7 +64,8 @@ Run a build with a separate developer profile (`--dev` for `out/Dev`, `--fresh` 
 desktop/scripts/run.sh --dev
 ```
 
-Ad-hoc signed `.dmg` of the release build for local testing:
+Ad-hoc signed `.dmg` of the release build (`build/LittleBrowser-macos-<arch>.dmg`, the app next to
+an Applications link); CI packages releases the same way:
 
 ```bash
 desktop/scripts/build.sh --package

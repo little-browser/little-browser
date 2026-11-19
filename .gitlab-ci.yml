@@ -10,7 +10,7 @@
 #   lb-linux-release    same, protected refs only: release builds, signing secrets         (later)
 #   lb-windows-build    64 vCPU Windows Spot (instance executor): merge-request builds    (later)
 #   lb-windows-release  same, protected refs only                                          (later)
-#   lb-macos            EC2 Mac host allocated per release (macos-host job), protected refs
+#   lb-macos            EC2 Mac host allocated per release (macos-arm64-host job), protected refs
 # CI/CD variables LB_SCCACHE_BUCKET, LB_AWS_REGION and LB_MACOS_* come from the infrastructure repository too.
 #
 # Compiler cache: sccache via GN cc_wrapper, keyed by file content. S3 bucket shared by the
@@ -58,8 +58,7 @@ scripts:
   tags: [lb-linux]
   image: koalaman/shellcheck-alpine:stable
   script:
-    - for f in desktop/scripts/*.sh; do bash -n "$f"; done
-    - shellcheck desktop/scripts/*.sh
+    - shellcheck desktop/scripts/*.sh   # also reports syntax errors; the image has no bash
 
 # Every patch still applies: ungoogled-chromium, platform and our series on a fresh
 # Chromium tarball. No compile, so it is cheap enough for every bump or patch merge request.
@@ -126,7 +125,7 @@ auto-tag:
 # Allocate (or reuse) the EC2 Mac host for this release, start the builder on it, attach
 # its data volume if one is configured. The build jobs below wait in `pending` until its lb-macos
 # runner is online.
-macos-host:
+macos-arm64-host:
   stage: provision
   tags: [lb-linux-protected]
   image:
@@ -141,7 +140,7 @@ macos-host:
 macos-arm64:
   extends: .chromium
   tags: [lb-macos]
-  needs: [macos-host]
+  needs: [macos-arm64-host]
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
   variables:
@@ -152,9 +151,6 @@ macos-arm64:
     - rm -rf desktop/build/src   # fresh tree each release; download cache is kept
     - desktop/scripts/fetch.sh arm64
     - desktop/scripts/build.sh arm64
-  artifacts:
-    paths: ["desktop/build/src/out/Default/Little Browser.app"]
-    expire_in: 1 week
 
 # macos-x64, linux-x64, windows-x64: added when their platform recipes are wired up (desktop/README.md).
 # linux-x64 and windows-x64 also get a merge_request_event rule.
@@ -164,16 +160,18 @@ macos-arm64:
 # After internal testing, a person runs the manual `publish` job: it puts the same .dmg on
 # downloads.littlebrowser.app and lists it in releases.json, which the website reads.
 
-macos-package:
+macos-arm64-package:
   stage: package
   tags: [lb-macos]
   needs: [macos-arm64]
   rules:
-    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+  variables:
+    GIT_STRATEGY: none           # keep macos-arm64's tree (one Mac runner, same build directory);
+                                 # a checkout would clean out the ignored build/ folder
   script:
-    # Developer ID signing + notarization. Credentials are CI/CD variables (masked, protected):
-    # MACOS_CERTIFICATE, MACOS_CERTIFICATE_PWD, MACOS_NOTARIZATION_APPLE_ID,
-    # MACOS_NOTARIZATION_TEAM_ID, MACOS_NOTARIZATION_PWD — never in the repo.
+    # Ad-hoc signed: there is no Developer ID certificate or notarization yet, so macOS asks
+    # people to confirm the first launch.
     - desktop/scripts/build.sh --package
   artifacts:
     paths: ["desktop/build/*.dmg"]
@@ -188,7 +186,7 @@ macos-package:
 publish:
   extends: .aws
   stage: publish
-  needs: [macos-package]
+  needs: [macos-arm64-package]
   resource_group: downloads      # one releases.json writer at a time
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
@@ -213,7 +211,8 @@ release:
     description: "Little Browser $CI_COMMIT_TAG: https://littlebrowser.app/#download"
 
 # ------------------------------------------------------------------ website
-# littlebrowser.app from site/, on main only: when site/ changes, or from "Run pipeline" on main.
+# littlebrowser.app from site/, on main only: when site/ changes, or from "Run pipeline" (or the
+# API) on main.
 
 site:
   extends: .aws
@@ -221,6 +220,6 @@ site:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"
       changes: [site/**/*]
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE =~ /^(web|api)$/
   script:
     - desktop/scripts/deploy-site.sh

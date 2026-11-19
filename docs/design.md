@@ -520,7 +520,7 @@ Little Browser is open source. What that means in practice:
 | Job | Runs on | When |
 |---|---|---|
 | Fast checks: Rust core, script lint, `patch-check`, release bot | `lb-linux`: small AWS Linux spot | Every push and merge request |
-| Chromium build, macOS arm64 (x64 later) | `lb-macos`: EC2 Mac host (mac2-m2pro) allocated per release by the `macos-host` job; a cold build on the instance's own disk (a persistent data volume is optional) | **Release tags only**: hours per version bump |
+| Chromium build, macOS arm64 (x64 later) | `lb-macos`: EC2 Mac host (mac2-m2pro) allocated per release by the `macos-arm64-host` job; a cold build on the instance's own disk (a persistent data volume is optional) | **Release tags only**: hours per version bump |
 | Chromium build, Linux / Windows | 64 vCPU AWS **spot** instances (300–400 GB disk), one job per host: `lb-linux-build` / `lb-windows-build` for merge requests, `lb-linux-release` / `lb-windows-release` for protected refs | **Every merge request** and release tags, once those platform recipes exist |
 | Compiler cache | **sccache** via GN `cc_wrapper`, keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles, and on the Mac only when it keeps a persistent data volume. Same checkout path on every runner so keys match | Always |
 
