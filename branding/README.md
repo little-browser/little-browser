@@ -55,8 +55,10 @@ Not covered yet: a macOS 26 Icon Composer `.icon` (Liquid Glass layers). Until t
 ## Website
 
 `site/` is the littlebrowser.app website, a plain static site with no build step. Every file in it
-is served, so upload the folder as it is. It has a home page plus `404.html`, `robots.txt`,
-`sitemap.xml` and `site.webmanifest`. There are no cookies or analytics.
+is served, so upload the folder as it is. It has a home page and `/downloads` (the button for the
+visitor's system and every release, from `releases.json`), plus `404.html`, `robots.txt`,
+`sitemap.xml` and `site.webmanifest`. There are no cookies or analytics. Pages other than the home
+page use root-relative links, so preview the site from its own folder as well.
 
 The brand review page (`branding/brand.html`) borrows the site's styles. It stays out of the
 public site. At launch, add a slim `/press` page to the site instead, with logo downloads, a short
@@ -66,6 +68,7 @@ description, screenshots and the contact email.
 python3 -m http.server 4173 --bind 127.0.0.1   # from the repo root, then open:
 #   http://127.0.0.1:4173/site/                 the website
 #   http://127.0.0.1:4173/branding/brand.html   the brand review page
+python3 -m http.server 4174 --bind 127.0.0.1 --directory site   # every page, at http://127.0.0.1:4174/
 npm run export && scripts/sync-site.sh          # after a logo change (from branding/)
 ```
 

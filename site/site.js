@@ -74,21 +74,29 @@
     io.observe(mock);
   }
 
-  // Downloads: suggest the build for this visitor's system, list every release.
-  // The list is releases.json on downloads.littlebrowser.app, written by the release pipeline:
+  // Downloads: a button for this visitor's system (home page and /downloads), and the list of
+  // every release (/downloads). The list is releases.json on downloads.littlebrowser.app, written
+  // by the release pipeline:
   //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "alpha",
   //       "chromium": "157.0.8103.78", "files": [ { "platform": "macos", "arch": "arm64",
   //       "url": "https://downloads.littlebrowser.app/...dmg", "size": 123, "sha256": "..." } ] } ] }
   // Newest first. Nothing here is sent anywhere: the system is guessed locally from the browser.
-  const dl = document.getElementById('download');
-  if (dl) {
+  const primary = document.querySelector('[data-dl-primary]');
+  const meta = document.querySelector('[data-dl-meta]');
+  const list = document.querySelector('[data-releases-list]');
+  if (primary || list) {
+    const RELEASES = 'https://downloads.littlebrowser.app/releases.json';
+    const DOWNLOAD_ORIGIN = 'https://downloads.littlebrowser.app';
     const PLATFORMS = {
       macos: 'macOS', windows: 'Windows', linux: 'Linux', ios: 'iPhone and iPad', android: 'Android',
     };
     const ARCHES = { arm64: 'Apple silicon', x64: 'Intel' };
-    const DOWNLOAD_ORIGIN = 'https://downloads.littlebrowser.app';
-    const primary = document.querySelector('[data-dl-primary]');
-    const meta = document.querySelector('[data-dl-meta]');
+    // Store pages for the platforms that ship through a store. An entry here takes over the
+    // button on that platform; none is listed yet.
+    const STORES = {
+      // ios: { url: 'https://apps.apple.com/app/...', label: 'Download on the App Store' },
+      // android: { url: 'https://play.google.com/store/apps/details?id=...', label: 'Get it on Google Play' },
+    };
 
     // Best guess at the OS (and on a Mac, the chip). iPadOS reports itself as a Mac with touch.
     const detect = async () => {
@@ -128,7 +136,7 @@
     };
 
     const load = async () => {
-      let src = dl.dataset.releases;
+      let src = RELEASES;
       const override = new URLSearchParams(location.search).get('releases');
       if (local && override) src = override; // preview against a sample file
       try {
@@ -141,20 +149,22 @@
 
     (async () => {
       const [{ os, arch }, releases] = await Promise.all([detect(), load()]);
+      const rows = releases.filter((r) => r && r.version && Array.isArray(r.files) && r.files.length);
 
-      // Platform cards: which ones have a build.
-      for (const card of dl.querySelectorAll('[data-platform]')) {
-        const has = releases.some((r) => (r.files || []).some((f) => f.platform === card.dataset.platform));
-        if (has) card.querySelector('[data-platform-status]').textContent = 'Alpha · download below';
-        if (card.dataset.platform === os) card.classList.add('yours');
+      // Platform cards: which ones have a build or a store page, and which one is yours.
+      for (const card of document.querySelectorAll('[data-platform]')) {
+        const id = card.dataset.platform;
+        const status = card.querySelector('[data-platform-status]');
+        if (STORES[id]) status.replaceChildren(el('a', { href: STORES[id].url }, STORES[id].label));
+        else if (rows.some((r) => r.files.some((f) => f.platform === id))) status.textContent = 'Alpha · download below';
+        if (id === os) card.classList.add('yours');
       }
 
       // Releases table.
-      const rows = releases.filter((r) => r && r.version && Array.isArray(r.files) && r.files.length);
-      if (rows.length) {
-        dl.querySelector('[data-releases-empty]').hidden = true;
-        dl.querySelector('[data-releases-list]').hidden = false;
-        const tbody = dl.querySelector('.releases tbody');
+      if (list && rows.length) {
+        document.querySelector('[data-releases-empty]').hidden = true;
+        list.hidden = false;
+        const tbody = list.querySelector('tbody');
         rows.forEach((r, i) => {
           const files = el('td');
           for (const f of r.files) {
@@ -173,28 +183,34 @@
         });
       }
 
-      // Hero button: the newest build for this system, if there is one.
+      // The button: this system's store page, or its newest build. Otherwise it goes to the full
+      // list, the link under it says why, and the link itself is dropped as it would repeat the button.
       if (!primary || !meta) return;
+      const all = meta.querySelector('a');
+      const toAll = (why) => {
+        primary.href = all.getAttribute('href');
+        primary.textContent = all.textContent;
+        if (why) meta.replaceChildren(why);
+        else meta.hidden = true;
+      };
       const latest = rows[0];
       const forMe = latest && latest.files.find((f) => f.platform === os && (!arch || !f.arch || f.arch === arch));
       const href = forMe && safeUrl(forMe.url);
-      const other = el('a', { href: '#download' }, 'Other platforms and previous releases');
-      if (href) {
+      if (STORES[os]) {
+        primary.href = STORES[os].url;
+        primary.textContent = STORES[os].label;
+      } else if (href) {
         primary.href = href;
         primary.textContent = `Download for ${PLATFORMS[os]}`;
-        meta.replaceChildren(`Alpha ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, other);
-      } else if (os === 'macos' && latest && arch === 'x64') {
-        primary.textContent = 'See downloads';
-        meta.replaceChildren('This Mac has an Intel chip; the alpha needs Apple silicon (M1 or later). ', other);
-      } else if (latest && os && os !== 'macos') {
-        primary.textContent = 'See downloads';
-        meta.replaceChildren(`Not available for ${PLATFORMS[os]} yet; the alpha is macOS only. `, other);
+        meta.replaceChildren(`Alpha ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, all);
       } else if (!latest) {
-        primary.textContent = 'Download';
-        meta.replaceChildren('The first alpha build is on its way. ', other);
+        toAll('The first alpha build is on its way.');
+      } else if (os === 'macos' && arch === 'x64') {
+        toAll('This Mac has an Intel chip; the alpha needs Apple silicon (M1 or later).');
+      } else if (os && os !== 'macos') {
+        toAll(`Not available for ${PLATFORMS[os]} yet; the alpha is macOS only.`);
       } else {
-        primary.textContent = 'See downloads';
-        meta.replaceChildren(other);
+        toAll();
       }
     })();
   }

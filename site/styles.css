@@ -370,6 +370,10 @@ kbd {
 
 .hero-copy .dl-meta { font-size: 14px; color: var(--ink-dim); margin-top: -8px; }
 .hero-copy .dl-meta a, .releases-empty a { color: var(--accent); }
+.platform em a { color: inherit; }
+.downloads-hero { padding-bottom: 0; }
+.downloads-hero .hero-copy { margin-bottom: 0; }
+.downloads { padding-top: 64px; }
 .callout {
   margin-bottom: 28px; padding: 16px 20px; border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, #e9a23b 45%, var(--line));
