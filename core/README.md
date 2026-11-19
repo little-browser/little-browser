@@ -7,7 +7,7 @@ See [docs/design.md §4.4](../docs/design.md#44-rust-core) and [§8](../docs/des
 cd core && cargo test
 ```
 
-Contents: the data model (profiles, spaces, favourites per profile, pinned/today tabs,
+Contents: the data model (profiles, spaces, pinned/today tabs,
 auto-archive; see [docs/ux.md §5, §6](../docs/ux.md)) and the sync `Transport` trait with an
 in-memory transport. No dependencies.
 

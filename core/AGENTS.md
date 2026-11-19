@@ -12,7 +12,7 @@ cargo test -p lb-core model::tests::<name>                                     #
   behaviour change comes with a test, including edge cases (empty lists, unknown ids,
   ordering).
 - **Model.** `model.rs` mirrors `docs/ux.md` §5 and §6: profiles, browser-wide spaces,
-  favourites per profile, pinned and today tabs, and auto-archive. Change the spec and the model
+  pinned and today tabs, and auto-archive. Change the spec and the model
   together.
 - **Sync.** `sync.rs` has the `Transport` trait plus an in-memory transport for tests. Real
   transports implement the trait; they don't change callers.
