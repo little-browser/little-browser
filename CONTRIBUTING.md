@@ -2,6 +2,11 @@
 
 Thanks for helping. A few rules keep the project small and maintainable.
 
+## Where the code lives
+
+Development happens on GitLab; [github.com/little-browser/little-browser](https://github.com/little-browser/little-browser)
+is a read-only mirror of `main` and the release tags, so it has no pull requests. Bug reports and ideas are welcome as GitHub issues.
+
 ## Sign your commits (DCO)
 
 We use the [Developer Certificate of Origin](https://developercertificate.org/) instead of a CLA.

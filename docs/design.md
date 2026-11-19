@@ -503,7 +503,7 @@ Little Browser is open source. What that means in practice:
 | Topic | Plan |
 |---|---|
 | Licence | Our code: **MPL-2.0**. Chromium: BSD-3 (its third-party notices are generated into `about:credits`). Each file carries the MPL header. |
-| Repository | Public from day one: code, design docs, issues. Hosted on **GitLab**, mirrored read-only to GitHub. |
+| Repository | Hosted on **GitLab**, which runs CI and releases. A **read-only mirror on GitHub** (`github.com/little-browser/little-browser`) carries the protected branches (`main`) and release tags; feature, fix and `bump/*` branches stay on GitLab. GitHub pull requests are off, because the next push would overwrite a merge there; GitHub Issues are on for bug reports. |
 | Name and IDs | **Little Browser**; site **littlebrowser.app**. App IDs use its reverse: macOS `app.littlebrowser.LittleBrowser`; iOS and Android take the same `app.littlebrowser.` prefix. An app ID can't change after release without breaking updates and store listings. Logo and usage rules: `branding/`. |
 | Contributions | **DCO** sign-off (`git commit -s`) rather than a CLA — lighter for contributors; see `CONTRIBUTING.md`. |
 | Trademark | MPL grants no rights to the name or logo. Forks must rebrand (Firefox model). |
@@ -519,21 +519,47 @@ Little Browser is open source. What that means in practice:
 
 | Job | Runs on | When |
 |---|---|---|
-| Fast checks: Rust core, script lint | Autoscaled AWS Linux runners | Every push and merge request |
-| Chromium build, macOS arm64 (x64 later) | Dedicated macOS runner (EC2 Mac or Mac mini, ≥1 TB disk) | Release tags; by hand |
-| Chromium build, Linux / Windows | Large AWS instances (32–64 cores, ~300 GB disk), started per build | When those platform recipes exist |
-| Compiler cache | Persistent build directory per runner; a shared cache later | Always |
+| Fast checks: Rust core, script lint, `patch-check`, release bot | `lb-linux`: small AWS Linux spot | Every push and merge request |
+| Chromium build, macOS arm64 (x64 later) | `lb-macos`: EC2 Mac host (mac2-m2pro) allocated per release by the `macos-host` job; a cold build on the instance's own disk (a persistent data volume is optional) | **Release tags only**: hours per version bump |
+| Chromium build, Linux / Windows | 64 vCPU AWS **spot** instances (300–400 GB disk), one job per host: `lb-linux-build` / `lb-windows-build` for merge requests, `lb-linux-release` / `lb-windows-release` for protected refs | **Every merge request** and release tags, once those platform recipes exist |
+| Compiler cache | **sccache** via GN `cc_wrapper`, keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles, and on the Mac only when it keeps a persistent data volume. Same checkout path on every runner so keys match | Always |
+
+**What a build costs.** A change to our own code on the same Chromium version mostly hits the
+cache: minutes. A Chromium version bump, about weekly, changes headers that nearly everything
+includes, so it is close to a full rebuild: about an hour on a 64+ core spot instance, several hours
+on the macOS runner. A patch to a widely included header can cost almost as much.
 
 **A release, step by step**
-1. Tag `vCHROMIUM_VERSION-REVISION` (e.g. `v157.0.8103.78-1`).
-2. Builders run `desktop/scripts/fetch.sh` + `build.sh` from scratch; keys (Safe Browsing, Widevine
-   signing) are injected from protected CI/CD variables, never committed.
-3. Sign: macOS Developer ID + notarization → `.dmg`; Windows code signing → installer; Linux
+1. **Watch.** A scheduled pipeline (`upstream-watch`, `desktop/scripts/release-bot.sh bump`) checks
+   for ungoogled-chromium (and platform repo) tags newer than `desktop/VERSIONS`
+   (`desktop/scripts/upstream.sh`). On a new one it pushes `bump/<version>` with `VERSIONS` updated
+   and opens a merge request. Checks there: every patch applies (`patch-check`:
+   `fetch.sh --patches-only`, no compile), then the Linux and Windows builds once they exist.
+2. **Merge.** A person reviews and merges the bump, fixing patches on the branch if needed.
+3. **Tag.** Merging a change to `VERSIONS` tags `v<CHROMIUM_VERSION>-1` (e.g. `v157.0.8103.78-1`)
+   automatically (`auto-tag`); a platform-only bump on the same Chromium version gets the next
+   free revision.
+   Releases of our own changes on the same Chromium version are tagged by hand with the next
+   revision (`-2`, `-3`, …).
+4. **Build.** On the tag, builders run `desktop/scripts/fetch.sh` + `build.sh` from scratch, with
+   the compiler cache; keys (Safe Browsing, Widevine signing) are injected from protected
+   CI/CD variables, never committed.
+5. **Sign.** macOS Developer ID + notarization → `.dmg`; Windows code signing → installer; Linux
    `.deb`/`.rpm` + Flatpak.
-4. Publish: GitLab Release (mirrored to GitHub) with checksums, the exact build arguments and an
-   SBOM. Update feeds (Sparkle on macOS) are static, signed files on a CDN — no user data.
-5. Security releases follow Chromium's (roughly weekly) within days, so the pipeline must make a
-   release routine: tag → build → sign → publish.
+6. **Internal channel.** The signed `.dmg` is kept as a pipeline artifact for 30 days; internal
+   testers download it from the tag's pipeline.
+7. **Publish (manual).** After internal testing, a person runs the `publish` job
+   (`desktop/scripts/publish-release.sh`): it uploads the same file to
+   `downloads.littlebrowser.app/<version>/` and adds it, with its size and SHA-256, to
+   `releases.json`, which littlebrowser.app reads for its download button and list of releases.
+   Published files are never replaced or deleted. Later: the exact build arguments and an SBOM
+   alongside, and the Sparkle update feed (static, signed files, no user data). Nothing is rebuilt.
+
+The website itself is the `site/` folder, uploaded to `littlebrowser.app` by the `site` job when it
+changes on `main` (`desktop/scripts/deploy-site.sh`).
+
+Security releases follow Chromium's (roughly weekly) within days, so only steps 2 and 7 wait on a
+person.
 
 **Prerequisites:** Apple Developer account (US$99/yr), a Windows signing identity, the macOS
 runner, and replacing the community-built LLVM before the first public build (`desktop/README.md`).

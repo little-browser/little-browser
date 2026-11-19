@@ -64,6 +64,27 @@ LB_NINJA_FLAGS="-k 0" scripts/build.sh --dev   # keep going and collect every er
 
 Changes to `BUILD.gn` or `.grd`/`.grdp` files take minutes, not seconds.
 
+**Compiler cache.** `LB_CC_WRAPPER=sccache scripts/build.sh …` sets GN `cc_wrapper`, so
+compiles are cached by file content and still hit after `fetch.sh` recreates the tree. Configure
+the cache with sccache's own variables (`SCCACHE_DIR`, `SCCACHE_CACHE_SIZE`, `SCCACHE_BUCKET` for
+S3). Turning it on or off changes every compile command, so the next build recompiles everything
+once. Machines that share a cache need the same checkout path, or the keys won't match.
+
+## Release automation
+
+- `scripts/upstream.sh` says whether ungoogled-chromium has a release newer than `VERSIONS`;
+  `--write` updates `VERSIONS`. Safe to run locally.
+- `scripts/fetch.sh --patches-only` stops after the patches, on any OS. CI runs it on merge requests
+  that touch `VERSIONS` or `patches/`.
+- `scripts/release-bot.sh bump|tag` is CI-only (it pushes as the bot); `LB_DRY_RUN=1` prints the
+  push instead.
+- `scripts/macos-host.sh up` is CI-only: it allocates or reuses the per-release EC2 Mac
+  host, starts the builder and, if one is configured, attaches its persistent data volume. The infrastructure behind it lives in
+  the infrastructure repository.
+- `scripts/publish-release.sh <version> <file.dmg>` and `scripts/deploy-site.sh` are CI-only:
+  they put a release on downloads.littlebrowser.app (and in `releases.json`) and upload `site/`
+  to littlebrowser.app. `LB_DRY_RUN=1` prints what they would do.
+
 ## Run and verify
 
 ```bash

@@ -6,6 +6,8 @@
 # Fetch and prepare the Chromium source tree for the Little Browser desktop build.
 #
 #   desktop/scripts/fetch.sh [arm64|x86_64]        (macOS; default: host architecture)
+#   desktop/scripts/fetch.sh --patches-only        steps 1–3 only, any OS: CI checks that every
+#                                                  patch still applies
 #
 #   1. ungoogled-chromium (+ platform repo) at the pinned tags
 #   2. Chromium source tarball for the pinned version (much smaller than a git checkout)
@@ -54,7 +56,10 @@ apply_series() {
   fi
 }
 
-[ "$(uname -s)" = Darwin ] || die "only macOS is wired up so far (see desktop/README.md)"
+PATCHES_ONLY=0
+if [ "${1:-}" = --patches-only ]; then PATCHES_ONLY=1; shift; fi
+[ "$PATCHES_ONLY" = 1 ] || [ "$(uname -s)" = Darwin ] ||
+  die "only macOS is supported (see desktop/README.md)"
 ARCH="${1:-$(uname -m)}"
 case "$ARCH" in arm64|x86_64) ;; *) die "unknown arch $ARCH" ;; esac
 [ -e "$SRC" ] && die "$SRC already exists. Delete $BUILD/src to prepare it again (downloads stay cached)."
@@ -81,6 +86,7 @@ log "Patches: ungoogled-chromium core, macOS platform, Little Browser"
 apply_series "$UG/patches"
 apply_series "$UGM/patches"
 apply_series "$DESKTOP/patches"
+if [ "$PATCHES_ONLY" = 1 ]; then log "Done: every patch applies."; exit 0; fi
 
 log "Domain substitution (keeping Safe Browsing / Widevine endpoints)"
 python3 - "$UG/domain_substitution.list" "$DESKTOP/patches/domsub-exclude.txt" \

@@ -14,6 +14,8 @@
 # GN args = ungoogled flags.gn → macOS flags.macos.gn → desktop/args/common.gn → desktop/args/mac.gn
 # (→ desktop/args/dev.gn with --dev); later files win.
 # LB_NINJA_FLAGS="-k 0" keeps going after failures to collect every error in one pass.
+# LB_CC_WRAPPER=sccache runs every compile through a content-keyed compiler cache (GN cc_wrapper);
+# configure the cache itself with sccache's own SCCACHE_* variables.
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,13 +58,13 @@ xcrun metal --version >/dev/null 2>&1 || {
 # (e.g. "arm64e.x1-macos" in the 27.x SDKs). Use LB_MAC_SDK if set, else the newest installed SDK
 # without unknown targets. (Same mechanism as ungoogled-chromium-macos's `build.sh -s`.)
 pick_sdk() {
-  local sdk
-  for sdk in $(ls -d /Library/Developer/CommandLineTools/SDKs/MacOSX[0-9]*.sdk \
-      "$(xcode-select -p)"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX[0-9]*.sdk 2>/dev/null |
-      sort -t X -k 3 -V -r); do
-    [ -L "$sdk" ] && continue
+  local sdk dev
+  dev="$(xcode-select -p 2>/dev/null || true)"
+  while IFS= read -r sdk; do
+    [ -d "$sdk" ] && [ ! -L "$sdk" ] || continue   # unmatched globs and version symlinks
     grep -q '\.x1-' "$sdk/usr/lib/libc.tbd" 2>/dev/null || { echo "$sdk"; return; }
-  done
+  done < <(printf '%s\n' /Library/Developer/CommandLineTools/SDKs/MacOSX[0-9]*.sdk \
+             "$dev"/Platforms/MacOSX.platform/Developer/SDKs/MacOSX[0-9]*.sdk | sort -t X -k 3 -V -r)
 }
 SDK="${LB_MAC_SDK:-$(pick_sdk)}"
 [ -f "$SDK/SDKSettings.json" ] || { echo "error: no usable macOS SDK (set LB_MAC_SDK)" >&2; exit 1; }
@@ -82,6 +84,11 @@ for path in sys.argv[1:]:
 print("\n".join(f"{k} = {v}" for k, v in args.items()))
 PY
 echo "target_cpu = \"$CPU\"" >> "$OUT/args.gn"
+if [ -n "${LB_CC_WRAPPER:-}" ]; then
+  command -v "$LB_CC_WRAPPER" >/dev/null ||
+    { echo "error: LB_CC_WRAPPER=$LB_CC_WRAPPER not found in PATH" >&2; exit 1; }
+  echo "cc_wrapper = \"$LB_CC_WRAPPER\"" >> "$OUT/args.gn"
+fi
 # Chromium's sdk_inputs action requires the SDK path inside root_build_dir.
 mkdir -p "$OUT/sdk" && ln -sfn "$SDK" "$OUT/sdk/selected_macos_sdk"
 echo "mac_sdk_path = \"//$OUT_REL/sdk/selected_macos_sdk\"" >> "$OUT/args.gn"
@@ -110,4 +117,7 @@ ln -s "$esbuild_module" third_party/devtools-frontend/src/node_modules/esbuild
 ./out/Default/gn gen "$OUT_REL" --fail-on-unused-args
 # shellcheck disable=SC2086
 ninja ${LB_NINJA_FLAGS:-} -C "$OUT_REL" chrome
-echo "Built: $(ls -d "$OUT"/*.app | grep -v ' Helper' | head -1)"
+if [ "${LB_CC_WRAPPER:-}" = sccache ]; then sccache --show-stats; fi
+for app in "$OUT"/*.app; do
+  case "$app" in *" Helper"*) ;; *) echo "Built: $app"; break ;; esac
+done

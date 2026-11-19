@@ -20,6 +20,7 @@ See [docs/design.md §4.1](../docs/design.md#41-desktop-how-we-fork-chromium).
 | `scripts/build.sh` | Generate args and build with GN + Ninja (`--dev` for the fast dev build) |
 | `scripts/check_patches.py` | Check that our patch series applies to a clean tree (about a minute, no re-fetch); see `AGENTS.md` |
 | `scripts/run.sh` | Launch a build with a separate developer profile |
+| `scripts/upstream.sh`, `release-bot.sh`, `macos-host.sh` | Release automation (CI); see `AGENTS.md` |
 
 `build/` and `third_party/` are git-ignored.
 
@@ -90,7 +91,8 @@ nodejs.org and Crubit from Google's GitHub. For releases we should build LLVM ou
 Chromium's own published toolchain, so we don't ship binaries built with a compiler we can't vouch
 for.
 
-CI cannot use standard hosted runners (time and disk limits); builds run on self-hosted runners.
+CI cannot use standard hosted runners (time and disk limits). Builds run on a per-release EC2 Mac
+host that `scripts/macos-host.sh` brings up, with an sccache compiler cache (see `AGENTS.md`).
 
 ## Things the base patch set changes that we must undo
 
