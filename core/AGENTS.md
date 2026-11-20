@@ -6,7 +6,12 @@ importers are not built yet). Background: `docs/design.md` §4.4 and §8.
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test   # what CI runs
 cargo test -p lb-core model::tests::<name>                                     # one test
+scripts/coverage.sh       # CI gate: line coverage of at least 95% (LB_MIN_LINE_COVERAGE)
 ```
+
+`coverage.sh` needs rustup's `llvm-tools` component, or `LB_LLVM_BIN` set to a directory with
+`llvm-cov` and `llvm-profdata` of rustc's LLVM version (the Chromium tree's
+`third_party/llvm-build/Release+Asserts/bin` works).
 
 - **Tests.** They sit in a `#[cfg(test)] mod tests` block at the end of each module. Every
   behaviour change comes with a test, including edge cases (empty lists, unknown ids,

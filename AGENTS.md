@@ -34,7 +34,9 @@ Windows, Linux, iOS and Android don't exist yet.
 
 ```bash
 cd core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-shellcheck desktop/scripts/*.sh
+core/scripts/coverage.sh                  # gate: lb-core line coverage of at least 95%
+desktop/scripts/check_lb_tests.py         # gate: every //lb:model source has unit tests
+shellcheck desktop/scripts/*.sh core/scripts/*.sh
 ```
 
 Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
@@ -52,9 +54,16 @@ Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
   service, `TemplateURLService` and views controls, before adding our own. In our code, check
   `desktop/lb/` and `lb-core` for an existing helper before adding one. Extract a shared helper the
   second time the same pattern appears, not the fourth.
+- **Test everything you build.** Every feature and every change, finished or still in progress,
+  comes with tests that fail if it breaks: each behaviour and its edge cases, and for a bug fix a
+  test that fails without the fix (run it against the old code to be sure). Untested work isn't
+  done. The CI gates above check this; meet them with tests, never by lowering a threshold.
 - **Testable logic.** Data-model logic belongs in `lb-core` (Rust, unit tested) or in plain C++ in
-  `desktop/lb/` with no dependency on views, so it can be tested without a browser window. Every
-  change to `lb-core` comes with tests.
+  `desktop/lb/` with no dependency on views, so it can be tested without a browser window. A
+  decision made in a view or a Chromium hook (what a close, click or drag does) moves into
+  `//lb:model` as a plain function over a small state struct, with tests for each case, and the
+  hook only gathers the state and acts on the answer. Behaviour that only a browser window can
+  show gets a `--lb-sidebar-demo` mode whose log says whether it passed (`desktop/lb/AGENTS.md`).
 - **Verify, then report honestly.** Say what you actually checked (built, ran, captured a
   screenshot, read a log). Say what you couldn't check. Never claim a UI interaction works
   without having driven it.

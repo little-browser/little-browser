@@ -53,7 +53,7 @@ build is in `../AGENTS.md`.
 `BUILD.gn` here has two targets:
 
 - **`//lb:model`**, a `source_set` for logic that needs no views or browser window
-  (`browser/spaces/`, `browser/command_bar/`). The sidebar's views target depends on it through
+  (`browser/spaces/`, `browser/command_bar/`, `browser/tabs/`). The sidebar's views target depends on it through
   `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this file.
 - **`lb_unittests`**, a gtest binary built from `*_unittest.cc` files next to the code they
   test.
@@ -71,7 +71,13 @@ out/Dev/lb_unittests --gtest_filter='SwipeTrackerTest.*'                 # one s
   URL rules and gesture thresholds. Views and the controller call into it. If logic is stuck in a
   view, move it out when you change it, with a test.
 - **Add a test with every change** to model code. A bug fix gets a test that fails without the
-  fix (see `SwipeTrackerTest.OneSwitchPerGestureIncludingMomentum`).
+  fix (see `SwipeTrackerTest.OneSwitchPerGestureIncludingMomentum` and
+  `PinnedCloseTest.BeforeUnloadHandlerWithoutTypingSleeps`). Every `.cc` in `//lb:model` needs a
+  `<name>_unittest.cc` in `lb_unittests`; `../scripts/check_lb_tests.py` checks it on every push,
+  and the release build runs `lb_unittests`.
+- **Keep decisions out of views and hooks.** When view code or a patched Chromium function decides
+  something (close or keep, which tab to show), put the rule in the model as a function over a
+  plain state struct (`browser/tabs/pinned_close.h`) and test every case there.
 - **Keep test-environment limits in mind.** The tests run without the browser's setup. For
   example, `chrome://` isn't registered as a standard scheme, so don't assert things that only
   hold inside the browser.
