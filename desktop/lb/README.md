@@ -13,6 +13,7 @@ lb/browser/spaces/swipe_tracker.*   two-finger swipe → one space switch per ge
 lb/browser/command_bar/command_matching.*  command bar scoring and "is this an address?"
 lb/browser/tabs/pinned_close.*      what closing a tab does: close, sleep or only hide (unit tested)
 lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab goes to sleep
+lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
 lb/browser/ui/
   lb_ui_snapshot.*                  --lb-ui-snapshot=<png>: save the window's UI and quit (dev tool)
   tabs/pinned_tab_sleep.*           closing a pinned tab puts it to sleep instead
@@ -28,7 +29,7 @@ lb/browser/ui/
 
 Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
-`command-hooks.patch`, `session-spaces.patch`,
+`command-hooks.patch`, `session-spaces.patch`, `restore-selected-first.patch`,
 `tab-metrics-detached-guard.patch` and `contents-card.patch`; vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
 Not built yet: peek, the little window, the content blocker, tracking-parameter stripping, the
@@ -59,7 +60,8 @@ pins a tab, shows it and presses Cmd+W (it must stay, asleep and faded), `=pinne
 closes the sleeping tab (it must go), `=pinned-wake` then
 shows it again (it must load), `=pinned-close-all` pins every tab, closes them all at once and then closes one twice in a row
 (all must sleep, with a new tab shown), `=pinned-unloaded` pins a tab that hasn't loaded yet (it must look
-asleep); `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
+asleep), `=pinned-restart`, run again on the profile `=pinned-close-all` left, checks that a
+restart wakes none of the sleeping pinned tabs; `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
 audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `--vmodule=sidebar_controller=1,pinned_tab_sleep=1`, with each pinned row's button;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and

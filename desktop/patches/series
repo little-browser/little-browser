@@ -26,3 +26,5 @@ lb/one-group-close.patch             # a tab group's menu has one Close, no Dele
 lb/no-reopen-closed.patch            # no Reopen Closed Tab/Group/Window, no Cmd+Shift+T, no Recently Closed
 lb/no-app-menu-tab-groups.patch      # no Tab groups (saved tab groups) menu in the app menu
 lb/tab-click-hook.patch              # a click on a tab row reaches desktop/lb (New Tab Group placeholder)
+lb/no-restore-background-load.patch  # a restored session loads only the shown tab; sleeping pinned tabs stay asleep
+lb/restore-selected-first.patch      # a restored window adds its selected tab first, so no other tab wakes

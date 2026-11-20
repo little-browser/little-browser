@@ -81,7 +81,13 @@ tab replaced in a split view closes with `CLOSE_NONE`, so it doesn't sleep.
 
 Closing a pinned tab that is already asleep removes it, as do closes without a user gesture,
 closing the window, and closing a pinned tab in a split view (Chromium takes it out of the split). A pinned tab counts as asleep when it is discarded or not loaded yet (as after a
-restart or a space switch). The same patch draws a sleeping pinned tab faded (`TabIcon` and the
+restart or a space switch). A restored session loads only the shown tab
+(`patches/lb/no-restore-background-load.patch`); Chromium would load up to 20 restored tabs in
+the background, pinned tabs first, waking every sleeping pinned tab at start. It also adds the
+selected tab to a restored window first (`patches/lb/restore-selected-first.patch`,
+`lb::TabRestoreOrder`, unit tested): the first tab added to an empty window becomes active for a
+moment, and on macOS that shows and loads it, so the top pinned tab would wake although another
+tab is selected. `pinned-tab-sleep.patch` draws a sleeping pinned tab faded (`TabIcon` and the
 title) with "−" instead of "✕" on its close button; the second click of a double click on "✕",
 which lands on that "−", is ignored. Chromium's "press ⌘W again to close a pinned tab" toast is
 skipped: `lb::HandleCommand` closes the selected pinned tabs itself.

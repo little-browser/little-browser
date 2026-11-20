@@ -1,0 +1,19 @@
+# Little Browser: restoring a session loads only the tab on screen; the others load when they
+# are shown, as tabs coming back with a space do. Chromium would load up to 20 restored
+# background tabs, pinned tabs first, waking the pinned tabs the user put to sleep (docs/ux.md §6:
+# a pinned tab that hasn't loaded since a restart counts as sleeping).
+--- a/chrome/browser/sessions/session_restore_delegate.cc
++++ b/chrome/browser/sessions/session_restore_delegate.cc
+@@ -99,6 +99,10 @@
+     CHECK(tab.contents());
+     web_contents_vector.push_back(tab.contents());
+   }
+-  performance_manager::policies::ScheduleLoadForRestoredTabs(
+-      std::move(web_contents_vector));
++  // Little Browser: restored tabs load when they are shown, as tabs coming back with a space do.
++  // A pinned tab put to sleep stays asleep across a restart (docs/ux.md §6).
++  if ((false)) {
++    performance_manager::policies::ScheduleLoadForRestoredTabs(
++        std::move(web_contents_vector));
++  }
+ }
