@@ -2,8 +2,8 @@
 # space id is saved as window extra data — like Chromium's own vertical-tab collapsed state — and
 # a restored window is put back on its space before its tabs come back.
 # Restoring into an existing window (the crash bubble's Restore) moves that window to the saved
-# window's space too. A window reopened from Recently Closed (Cmd+Shift+T) goes back to its space
-# the same way.
+# window's space too. A window reopened through tab restore (only extensions do that here, with
+# chrome.sessions.restore) goes back to its space the same way.
 
 --- a/chrome/browser/sessions/session_service_base.cc
 +++ b/chrome/browser/sessions/session_service_base.cc
@@ -82,7 +82,7 @@
  BrowserLiveTabContext::GetExtraDataForWindow() const {
    std::map<std::string, std::string> data;
  
-+  // Little Browser: a reopened window (Cmd+Shift+T) goes back to its space.
++  // Little Browser: a reopened window (tab restore) goes back to its space.
 +  if (std::string space_id = lb::GetWindowSpaceId(&browser_.get());
 +      !space_id.empty()) {
 +    data[lb::kWindowSpaceKey] = std::move(space_id);

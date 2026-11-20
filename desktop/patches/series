@@ -23,5 +23,6 @@ lb/no-tab-detach.patch               # tabs can not be dragged out into a new wi
 lb/drag-pins.patch                   # drag tabs between the pinned and the unpinned area
 lb/pinned-tab-sleep.patch            # closing a pinned tab puts it to sleep, it stays in place
 lb/one-group-close.patch             # a tab group's menu has one Close, no Delete
+lb/no-reopen-closed.patch            # no Reopen Closed Tab/Group/Window, no Cmd+Shift+T, no Recently Closed
 lb/no-app-menu-tab-groups.patch      # no Tab groups (saved tab groups) menu in the app menu
 lb/tab-click-hook.patch              # a click on a tab row reaches desktop/lb (New Tab Group placeholder)

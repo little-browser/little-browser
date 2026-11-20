@@ -1699,8 +1699,8 @@ void SidebarController::SeedDemoData() {
               self->CreateSpace("Client", kSpaceIcons[2], 330, std::string(), u"Client");
             } else if (demo == "reopen-window") {
               // Open a second window (it takes the free Personal space), give it a page, close
-              // it and reopen it as Cmd+Shift+T does: it must come back on Personal, not on a new
-              // space.
+              // it and reopen it through tab restore, as an extension can: it must come back on
+              // Personal, not on a new space.
               BrowserWindowInterface* other = chrome::OpenEmptyWindow(
                   self->browser()->GetProfile(), /*should_trigger_session_restore=*/false);
               if (!other) {
