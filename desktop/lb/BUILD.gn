@@ -15,6 +15,8 @@ source_set("model") {
     "browser/spaces/space_model.h",
     "browser/spaces/swipe_tracker.cc",
     "browser/spaces/swipe_tracker.h",
+    "browser/tabs/pinned_close.cc",
+    "browser/tabs/pinned_close.h",
     "browser/tabs/tab_to_show.cc",
     "browser/tabs/tab_to_show.h",
   ]
@@ -32,6 +34,7 @@ test("lb_unittests") {
     "browser/command_bar/command_matching_unittest.cc",
     "browser/spaces/space_model_unittest.cc",
     "browser/spaces/swipe_tracker_unittest.cc",
+    "browser/tabs/pinned_close_unittest.cc",
     "browser/tabs/tab_to_show_unittest.cc",
   ]
   deps = [

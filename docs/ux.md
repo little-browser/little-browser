@@ -141,8 +141,10 @@ The centre of the browser. A floating palette in the middle of the window.
   used last instead, preferring tabs that are awake and tabs that aren't hidden in a collapsed
   group (a new tab if there is none). A sleeping pinned tab's button is "−", which removes it;
   closing it any other way removes it too, but a double click on "✕" only puts it to sleep. A page
-  that asks before it is left (it may hold unsaved input) is only hidden, not unloaded, and a
-  pinned tab in a split view closes as usual. A pinned tab that hasn't loaded since a
+  you have typed into that asks before it is left (it may hold unsaved input) is only hidden, not
+  unloaded; closing it
+  again closes it once the page has asked, and so does closing it while it isn't shown. A pinned
+  tab in a split view closes as usual. A pinned tab that hasn't loaded since a
   restart or a space switch counts as sleeping. Cmd+D pins/unpins.
 - **Today** tabs are everything else. **Auto-archive**: today tabs not used for a while are
   closed and moved to the archive (searchable in the command bar). This keeps the sidebar short and
