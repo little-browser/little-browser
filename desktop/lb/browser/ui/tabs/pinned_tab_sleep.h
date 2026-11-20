@@ -20,8 +20,10 @@ namespace lb {
 // to close (patches/lb/pinned-tab-sleep.patch). Returns true when `tab` stays; the sleep itself
 // runs right after the close call returns, since the model can't change while it closes tabs.
 // Closing a pinned tab that is already asleep removes it; so do closing the window, closes that
-// aren't the user's, and closing a pinned tab in a split view. A page that asks before it is left
-// (it may hold unsaved input) is only hidden, not unloaded.
+// aren't the user's, and closing a pinned tab in a split view. A page that may hold unsaved input
+// (typed into, and asking before it is left) is only hidden, not unloaded; closing it again
+// closes it, after Chromium asks the page (as does closing it while it isn't shown). The rule is
+// lb::DecidePinnedClose (lb/browser/tabs/pinned_close.h).
 bool SleepInsteadOfClose(const TabStripModel& model,
                          const tabs::TabInterface& tab,
                          uint32_t close_types);

@@ -4,6 +4,7 @@
 
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -22,13 +23,14 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
+#include "components/performance_manager/public/graph/page_node.h"
+#include "components/performance_manager/public/performance_manager.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/invalidate_type.h"
 #include "content/public/browser/navigation_controller.h"
-#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "lb/browser/tabs/pinned_close.h"
 #include "lb/browser/tabs/tab_to_show.h"
-#include "third_party/blink/public/mojom/frame/sudden_termination_disabler_type.mojom-shared.h"
 #include "url/gurl.h"
 
 namespace lb {
@@ -37,21 +39,18 @@ namespace {
 
 using resource_coordinator::TabLifecycleUnitExternal;
 
-// Pinned tabs closed but not put to sleep yet: closed together, or clicked twice in a row.
-std::set<tabs::TabHandle>& PendingSleep() {
-  static base::NoDestructor<std::set<tabs::TabHandle>> pending;
+// Pinned tabs closed but not put to sleep yet (closed together, or closed again before the sleep
+// ran, which is right after the close), with what the close decided: kSleep or kHide.
+std::map<tabs::TabHandle, PinnedCloseOutcome>& PendingSleep() {
+  static base::NoDestructor<std::map<tabs::TabHandle, PinnedCloseOutcome>> pending;
   return *pending;
 }
 
-// Whether the page asks before it is left (a beforeunload handler, which pages register while
-// they hold unsaved input). Unloading it without asking could lose that input.
-bool AsksBeforeLeaving(content::WebContents* contents) {
-  bool asks = false;
-  contents->GetPrimaryMainFrame()->ForEachRenderFrameHost([&](content::RenderFrameHost* frame) {
-    asks |= frame->GetSuddenTerminationDisablerState(
-        blink::mojom::SuddenTerminationDisablerType::kBeforeUnloadHandler);
-  });
-  return asks;
+// Pinned tabs a close only hid, as their page may hold unsaved input (MayHoldUnsavedInput), and
+// tabs whose page is asking before it is left. Their next close isn't stopped.
+std::set<tabs::TabHandle>& HiddenNotUnloaded() {
+  static base::NoDestructor<std::set<tabs::TabHandle>> hidden;
+  return *hidden;
 }
 
 // The index of the window's tab to show instead of `tab` (see ChooseTabToShow), or -1. Tabs about
@@ -76,7 +75,11 @@ int TabToShowInstead(const TabStripModel& model, const tabs::TabInterface* tab) 
 }
 
 void Sleep(tabs::TabInterface::Handle handle) {
-  PendingSleep().erase(handle);
+  const auto pending = PendingSleep().find(handle);
+  const bool hide = pending != PendingSleep().end() && pending->second == PinnedCloseOutcome::kHide;
+  if (pending != PendingSleep().end()) {
+    PendingSleep().erase(pending);
+  }
   tabs::TabInterface* tab = handle.Get();
   if (!tab || !tab->IsPinned() || tab->IsSplit() || !tab->GetBrowserWindowInterface()) {
     return;
@@ -100,8 +103,13 @@ void Sleep(tabs::TabInterface::Handle handle) {
   }
 
   content::WebContents* contents = tab->GetContents();
-  // A page that may hold unsaved input is only hidden: it stays loaded until it is closed again.
-  if (IsAsleep(*tab) || AsksBeforeLeaving(contents)) {
+  if (IsAsleep(*tab)) {
+    return;
+  }
+  // A page that may hold unsaved input is only hidden: it stays loaded, and closing it again
+  // closes it (asking first).
+  if (hide) {
+    HiddenNotUnloaded().insert(handle);
     return;
   }
   TabLifecycleUnitExternal* unit = TabLifecycleUnitExternal::FromWebContents(contents);
@@ -142,19 +150,39 @@ bool IsAsleep(const tabs::TabInterface& tab) {
 bool SleepInsteadOfClose(const TabStripModel& model,
                          const tabs::TabInterface& tab,
                          uint32_t close_types) {
-  // A pinned tab that is already asleep closes for good (its "−" button). So does one in a split
-  // view, which Chromium closes out of the split, and one being closed by Chromium itself.
-  if (!(close_types & TabCloseTypes::CLOSE_USER_GESTURE) || model.closing_all() ||
-      !tab.IsPinned() || tab.IsSplit() || IsAsleep(tab)) {
-    return false;
+  content::WebContents* contents = tab.GetContents();
+  PinnedCloseState state{
+      .user_gesture = (close_types & TabCloseTypes::CLOSE_USER_GESTURE) != 0,
+      .closing_all = model.closing_all(),
+      .pinned = tab.IsPinned(),
+      .split = tab.IsSplit(),
+      .asleep = IsAsleep(tab),
+      .shown = model.GetActiveTab() == &tab,
+      .hidden_by_earlier_close = HiddenNotUnloaded().contains(tab.GetHandle()),
+      .sleep_pending = PendingSleep().contains(tab.GetHandle()),
+  };
+  // The page's state is only needed for a pinned tab that may stay (and is cheap to read).
+  if (DecidePinnedClose(state) != PinnedCloseOutcome::kClose) {
+    state.asks_before_leaving = contents->NeedToFireBeforeUnload();
+    const base::WeakPtr<performance_manager::PageNode> page =
+        performance_manager::PerformanceManager::GetPrimaryPageNodeForWebContents(contents);
+    state.had_user_edits = page && (page->HadUserEdits() || page->HadFormInteraction());
   }
-  // Already closed once and waiting to sleep (a double click): nothing more to do.
-  if (!PendingSleep().insert(tab.GetHandle()).second) {
-    return true;
+  switch (const PinnedCloseOutcome outcome = DecidePinnedClose(state)) {
+    case PinnedCloseOutcome::kClose:
+      return false;
+    case PinnedCloseOutcome::kCloseAskingFirst:
+      HiddenNotUnloaded().insert(tab.GetHandle());  // the page's "Leave" closes it again
+      return false;
+    case PinnedCloseOutcome::kAlreadySleeping:
+      return true;
+    case PinnedCloseOutcome::kSleep:
+    case PinnedCloseOutcome::kHide:
+      PendingSleep().emplace(tab.GetHandle(), outcome);
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&Sleep, tab.GetHandle()));
+      return true;
   }
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-                                                           base::BindOnce(&Sleep, tab.GetHandle()));
-  return true;
 }
 
 }  // namespace lb

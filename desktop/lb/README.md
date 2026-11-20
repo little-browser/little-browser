@@ -11,6 +11,7 @@ lb/BUILD.gn                         //lb:model (view-free logic) + lb_unittests
 lb/browser/spaces/space_model.*     Space type, saved form, new-space defaults, which space a window opens on
 lb/browser/spaces/swipe_tracker.*   two-finger swipe → one space switch per gesture
 lb/browser/command_bar/command_matching.*  command bar scoring and "is this an address?"
+lb/browser/tabs/pinned_close.*      what closing a tab does: close, sleep or only hide (unit tested)
 lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab goes to sleep
 lb/browser/ui/
   lb_ui_snapshot.*                  --lb-ui-snapshot=<png>: save the window's UI and quit (dev tool)

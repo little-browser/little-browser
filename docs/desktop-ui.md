@@ -70,8 +70,12 @@ close returns another tab is shown (the one focused last, preferring tabs outsid
 and awake tabs and leaving out tabs closed together with it, or a new tab; `lb::ChooseTabToShow`) and the pinned tab's page is unloaded with Chromium's
 own discard (`TabLifecycleUnitExternal::DiscardTab`, the call `chrome.tabs.discard` makes, which
 has no eligibility policy), marked `NeedsReload()` so it loads again whenever it is shown. A tab
-muted on its own stays muted. A page with a beforeunload handler (it may hold unsaved input) is
-only hidden, not unloaded. The patch also makes a discard clear the old page's media, capture and
+muted on its own stays muted. A page with a beforeunload handler that the user has typed into
+(`PageNode::HadUserEdits`, the check Chromium's memory saver makes before a discard) may hold
+unsaved input, so it is only hidden, not unloaded; a handler alone doesn't count, as many pages
+register one and never ask. The next close of such a page, or a close while it isn't shown, goes
+through Chromium's own close, which asks the page first. These rules are `lb::DecidePinnedClose`
+(`lb/browser/tabs/pinned_close.h`, unit tested). The patch also makes a discard clear the old page's media, capture and
 device alerts, which Chromium otherwise keeps, since its own policy never discards such tabs; a
 tab replaced in a split view closes with `CLOSE_NONE`, so it doesn't sleep.
 
