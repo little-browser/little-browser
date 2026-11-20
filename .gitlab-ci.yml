@@ -53,12 +53,33 @@ core:
     - cargo clippy --all-targets -- -D warnings
     - cargo test
 
+# Gate: lb-core's tests must cover at least LB_MIN_LINE_COVERAGE percent of its lines.
+core-coverage:
+  extends: .check
+  tags: [lb-linux]
+  image: rust:1-slim
+  variables:
+    LB_MIN_LINE_COVERAGE: "95"
+  before_script:
+    - rustup component add llvm-tools
+  script:
+    - core/scripts/coverage.sh
+
+# Gate: every source of desktop/lb's view-free model has unit tests (they run with the Chromium
+# builds below, which build and run lb_unittests).
+lb-tests:
+  extends: .check
+  tags: [lb-linux]
+  image: python:3-slim
+  script:
+    - python3 -I desktop/scripts/check_lb_tests.py
+
 scripts:
   extends: .check
   tags: [lb-linux]
   image: koalaman/shellcheck-alpine:stable
   script:
-    - shellcheck desktop/scripts/*.sh   # also reports syntax errors; the image has no bash
+    - shellcheck desktop/scripts/*.sh core/scripts/*.sh   # also reports syntax errors; the image has no bash
 
 # Every patch still applies: ungoogled-chromium, platform and our series on a fresh
 # Chromium tarball. No compile, so it is cheap enough for every bump or patch merge request.
@@ -151,6 +172,7 @@ macos-arm64:
     - rm -rf desktop/build/src   # fresh tree each release; download cache is kept
     - desktop/scripts/fetch.sh arm64
     - desktop/scripts/build.sh arm64
+    - (cd desktop/build/src && ninja -C out/Default lb_unittests && out/Default/lb_unittests)
 
 # macos-x64, linux-x64, windows-x64: added when their platform recipes are wired up (desktop/README.md).
 # linux-x64 and windows-x64 also get a merge_request_event rule.
