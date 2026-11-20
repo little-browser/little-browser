@@ -15,8 +15,9 @@ desktop/build/
 desktop/third_party/
 desktop/out/
 
-# Claude Code session worktrees
+# Claude Code: session worktrees, and the desktop app's local preview servers
 .claude/worktrees/
+.claude/launch.json
 
 # Editors
 .vscode/
