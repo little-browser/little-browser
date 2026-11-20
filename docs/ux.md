@@ -25,8 +25,8 @@ specified but not built.
    the user caused it.
 5. **Fluent.** Every transition is animated, short (≤ 240 ms), interruptible, and spatially
    consistent: spaces sit left→right, so swiping and animations always move the same way.
-6. **Forgiving.** Closing is cheap: Cmd+Shift+T reopens, archived tabs are searchable, pinned tabs
-   never disappear.
+6. **Forgiving, not undoable.** Tabs left alone are archived and stay searchable, and pinned tabs
+   never disappear. Closing is deliberate and final: there is no Reopen Closed Tab, group or window.
 
 ---
 

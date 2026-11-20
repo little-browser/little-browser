@@ -1,0 +1,119 @@
+# Little Browser: closing is final. There is no Reopen Closed Tab (or Group, or Window): not in the
+# File menu, not in the right-click menu of the window, no Cmd+Shift+T, and no Recently Closed list
+# in the History menu, the app menu's History submenu or Tab Search. A tab put away for later is
+# archived, and history keeps the pages visited. Extensions can still reopen closed tabs
+# (chrome.sessions). (Other systems bind the shortcut in chrome/browser/ui/accelerator_table.cc,
+# not patched yet.)
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -131,9 +131,6 @@
+               Item(IDS_NEW_ISOLATED_WINDOW_MAC)
+                   .command_id(IDC_NEW_ISOLATED_WINDOW)
+                   .remove_if(is_pwa),
+-              Item(IDS_REOPEN_CLOSED_TABS_MAC)
+-                  .command_id(IDC_RESTORE_TAB)
+-                  .remove_if(is_pwa),
+               Item(IDS_OPEN_FILE_MAC)
+                   .command_id(IDC_OPEN_FILE)
+                   .remove_if(is_pwa),
+@@ -381,13 +378,6 @@
+                   .command_id(IDC_BACK),
+               Item(IDS_HISTORY_FORWARD_MAC)
+                   .command_id(IDC_FORWARD),
+-              Item().is_separator()
+-                  .tag(HistoryMenuBridge::kRecentlyClosedSeparator)
+-                  .remove_if(is_pwa),
+-              Item(IDS_HISTORY_CLOSED_MAC)
+-                  .tag(HistoryMenuBridge::kRecentlyClosedTitle)
+-                  .is_section_header()
+-                  .remove_if(is_pwa),
+               Item().is_separator()
+                   .tag(HistoryMenuBridge::kVisitedSeparator)
+                   .remove_if(is_pwa),
+--- a/chrome/browser/ui/cocoa/history_menu_bridge.mm
++++ b/chrome/browser/ui/cocoa/history_menu_bridge.mm
+@@ -144,6 +144,11 @@
+   // Clear the history menu before rebuilding.
+   NSMenu* menu = HistoryMenu();
+   ClearMenuSection(menu, kRecentlyClosed);
++  // Little Browser: no Recently Closed section. Release the profile as below.
++  if ([menu indexOfItemWithTag:kRecentlyClosedTitle] < 0) {
++    tab_restore_service_keep_alive_.reset();
++    return;
++  }
+ 
+   // Index for the next menu item.
+   NSInteger index = [menu indexOfItemWithTag:kRecentlyClosedTitle] + 1;
+--- a/chrome/browser/ui/cocoa/accelerators_cocoa.mm
++++ b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+@@ -45,7 +45,6 @@
+     {IDC_NEW_WINDOW, ui::EF_COMMAND_DOWN, ui::VKEY_N},
+     {IDC_PASTE, ui::EF_COMMAND_DOWN, ui::VKEY_V},
+     {IDC_PRINT, ui::EF_COMMAND_DOWN, ui::VKEY_P},
+-    {IDC_RESTORE_TAB, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_T},
+     {IDC_SAVE_PAGE, ui::EF_COMMAND_DOWN, ui::VKEY_S},
+     {IDC_SHOW_BOOKMARK_BAR, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN,
+      ui::VKEY_B},
+--- a/chrome/browser/ui/views/frame/system_menu_model_builder.cc
++++ b/chrome/browser/ui/views/frame/system_menu_model_builder.cc
+@@ -156,14 +156,7 @@
+ #endif
+   model->SetElementIdentifierAt(model->GetIndexOfCommandId(IDC_NEW_TAB).value(),
+                                 kSystemMenuNewTabElementId);
+-#if BUILDFLAG(IS_MAC)
+-  model->AddItemWithStringId(IDC_RESTORE_TAB, IDS_REOPEN_CLOSED_TABS_MAC);
+-#else
+-  model->AddItemWithStringId(IDC_RESTORE_TAB, IDS_RESTORE_TAB);
+-#endif
+-  model->SetElementIdentifierAt(
+-      model->GetIndexOfCommandId(IDC_RESTORE_TAB).value(),
+-      kSystemMenuRestoreTabElementId);
++  // Little Browser: no Reopen Closed Tab.
+ 
+ #if BUILDFLAG(IS_MAC)
+   model->AddItemWithStringId(IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS_MAC);
+--- a/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
++++ b/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
+@@ -200,8 +200,8 @@
+ }
+ 
+ bool RecentTabsSubMenuModel::ShouldShowRecentTabEntries() const {
+-  return !browser_->GetProfile()->GetPrefs()->GetBoolean(
+-      prefs::kSavingBrowserHistoryDisabled);
++  // Little Browser: no recently closed tabs, groups or windows to reopen.
++  return false;
+ }
+ 
+ void RecentTabsSubMenuModel::OnSavingBrowserHistoryDisabledChanged() {
+--- a/chrome/browser/ui/webui/tab_search/tab_search_page_handler.cc
++++ b/chrome/browser/ui/webui/tab_search/tab_search_page_handler.cc
+@@ -396,7 +396,8 @@
+ void TabSearchPageHandler::OpenRecentlyClosedEntry(int32_t session_id) {
+   sessions::TabRestoreService* tab_restore_service =
+       TabRestoreServiceFactory::GetForProfile(profile_);
+-  if (!tab_restore_service) {
++  // Little Browser: closed tabs aren't reopened (none are listed either).
++  if (!tab_restore_service || true) {
+     return;
+   }
+ 
+@@ -567,7 +568,8 @@
+     std::set<DedupKey>& tab_dedup_keys) {
+   sessions::TabRestoreService* tab_restore_service =
+       TabRestoreServiceFactory::GetForProfile(profile_);
+-  if (!tab_restore_service) {
++  // Little Browser: no recently closed section.
++  if (!tab_restore_service || true) {
+     return;
+   }
+ 
+@@ -950,7 +952,8 @@
+ 
+   sessions::TabRestoreService* tab_restore_service =
+       TabRestoreServiceFactory::GetForProfile(profile_);
+-  if (tab_restore_service) {
++  // Little Browser: closed tabs don't join a recently closed section.
++  if (tab_restore_service && false) {
+     // Loops through at most (TabRestoreServiceHelper) kMaxEntries.
+     // Recently closed entries appear first in the list.
+     for (auto& entry : tab_restore_service->entries()) {

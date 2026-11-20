@@ -51,6 +51,10 @@ saved copy; groups that end otherwise (last tab closed, ungrouped) are deleted b
 groups closed with their window stay with their space. `lb::RegisterProfilePrefs` turns off
 Chromium's "delete this saved group?" questions (the `kTabGroupsDeletionSkipDialogOn*` prefs).
 
+**No reopening.** Reopen Closed Tab (File menu and the window's right-click menu), Cmd+Shift+T, and
+the recently closed lists in the History menu, the app menu's History submenu and Tab Search are
+removed (`patches/lb/no-reopen-closed.patch`).
+
 The footer's "+" menu runs Chromium's own commands: `IDC_NEW_TAB` (the command bar),
 `chrome::NewSplitTab` and `IDC_CREATE_NEW_TAB_GROUP`. New split view is offered only while the
 active tab shows a page and isn't split already.
@@ -151,8 +155,9 @@ sidebar switches space, once per gesture and without wrap-around.
   close, so nothing the user opened is lost. If they belong to a free space, the window's own
   tabs are parked and the window moves there, unless it was opened for a chosen space, in which
   case the restored tabs are parked. A space another window uses is never taken twice.
-- A window reopened from Recently Closed (Cmd+Shift+T) returns to its space through
-  `lb::OnWindowRestored`, called from `BrowserLiveTabContext::Create`.
+- A window reopened through Chromium's tab restore returns to its space through
+  `lb::OnWindowRestored`, called from `BrowserLiveTabContext::Create`. The browser itself offers
+  no reopening (see "No reopening" above); an extension can, with `chrome.sessions.restore`.
 - **Saved tab groups** (Chromium's `TabGroupSyncService`): a group parked with its space is in no
   tab strip, so it is unsaved while parked and saved again when the space returns: Chromium's
   saved-group code expects a connected group to be in a tab strip. A group rebuilt from saved tabs reconnects to its

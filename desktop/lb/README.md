@@ -53,7 +53,7 @@ strip, `=new-space` opens the new-space dialog, `=new-profile` creates a space i
 tab in Work, leaves the space and comes back, `=group-colour` groups a tab without choosing a
 colour (it takes the space's), `=group-close` then closes that group and logs the saved groups
 before and after (none may be left), `=split` does the same as `=tab-group` with a split view,
-`=reopen-window` closes a second window and reopens it as Cmd+Shift+T does, `=pinned-sleep`
+`=reopen-window` closes a second window and reopens it through tab restore, as an extension can, `=pinned-sleep`
 pins a tab, shows it and presses Cmd+W (it must stay, asleep and faded), `=pinned-remove` then
 closes the sleeping tab (it must go), `=pinned-wake` then
 shows it again (it must load), `=pinned-close-all` pins every tab, closes them all at once and then closes one twice in a row
