@@ -2073,6 +2073,30 @@ void SidebarController::SeedDemoData() {
                       },
                       self),
                   base::Seconds(2));
+            } else if (demo == "pinned-restart") {
+              // Run on a profile that =pinned-close-all left (every pinned tab asleep, a new tab
+              // shown): after the restart, every pinned tab must still be asleep and the new tab
+              // shown.
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE,
+                  base::BindOnce(
+                      [](base::WeakPtr<SidebarController> self) {
+                        if (!self) {
+                          return;
+                        }
+                        TabStripModel* model = self->browser()->GetTabStripModel();
+                        int pinned = 0;
+                        int asleep = 0;
+                        for (tabs::TabInterface* tab : *model) {
+                          pinned += tab->IsPinned();
+                          asleep += tab->IsPinned() && IsAsleep(*tab);
+                        }
+                        VLOG(1) << "pinned-restart: pinned_asleep=" << asleep << "/" << pinned
+                                << " shown_tab_unpinned=" << !model->GetActiveTab()->IsPinned();
+                        LogPinnedRows(self->browser());
+                      },
+                      self),
+                  base::Seconds(2));
             } else if (demo == "search-again") {
               // "Not now", then a search: the choice must come back.
               ShowSearchChoice(self->browser(), base::OnceClosure());
