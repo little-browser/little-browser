@@ -13,6 +13,7 @@
 
 #include "base/functional/function_ref.h"
 #include "base/values.h"
+#include "components/tab_groups/tab_group_color.h"
 #include "url/gurl.h"
 
 namespace lb {
@@ -59,6 +60,18 @@ std::optional<Space> SpaceFromDict(const base::DictValue& dict, std::string_view
 int NextSpaceHue(const std::vector<Space>& spaces);
 const char* NextSpaceIcon(const std::vector<Space>& spaces);
 std::string NextSpaceName(const std::vector<Space>& spaces);
+
+// Hues are degrees on the colour wheel: NormalizeHue maps any int into [0, 360), and HueDistance
+// is the shorter way round between two hues (0 to 180).
+int NormalizeHue(int hue);
+int HueDistance(int a, int b);
+
+// The index into kSpaceColours of the colour closest to `hue` (the new-space dialog's preset).
+size_t NearestSpaceColour(int hue);
+
+// The Chromium tab group colour closest to a space colour: a new tab group starts in its space's
+// colour (docs/ux.md §6.1). Grey is never chosen.
+tab_groups::TabGroupColorId TabGroupColorForHue(int hue);
 
 // Which space a new window of `profile` opens on: the profile's last active space, else its
 // first space no window shows; during session restore (the window is put on its saved space

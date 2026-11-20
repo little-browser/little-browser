@@ -4,6 +4,7 @@
 
 #include "lb/browser/spaces/space_model.h"
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -136,6 +137,52 @@ TEST_F(ChooseSpaceForWindowTest, SessionRestoreReusesAShownSpace) {
 
 TEST_F(ChooseSpaceForWindowTest, NullForAProfileWithoutSpaces) {
   EXPECT_EQ(Choose("Profile 2", "", /*restoring=*/true), std::nullopt);
+}
+
+TEST(SpaceModelTest, SpaceColoursMapToTheirGroupColours) {
+  using tab_groups::TabGroupColorId;
+  const std::map<std::u16string, TabGroupColorId> expected = {
+      {u"Blue", TabGroupColorId::kBlue},     {u"Teal", TabGroupColorId::kCyan},
+      {u"Green", TabGroupColorId::kGreen},   {u"Amber", TabGroupColorId::kYellow},
+      {u"Orange", TabGroupColorId::kOrange}, {u"Red", TabGroupColorId::kRed},
+      {u"Pink", TabGroupColorId::kPink},     {u"Purple", TabGroupColorId::kPurple},
+  };
+  for (const SpaceColour& colour : kSpaceColours) {
+    EXPECT_EQ(TabGroupColorForHue(colour.hue), expected.at(colour.name)) << colour.hue;
+  }
+}
+
+TEST(SpaceModelTest, AnyHueGetsTheNearestGroupColour) {
+  using tab_groups::TabGroupColorId;
+  EXPECT_EQ(TabGroupColorForHue(355), TabGroupColorId::kRed);  // wraps around
+  EXPECT_EQ(TabGroupColorForHue(-10), TabGroupColorId::kRed);
+  EXPECT_EQ(TabGroupColorForHue(720 + 140), TabGroupColorId::kGreen);
+  EXPECT_EQ(TabGroupColorForHue(310), TabGroupColorId::kPink);
+  // Every hue NextSpaceHue hands out gets a real colour, never grey.
+  for (int hue = 0; hue < 360; ++hue) {
+    EXPECT_NE(TabGroupColorForHue(hue), TabGroupColorId::kGrey) << hue;
+  }
+}
+
+TEST(SpaceModelTest, HuesWrapAround) {
+  EXPECT_EQ(NormalizeHue(0), 0);
+  EXPECT_EQ(NormalizeHue(360), 0);
+  EXPECT_EQ(NormalizeHue(-10), 350);
+  EXPECT_EQ(NormalizeHue(725), 5);
+  EXPECT_EQ(HueDistance(10, 350), 20);
+  EXPECT_EQ(HueDistance(350, 10), 20);
+  EXPECT_EQ(HueDistance(0, 180), 180);
+  EXPECT_EQ(HueDistance(-100, 260), 0);
+}
+
+TEST(SpaceModelTest, NearestSpaceColourWrapsAndNormalises) {
+  for (size_t i = 0; i < std::size(kSpaceColours); ++i) {
+    EXPECT_EQ(NearestSpaceColour(kSpaceColours[i].hue), i);
+  }
+  auto name = [](int hue) { return std::u16string(kSpaceColours[NearestSpaceColour(hue)].name); };
+  EXPECT_EQ(name(355), u"Red");      // wraps past 360
+  EXPECT_EQ(name(-100), u"Purple");  // 260: a negative hue is normalised first
+  EXPECT_EQ(name(200), u"Teal");
 }
 
 TEST(SpaceModelTest, BlankTabUrls) {

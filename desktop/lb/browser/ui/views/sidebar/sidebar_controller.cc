@@ -37,12 +37,14 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_pref_names.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
@@ -50,6 +52,7 @@
 #include "chrome/browser/ui/views/tabs/common/tab_drag_handler.h"
 #include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/webui_url_constants.h"
@@ -83,6 +86,7 @@
 #include "ui/base/page_transition_types.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
+#include "ui/gfx/geometry/point.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_tracker.h"
 #include "ui/views/view_utils.h"
@@ -198,11 +202,13 @@ constexpr char kSpacesPref[] = "lb.spaces";  // Local State
 // saving tabs doesn't notify every window's sidebar (it observes lb.spaces).
 constexpr char kSpaceTabsPref[] = "lb.space_tabs";
 constexpr char kActiveSpacePref[] = "lb.active_space";
+// Favourite URLs and titles that profiles from earlier builds may still hold. Nothing reads
+// them any more, so every profile has them cleared.
+constexpr char kObsoleteFavouritesPref[] = "lb.favourites";
 
-// Fills the sidebar with sample data and switches space once (manual testing and the
-// --lb-ui-snapshot tour):
-// --lb-sidebar-demo[=command-bar|collapsed|new-space|new-profile|search-again|
-//                   restore-after-crash|tab-group|split|reopen-window]
+// --lb-sidebar-demo[=<mode>] fills the sidebar with sample data and switches space once (manual
+// testing and the --lb-ui-snapshot tour). desktop/lb/README.md ("Try it") lists the modes and
+// what each must show.
 constexpr char kDemoSwitch[] = "lb-sidebar-demo";
 
 std::map<BrowserWindowInterface*, SidebarController*>& Registry() {
@@ -326,10 +332,53 @@ class TabGroupSaver : public tab_groups::TabGroupSyncService::Observer {
   base::WeakPtrFactory<TabGroupSaver> weak_factory_{this};
 };
 
+// --lb-sidebar-demo=group-colour|group-close: the number of saved tab groups, for the log.
+void LogSavedGroups(base::WeakPtr<SidebarController> self, const char* when) {
+  if (!self) {
+    return;
+  }
+  if (tab_groups::TabGroupSyncService* service =
+          tab_groups::TabGroupSyncServiceFactory::GetForProfile(self->browser()->GetProfile())) {
+    VLOG(1) << "lb demo: saved groups " << when << ": " << service->ReadAllGroups().size();
+  }
+}
+
+// --lb-sidebar-demo=group-close: closes the group with its menu's Close group, then logs.
+void DemoCloseGroup(base::WeakPtr<SidebarController> self, tab_groups::TabGroupId group) {
+  if (!self) {
+    return;
+  }
+  LogSavedGroups(self, "before closing");
+  self->browser()->GetTabStripModel()->CloseAllTabsInGroup(group);
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, base::BindOnce(&LogSavedGroups, self, "after closing"), base::Seconds(1));
+}
+
+// --lb-sidebar-demo=group-colour|group-close: groups the last tab without choosing a colour.
+void DemoGroupColour(base::WeakPtr<SidebarController> self, bool close) {
+  if (!self) {
+    return;
+  }
+  TabStripModel* model = self->browser()->GetTabStripModel();
+  if (!model->SupportsTabGroups() || model->count() < 2) {
+    return;
+  }
+  const tab_groups::TabGroupId group = model->AddToNewGroup({model->count() - 1});
+  const tab_groups::TabGroupColorId colour =
+      model->group_model()->GetTabGroup(group)->visual_data()->color();
+  VLOG(1) << "lb demo: new group colour " << static_cast<int>(colour) << " in a space of hue "
+          << self->ActiveSpaceHue().value_or(-1);
+  model->ChangeTabGroupVisuals(group, tab_groups::TabGroupVisualData(u"Research", colour));
+  if (close) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&DemoCloseGroup, self, group), base::Seconds(3));
+  }
+}
+
 }  // namespace
 
 SkColor SpaceTint(int hue) {
-  const SkScalar hsv[3] = {static_cast<SkScalar>((hue % 360 + 360) % 360), 0.55f, 0.85f};
+  const SkScalar hsv[3] = {static_cast<SkScalar>(NormalizeHue(hue)), 0.55f, 0.85f};
   return SkHSVToColor(hsv);
 }
 
@@ -367,6 +416,7 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
   }
 
   EnsureSpaceForProfile();
+  prefs()->ClearPref(kObsoleteFavouritesPref);
   // A window opened for a space the user picked (another profile's space, SwitchToOtherProfile).
   if (auto it = PendingByProfile().find(GetProfileBaseName()); it != PendingByProfile().end()) {
     active_id_ = it->second;
@@ -466,48 +516,63 @@ void SidebarController::NewTabGroup() {
   chrome::ExecuteCommand(browser_, IDC_CREATE_NEW_TAB_GROUP);
   if (tabs::TabInterface* tab = model->GetActiveTab(); tab && tab->GetGroup()) {
     group_placeholders_.push_back(tab->GetHandle());
-    last_active_tab_ = tab->GetHandle();  // just created: no command bar yet
   }
 }
 
 void SidebarController::UpdateGroupPlaceholders() {
+  placeholder_check_pending_ = false;
+  // A tab dragged across a placeholder's group joins it only while the drag passes: look again
+  // once the drag is over.
+  if (TabDragController::IsActive()) {
+    placeholder_check_pending_ = true;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&SidebarController::UpdateGroupPlaceholders, weak_factory_.GetWeakPtr()),
+        base::Milliseconds(200));
+    return;
+  }
   TabStripModel* model = browser_->GetTabStripModel();
-  const tabs::TabInterface* active = model->GetActiveTab();
-  const bool active_changed = !active || active->GetHandle() != last_active_tab_;
-  last_active_tab_ = active ? active->GetHandle() : tabs::TabHandle();
   std::vector<tabs::TabHandle> keep;
-  std::vector<tabs::TabHandle> close;
-  bool open_command_bar = false;
+  std::vector<tabs::TabInterface*> close;
   for (const tabs::TabHandle& handle : group_placeholders_) {
     tabs::TabInterface* tab = handle.Get();
     if (!tab || !tab->GetGroup() || !IsBlankTab(tab->GetContents())) {
       continue;  // gone, left its group or in use: an ordinary tab now
     }
     // Parked with its space, or moved to another window: check it again when it is back.
-    if (model->GetIndexOfTab(tab) == TabStripModel::kNoTab ||
+    if (tab->GetBrowserWindowInterface() != browser_ ||
         !model->group_model()->ContainsTabGroup(*tab->GetGroup())) {
       keep.push_back(handle);
       continue;
     }
     if (model->group_model()->GetTabGroup(*tab->GetGroup())->tab_count() > 1) {
-      close.push_back(handle);
+      close.push_back(tab);
       continue;
     }
     keep.push_back(handle);
-    open_command_bar |= active_changed && tab == active;
   }
   group_placeholders_ = std::move(keep);
-  for (const tabs::TabHandle& handle : close) {
-    if (tabs::TabInterface* tab = handle.Get()) {
-      const int index = model->GetIndexOfTab(tab);
-      if (index >= 0) {
-        model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
-      }
-    }
+  CloseTabs(close);
+}
+
+void SidebarController::OnTabClicked(const tabs::TabInterface& tab) {
+  // A click on a placeholder that is still alone in its group opens the command bar there; the
+  // chosen page opens in it, inside the group. After the click has made it the active tab.
+  if (!std::ranges::contains(group_placeholders_, tab.GetHandle())) {
+    return;
   }
-  if (open_command_bar) {
-    ShowCommandBar(CommandBarMode::kOpenHere);  // the page goes into the placeholder, in its group
-  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<SidebarController> self, tabs::TabHandle handle) {
+                       tabs::TabInterface* placeholder = handle.Get();
+                       if (!self || !placeholder ||
+                           self->browser()->GetTabStripModel()->GetActiveTab() != placeholder ||
+                           !placeholder->GetGroup() || !IsBlankTab(placeholder->GetContents())) {
+                         return;
+                       }
+                       self->ShowCommandBar(CommandBarMode::kOpenHere);
+                     },
+                     weak_factory_.GetWeakPtr(), tab.GetHandle()));
 }
 
 // ---------------------------------------------------------------- spaces: storage
@@ -602,6 +667,18 @@ size_t SidebarController::GetActiveIndex() const {
   return 0;
 }
 
+std::optional<int> SidebarController::ActiveSpaceHue() const {
+  if (is_private_) {
+    return std::nullopt;
+  }
+  const std::vector<Space> spaces = GetSpaces();
+  if (spaces.empty()) {
+    return std::nullopt;
+  }
+  const auto it = std::ranges::find(spaces, active_id_, &Space::id);
+  return (it != spaces.end() ? *it : spaces.front()).hue;  // as GetActiveIndex(): the first
+}
+
 std::string SidebarController::GetActiveSpaceId() const {
   return is_private_ ? std::string() : active_id_;
 }
@@ -635,8 +712,10 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
                                                const TabStripModelChange& change,
                                                const TabStripSelectionChange& selection) {
   ScheduleSave();
-  if (!group_placeholders_.empty()) {
+  if (!group_placeholders_.empty() && !placeholder_check_pending_) {
     // Not inside the notification: closing a tab here would change the strip being notified.
+    // One check for a burst of changes (a space switch moves every tab).
+    placeholder_check_pending_ = true;
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&SidebarController::UpdateGroupPlaceholders, weak_factory_.GetWeakPtr()));
@@ -645,6 +724,54 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
 
 void SidebarController::OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) {
   ScheduleSave();
+}
+
+void SidebarController::OnTabGroupAdded(const tab_groups::TabGroupId& group) {
+  // A group the user (or an extension) just made starts in its space's colour. Restored groups
+  // and groups moved between windows don't come through here, so they keep their own colour.
+  const std::optional<int> hue = ActiveSpaceHue();
+  TabStripModel* model = browser_->GetTabStripModel();
+  const TabGroup* tab_group = model->group_model()->GetTabGroup(group);
+  if (!hue || !tab_group) {
+    return;
+  }
+  const tab_groups::TabGroupVisualData* visuals = tab_group->visual_data();
+  model->ChangeTabGroupVisuals(
+      group, tab_groups::TabGroupVisualData(visuals->title(), TabGroupColorForHue(*hue),
+                                            visuals->is_collapsed()));
+}
+
+void SidebarController::OnTabGroupWillBeRemoved(const tab_groups::TabGroupId& group) {
+  // Only the group's Close sends this. Chromium would keep the group as a closed saved group,
+  // which nothing here shows or reopens (docs/ux.md §6.1), so delete its saved copy. Groups that
+  // end any other way (last tab closed, ungrouped) are deleted by Chromium itself, and groups
+  // closed with their window stay with their space. This observer was added before Chromium's
+  // saved-group listener, so the group is still connected to its saved copy here.
+  tab_groups::TabGroupSyncService* service =
+      tab_groups::TabGroupSyncServiceFactory::GetForProfile(browser_->GetProfile());
+  std::optional<tab_groups::SavedTabGroup> saved =
+      service ? service->GetGroup(group) : std::nullopt;
+  if (!saved || saved->is_shared_tab_group()) {
+    return;
+  }
+  // Once the close is over: the listener disconnects the group during this notification.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&SidebarController::DeleteSavedGroup, weak_factory_.GetWeakPtr(),
+                                saved->saved_guid()));
+}
+
+void SidebarController::DeleteSavedGroup(const base::Uuid& saved_guid) {
+  tab_groups::TabGroupSyncService* service =
+      tab_groups::TabGroupSyncServiceFactory::GetForProfile(browser_->GetProfile());
+  if (!service) {
+    return;
+  }
+  // Still closed (not opened again meanwhile).
+  if (std::optional<tab_groups::SavedTabGroup> saved = service->GetGroup(saved_guid);
+      saved && !saved->local_group_id()) {
+    VLOG(1) << "lb: closed tab group deleted from saved groups";
+    service->RemoveGroup(saved_guid);
+  }
 }
 
 void SidebarController::ScheduleSave() {
@@ -656,9 +783,25 @@ void SidebarController::ScheduleSave() {
 }
 
 void SidebarController::WillCloseAllTabs(TabStripModel* tab_strip_model) {
-  // The pending save would be lost with the window: a tab switched in the last second matters.
   save_timer_.Stop();
-  SaveTabs(/*closing=*/true);
+  if (tab_strip_model->closing_all()) {
+    // The window is closing (or the app is quitting): the space keeps its tabs. Save now, as the
+    // pending save would be lost with the window and a tab switched in the last second matters.
+    SaveTabs(/*closing=*/true);
+    return;
+  }
+  // The user closed every tab of the window: closing is final, so the space is left empty.
+  if (!is_private_) {
+    ScopedDictPrefUpdate(*local_state(), kSpaceTabsPref)->Set(active_id_, base::ListValue());
+  }
+}
+
+void SidebarController::CloseAllTabsStopped(TabStripModel* tab_strip_model,
+                                            CloseAllStoppedReason reason) {
+  // A page asked before it was left and the user stayed: its tabs are still here.
+  if (reason == kCloseAllCanceled) {
+    ScheduleSave();
+  }
 }
 
 void SidebarController::SaveActiveTabs() {
@@ -1263,11 +1406,11 @@ void SidebarController::ApplyTint() {
   // This window only: the profile's theme (and any installed theme extension) stays as it is.
   BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser_);
   BrowserWidget* widget = view ? view->browser_widget() : nullptr;
-  const auto spaces = GetSpaces();
-  if (!widget || spaces.empty()) {
+  const std::optional<int> hue = ActiveSpaceHue();
+  if (!widget || !hue) {
     return;  // the window isn't up yet; the constructor's posted task tints it
   }
-  const SkColor colour = SpaceTint(spaces[GetActiveIndex()].hue);
+  const SkColor colour = SpaceTint(*hue);
   if (widget->user_color_override() != colour) {
     widget->SetUserColorOverride(colour);
   }
@@ -1526,9 +1669,8 @@ void SidebarController::SeedDemoData() {
     tabs.Append(SavedTabToDict({GURL("https://example.org/"), u"Example", false}));
     ScopedDictPrefUpdate(*local_state(), kSpaceTabsPref)->Set(work.id, std::move(tabs));
   }
-  // Switch to the second space once, so a snapshot shows a real switch; then, by mode:
-  // command-bar opens the command bar (the Cmd+T path), collapsed collapses the strip,
-  // new-space opens the new-space dialog.
+  // Switch to the second space once, so a snapshot shows a real switch; then run the mode's demo
+  // (modes: desktop/lb/README.md).
   const std::string demo = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
@@ -1614,6 +1756,12 @@ void SidebarController::SeedDemoData() {
                         self->SwitchTo(1);
                       },
                       self),
+                  base::Seconds(2));
+            } else if (demo == "group-colour" || demo == "group-close") {
+              // A new group must take the space's colour; "group-close" then closes it, which
+              // must leave no saved group behind (the log shows the count before and after).
+              base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+                  FROM_HERE, base::BindOnce(&DemoGroupColour, self, demo == "group-close"),
                   base::Seconds(2));
             } else if (demo == "split") {
               // Put Work's last tab side by side with a new page, leave the space and come
@@ -1947,6 +2095,21 @@ void SidebarController::SeedDemoData() {
       base::Seconds(2));
 }
 
+bool IsSidebarCompact(BrowserWindowInterface* browser, int width) {
+  const tabs::VerticalTabStripStateController* state =
+      browser ? tabs::VerticalTabStripStateController::From(browser) : nullptr;
+  return state && state->GetCollapseState() != tabs::VerticalTabStripCollapseState::kExpanded &&
+         width <= tabs::kVerticalTabStripCollapsedWidth;
+}
+
+void OnTabClicked(const tabs::TabInterface* tab) {
+  BrowserWindowInterface* browser =
+      tab ? const_cast<tabs::TabInterface*>(tab)->GetBrowserWindowInterface() : nullptr;
+  if (SidebarController* controller = SidebarController::FromBrowser(browser)) {
+    controller->OnTabClicked(*tab);
+  }
+}
+
 bool HandleCommand(BrowserWindowInterface* browser, int command_id) {
   SidebarController* controller = SidebarController::FromBrowser(browser);
   if (!controller) {
@@ -1984,6 +2147,16 @@ bool HandleNewTab(BrowserWindowInterface* browser) {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterStringPref(kActiveSpacePref, std::string());
   registry->RegisterBooleanPref(kSearchChoiceShownPref, false);
+  registry->RegisterListPref(kObsoleteFavouritesPref);
+  // Chromium keeps every tab group as a saved group and asks before ungrouping, closing or
+  // removing the last tab of one "deletes" it. Nothing here shows saved groups, so don't ask.
+  for (const char* pref :
+       {tab_groups::saved_tab_groups::prefs::kTabGroupsDeletionSkipDialogOnDelete,
+        tab_groups::saved_tab_groups::prefs::kTabGroupsDeletionSkipDialogOnUngroup,
+        tab_groups::saved_tab_groups::prefs::kTabGroupsDeletionSkipDialogOnRemoveTab,
+        tab_groups::saved_tab_groups::prefs::kTabGroupsDeletionSkipDialogOnCloseTab}) {
+    registry->SetDefaultPrefValue(pref, base::Value(true));
+  }
 }
 
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {

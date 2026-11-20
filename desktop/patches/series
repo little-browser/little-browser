@@ -22,3 +22,6 @@ lb/no-saved-groups-button.patch      # no saved tab groups button in the vertica
 lb/no-tab-detach.patch               # tabs can not be dragged out into a new window
 lb/drag-pins.patch                   # drag tabs between the pinned and the unpinned area
 lb/pinned-tab-sleep.patch            # closing a pinned tab puts it to sleep, it stays in place
+lb/one-group-close.patch             # a tab group's menu has one Close, no Delete
+lb/no-app-menu-tab-groups.patch      # no Tab groups (saved tab groups) menu in the app menu
+lb/tab-click-hook.patch              # a click on a tab row reaches desktop/lb (New Tab Group placeholder)

@@ -20,13 +20,13 @@
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "base/timer/timer.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "lb/browser/spaces/space_model.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/gfx/geometry/point.h"
 #include "url/gurl.h"
 
 class BrowserWindowInterface;
@@ -143,6 +143,11 @@ class SidebarController : public TabStripModelObserver {
 
   // The space this window shows (empty for private windows).
   std::string GetActiveSpaceId() const;
+  // The colour (hue) of the space this window shows; null for private windows.
+  std::optional<int> ActiveSpaceHue() const;
+  // A tab row was clicked (lb::OnTabClicked): a click on a New Tab Group placeholder opens the
+  // command bar.
+  void OnTabClicked(const tabs::TabInterface& tab);
   // Session restore: the window was saved showing `space_id`.
   void RestoreSpace(const std::string& space_id);
   // See lb::OnRestoringIntoWindow().
@@ -153,12 +158,20 @@ class SidebarController : public TabStripModelObserver {
                               const TabStripModelChange& change,
                               const TabStripSelectionChange& selection) override;
   void OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) override;
-  // Saves the tabs, active one included, before the window empties its strip.
+  // A new group starts in the space's colour.
+  void OnTabGroupAdded(const tab_groups::TabGroupId& group) override;
+  // A group closed with its Close is gone: its saved copy in Chromium's saved tab groups too.
+  void OnTabGroupWillBeRemoved(const tab_groups::TabGroupId& group) override;
+  // Before the window empties its strip: a closing window saves its tabs, active one included,
+  // with the space; closing every tab leaves the space empty.
   void WillCloseAllTabs(TabStripModel* tab_strip_model) override;
+  void CloseAllTabsStopped(TabStripModel* tab_strip_model, CloseAllStoppedReason reason) override;
 
  private:
-  // Closes placeholders of groups that gained a real tab; moving onto one opens the command bar.
+  // Closes placeholders of groups that gained a real tab.
   void UpdateGroupPlaceholders();
+  // Deletes a saved tab group that is still closed (see OnTabGroupWillBeRemoved).
+  void DeleteSavedGroup(const base::Uuid& saved_guid);
 
   // A space's tabs while the window shows another space. Groups and splits are kept whole, so
   // their members, titles and colours survive the switch.
@@ -246,15 +259,19 @@ class SidebarController : public TabStripModelObserver {
   // Live tabs of inactive spaces in this window, by space id.
   std::map<std::string, ParkedSpace> detached_;
   // The blank tabs a new tab group starts with. One goes away once another tab joins its group
-  // and is forgotten once it is used; activating one (a click) opens the command bar.
+  // and is forgotten once it is used; clicking one opens the command bar.
   std::vector<tabs::TabHandle> group_placeholders_;
-  // The active tab at the last placeholder check, so that only moving onto a placeholder (not
-  // creating it) opens the command bar.
-  tabs::TabHandle last_active_tab_;
+  // An UpdateGroupPlaceholders() is posted and hasn't run yet.
+  bool placeholder_check_pending_ = false;
   PrefChangeRegistrar local_registrar_;
   base::ObserverList<Observer> observers_;
   base::WeakPtrFactory<SidebarController> weak_factory_{this};
 };
+
+// Whether a sidebar view `width` wide in `browser`'s window should show its compact, icons-only
+// form: the strip is collapsed and not expanded on hover. An expanded strip dragged narrow keeps
+// the full form, as its tabs do.
+bool IsSidebarCompact(BrowserWindowInterface* browser, int width);
 
 // Little Browser's hook into Chromium's command dispatch
 // (desktop/patches/lb/command-hooks.patch): Cmd+T / Cmd+L open the command bar. Returns
@@ -266,7 +283,12 @@ bool HandleCommand(BrowserWindowInterface* browser, int command_id);
 // Returns true if handled.
 bool HandleNewTab(BrowserWindowInterface* browser);
 
-// Registers lb.active_space and lb.search_choice_shown (desktop/patches/lb/sidebar-prefs.patch).
+// Little Browser's hook into tab clicks (desktop/patches/lb/tab-click-hook.patch): `tab`'s row
+// was clicked, whether or not it was the active tab already.
+void OnTabClicked(const tabs::TabInterface* tab);
+
+// Registers lb.active_space and lb.search_choice_shown, and sets lb's defaults for Chromium's
+// profile prefs (desktop/patches/lb/sidebar-prefs.patch).
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 // Registers lb.spaces and lb.space_tabs in Local State (browser-wide).
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry);

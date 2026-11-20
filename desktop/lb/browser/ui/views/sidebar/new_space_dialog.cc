@@ -134,7 +134,7 @@ class NewSpaceDialog : public views::DialogDelegate,
     const size_t n = spaces.size();
     icon_ = n % std::size(kSpaceIcons);
     hue_ = NextSpaceHue(spaces);
-    colour_index_ = NearestColour(hue_);
+    colour_index_ = NearestSpaceColour(hue_);
     hue_ = kSpaceColours[colour_index_].hue;
 
     // Name.
@@ -218,20 +218,6 @@ class NewSpaceDialog : public views::DialogDelegate,
   }
 
  private:
-  static size_t NearestColour(int hue) {
-    size_t best = 0;
-    int best_distance = 360;
-    for (size_t i = 0; i < std::size(kSpaceColours); ++i) {
-      const int d = std::abs(kSpaceColours[i].hue - hue);
-      const int distance = std::min(d, 360 - d);
-      if (distance < best_distance) {
-        best = i;
-        best_distance = distance;
-      }
-    }
-    return best;
-  }
-
   bool IsNewProfile() const { return profile_->GetSelectedIndex() == profiles_.size(); }
 
   void OnProfileChanged() {

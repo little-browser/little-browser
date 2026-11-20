@@ -39,29 +39,29 @@ namespace {
 
 constexpr int kButtonSize = 30;
 constexpr float kRadius = 8.0f;
-constexpr int kMinVisibleWidth = 150;
+// Menu items. The "+" menu's tab actions use Chromium's own command ids (IDC_NEW_TAB and so on),
+// which are all far above these.
 constexpr int kCmdDeleteSpace = 1;
 constexpr int kCmdRenameSpace = 2;
 constexpr int kCmdIconBase = 100;
 constexpr int kCmdColourBase = 200;
-// The "+" menu.
-constexpr int kCmdNewTab = 300;
 constexpr int kCmdNewSpace = 301;
-constexpr int kCmdNewSplit = 302;
-constexpr int kCmdNewTabGroup = 303;
 
-// Chromium's command for each "+" menu item that has one (for its shortcut).
-int ChromeCommandFor(int command_id) {
-  switch (command_id) {
-    case kCmdNewTab:
-      return IDC_NEW_TAB;
-    case kCmdNewSplit:
-      return IDC_NEW_SPLIT_TAB;
-    case kCmdNewTabGroup:
-      return IDC_CREATE_NEW_TAB_GROUP;
-    default:
-      return 0;
-  }
+// UI strings.
+constexpr char16_t kNewButtonText[] = u"+";
+constexpr char16_t kNewButtonName[] = u"New tab, space, split view or tab group";
+constexpr char16_t kNewSpace[] = u"New Space";
+constexpr char16_t kNewTab[] = u"New Tab";
+constexpr char16_t kNewSplitView[] = u"New Split View";
+constexpr char16_t kNewTabGroup[] = u"New Tab Group";
+constexpr char16_t kRenameSpace[] = u"Rename…";
+constexpr char16_t kSpaceIcon[] = u"Icon";
+constexpr char16_t kSpaceColour[] = u"Colour";
+std::u16string DeleteSpaceLabel(const std::u16string& name) {
+  return u"Delete “" + name + u"”";
+}
+std::u16string SpaceButtonName(const std::u16string& name, const std::u16string& profile_name) {
+  return name + u" (" + profile_name + u")";
 }
 
 std::unique_ptr<views::LabelButton> MakeButton(std::u16string text,
@@ -94,7 +94,7 @@ SidebarFooterView::SidebarFooterView(base::WeakPtr<SidebarController> controller
   spaces_layout_->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
   layout->SetFlexForView(spaces_, 1);
   new_button_ = AddChildView(
-      MakeButton(u"+", u"New tab, space, split view or tab group",
+      MakeButton(kNewButtonText, kNewButtonName,
                  base::BindRepeating(&SidebarFooterView::ShowNewMenu, base::Unretained(this))));
   if (controller_) {
     controller_->AddObserver(this);
@@ -109,10 +109,12 @@ SidebarFooterView::~SidebarFooterView() {
 }
 
 void SidebarFooterView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
-  if (width() == 0) {
+  // What fits depends on the width only.
+  if (width() == 0 || width() == previous_bounds.width()) {
     return;
   }
-  const bool compact = width() < kMinVisibleWidth;
+  // Collapsed strip: only the active space.
+  const bool compact = controller_ && IsSidebarCompact(controller_->browser(), width());
   if (compact != compact_) {
     compact_ = compact;
     Rebuild();
@@ -127,7 +129,6 @@ void SidebarFooterView::UpdateOverflow() {
   balance_->SetVisible(show_new && !overflow);
   spaces_layout_->set_main_axis_alignment(overflow ? views::BoxLayout::MainAxisAlignment::kStart
                                                    : views::BoxLayout::MainAxisAlignment::kCenter);
-  InvalidateLayout();
 }
 
 void SidebarFooterView::OnSidebarModelChanged() {
@@ -146,7 +147,7 @@ void SidebarFooterView::Rebuild() {
   for (size_t i = 0; i < spaces.size(); ++i) {
     std::u16string name = base::UTF8ToUTF16(spaces[i].name);
     if (spaces[i].profile != chrome::kInitialProfile && !spaces[i].profile_name.empty()) {
-      name += u" (" + spaces[i].profile_name + u")";
+      name = SpaceButtonName(name, spaces[i].profile_name);
     }
     auto button = MakeButton(base::UTF8ToUTF16(spaces[i].icon), name,
                              base::BindRepeating(&SidebarController::SwitchTo, controller_, i));
@@ -171,17 +172,17 @@ void SidebarFooterView::ShowNewMenu() {
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   // Spaces first, set apart from the tab actions below.
   if (!controller_->IsPrivate()) {
-    menu_model_->AddItem(kCmdNewSpace, u"New Space");
+    menu_model_->AddItem(kCmdNewSpace, kNewSpace);
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
   }
-  menu_model_->AddItem(kCmdNewTab, u"New Tab");
+  menu_model_->AddItem(IDC_NEW_TAB, kNewTab);
   // A split pairs the open page with a new tab, so it needs a page that isn't split already.
   const tabs::TabInterface* active = browser->GetTabStripModel()->GetActiveTab();
   if (active && !active->IsSplit() && active->GetContents() &&
       !IsBlankTabUrl(active->GetContents()->GetLastCommittedURL())) {
-    menu_model_->AddItem(kCmdNewSplit, u"New Split View");
+    menu_model_->AddItem(IDC_NEW_SPLIT_TAB, kNewSplitView);
   }
-  menu_model_->AddItem(kCmdNewTabGroup, u"New Tab Group");
+  menu_model_->AddItem(IDC_CREATE_NEW_TAB_GROUP, kNewTabGroup);
   menu_runner_ =
       std::make_unique<views::MenuRunner>(menu_model_.get(), views::MenuRunner::HAS_MNEMONICS);
   menu_runner_->RunMenuAt(GetWidget(), nullptr, new_button_->GetAnchorBoundsInScreen(),
@@ -191,18 +192,22 @@ void SidebarFooterView::ShowNewMenu() {
 
 bool SidebarFooterView::GetAcceleratorForCommandId(int command_id,
                                                    ui::Accelerator* accelerator) const {
-  const int chrome_command = ChromeCommandFor(command_id);
+  // The "+" menu's tab actions show Chromium's shortcuts.
+  if (command_id != IDC_NEW_TAB && command_id != IDC_NEW_SPLIT_TAB &&
+      command_id != IDC_CREATE_NEW_TAB_GROUP) {
+    return false;
+  }
   BrowserView* browser_view =
       controller_ ? BrowserView::GetBrowserViewForBrowser(controller_->browser()) : nullptr;
-  return chrome_command && browser_view &&
-         browser_view->GetAcceleratorForCommandId(chrome_command, accelerator);
+  return browser_view && browser_view->GetAcceleratorForCommandId(command_id, accelerator);
 }
 
 void SidebarFooterView::ShowContextMenuForViewImpl(views::View* source,
                                                    const gfx::Point& point,
                                                    ui::mojom::MenuSourceType source_type) {
   context_index_ = source->GetID() - 1;
-  if (context_index_ < 0 || !controller_) {
+  // Private windows have one space and nothing to change about it.
+  if (context_index_ < 0 || !controller_ || controller_->IsPrivate()) {
     return;
   }
   const auto spaces = controller_->GetSpaces();
@@ -216,15 +221,12 @@ void SidebarFooterView::ShowContextMenuForViewImpl(views::View* source,
     colour_menu_->AddItem(kCmdColourBase + static_cast<int>(i), kSpaceColours[i].name);
   }
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  menu_model_->AddItem(kCmdRenameSpace, u"Rename…");
-  menu_model_->AddSubMenu(0, u"Icon", icon_menu_.get());
-  menu_model_->AddSubMenu(0, u"Colour", colour_menu_.get());
-  if (controller_->IsPrivate()) {
-    return;
-  }
+  menu_model_->AddItem(kCmdRenameSpace, kRenameSpace);
+  menu_model_->AddSubMenu(0, kSpaceIcon, icon_menu_.get());
+  menu_model_->AddSubMenu(0, kSpaceColour, colour_menu_.get());
   if (controller_->CanDeleteSpace(context_index_)) {
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kCmdDeleteSpace, u"Delete “" + name + u"”");
+    menu_model_->AddItem(kCmdDeleteSpace, DeleteSpaceLabel(name));
   }
   menu_runner_ =
       std::make_unique<views::MenuRunner>(menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
@@ -238,16 +240,16 @@ void SidebarFooterView::ExecuteCommand(int command_id, int event_flags) {
   }
   BrowserWindowInterface* browser = controller_->browser();
   switch (command_id) {
-    case kCmdNewTab:
-      chrome::ExecuteCommand(browser, ChromeCommandFor(command_id));
+    case IDC_NEW_TAB:
+      chrome::ExecuteCommand(browser, IDC_NEW_TAB);
       return;
-    case kCmdNewTabGroup:
-      controller_->NewTabGroup();
+    case IDC_CREATE_NEW_TAB_GROUP:
+      controller_->NewTabGroup();  // remembers the group's placeholder tab
       return;
     case kCmdNewSpace:
       controller_->NewSpace();
       return;
-    case kCmdNewSplit:
+    case IDC_NEW_SPLIT_TAB:
       chrome::NewSplitTab(browser, split_tabs::SplitTabLayout::kSideBySide,
                           split_tabs::SplitTabCreatedSource::kNewTabButton);
       return;

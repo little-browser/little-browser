@@ -26,8 +26,9 @@ lb/browser/ui/
 ```
 
 Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
-`pinned-list.patch`, `pinned-tab-sleep.patch`, `sidebar-prefs.patch`, `command-hooks.patch`, `session-spaces.patch`, `tab-metrics-detached-guard.patch` and
-`contents-card.patch`; vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
+`pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
+`command-hooks.patch`, `session-spaces.patch`,
+`tab-metrics-detached-guard.patch` and `contents-card.patch`; vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
 Not built yet: peek, the little window, the content blocker, tracking-parameter stripping, the
 Widevine consent prompt, and the link to `lb-core` (spaces are stored in C++ prefs).
@@ -49,7 +50,9 @@ A second space, switched to automatically: add `--lb-sidebar-demo`
 strip, `=new-space` opens the new-space dialog, `=new-profile` creates a space in a new profile,
 `=search-again` opens the search choice, closes it and opens it again,
 `=restore-after-crash` does what the crash bubble's Restore button does, `=tab-group` groups a
-tab in Work, leaves the space and comes back, `=split` does the same with a split view,
+tab in Work, leaves the space and comes back, `=group-colour` groups a tab without choosing a
+colour (it takes the space's), `=group-close` then closes that group and logs the saved groups
+before and after (none may be left), `=split` does the same as `=tab-group` with a split view,
 `=reopen-window` closes a second window and reopens it as Cmd+Shift+T does, `=pinned-sleep`
 pins a tab, shows it and presses Cmd+W (it must stay, asleep and faded), `=pinned-remove` then
 closes the sleeping tab (it must go), `=pinned-wake` then

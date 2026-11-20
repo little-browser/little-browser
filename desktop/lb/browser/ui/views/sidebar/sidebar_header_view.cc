@@ -4,25 +4,18 @@
 
 #include "lb/browser/ui/views/sidebar/sidebar_header_view.h"
 
-#include <algorithm>
-#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
 
-#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_constants.h"
-#include "components/keyed_service/core/service_access_type.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/spaces/swipe_tracker.h"
@@ -31,7 +24,6 @@
 #include "lb/browser/ui/views/sidebar/sidebar_footer_view.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
-#include "ui/base/models/image_model.h"
 #include "ui/color/color_id.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
@@ -61,8 +53,6 @@ namespace {
 
 constexpr int kPillHeight = 34;
 constexpr float kRadius = 10.0f;
-// Below this width (the strip is collapsed) the header hides.
-constexpr int kMinVisibleWidth = 150;
 
 // Two-finger sideways swipe on the sidebar switches space (docs/ux.md §5).
 class SwipeHandler : public ui::EventHandler {
@@ -132,8 +122,7 @@ std::u16string DisplayHost(const GURL& url) {
 
 }  // namespace
 
-SidebarHeaderView::SidebarHeaderView(BrowserView* browser_view,
-                                     std::unique_ptr<SidebarController> controller)
+SidebarHeaderView::SidebarHeaderView(std::unique_ptr<SidebarController> controller)
     : controller_(std::move(controller)) {
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical, gfx::Insets::TLBR(2, 0, 10, 0),
@@ -233,7 +222,8 @@ void SidebarHeaderView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
   if (width() == 0) {
     return;
   }
-  const bool compact = width() < kMinVisibleWidth;
+  // Collapsed strip: the header hides.
+  const bool compact = IsSidebarCompact(controller_->browser(), width());
   if (compact == compact_) {
     return;
   }
@@ -324,8 +314,8 @@ void AddSidebar(views::View* content_area,
   auto controller = std::make_unique<SidebarController>(browser_view->browser());
   base::WeakPtr<SidebarController> weak_controller = controller->GetWeakPtr();
 
-  auto* header = content_area->AddChildViewAt(
-      std::make_unique<SidebarHeaderView>(browser_view, std::move(controller)), 0);
+  auto* header =
+      content_area->AddChildViewAt(std::make_unique<SidebarHeaderView>(std::move(controller)), 0);
   header->SetProperty(views::kMarginsKey, gfx::Insets::VH(0, horizontal_padding));
 
   auto* footer = content_area->AddChildView(std::make_unique<SidebarFooterView>(weak_controller));

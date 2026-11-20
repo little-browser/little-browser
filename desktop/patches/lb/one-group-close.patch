@@ -1,0 +1,20 @@
+# Little Browser: a tab group's menu has one way to close it. Chromium's menu offers "Close group",
+# which keeps the group as a saved group to reopen from the saved groups menus (none exist here:
+# no-saved-groups-button.patch, no-app-menu-tab-groups.patch), and "Delete group", which removes
+# it. The menu is built as for a profile without saved groups: New tab in group, Move group to new
+# window, Ungroup, Close group. The sidebar deletes the saved copy Close group leaves
+# (SidebarController::OnTabGroupWillBeRemoved).
+--- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
++++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
+@@ -507,9 +507,8 @@
+ }
+ 
+ bool TabGroupEditorBubbleView::CanSaveGroups() const {
+-  return browser_->GetProfile()->IsRegularProfile() &&
+-         tab_groups::TabGroupSyncServiceFactory::GetForProfile(
+-             browser_->GetProfile());
++  // Little Browser: no saved groups in this menu, so a group has one Close.
++  return false;
+ }
+ 
+ bool TabGroupEditorBubbleView::CanShareGroups() const {

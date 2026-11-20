@@ -20,7 +20,6 @@ class BrowserView;
 namespace ui {
 class EventHandler;
 }  // namespace ui
-class GURL;
 
 namespace views {
 class Label;
@@ -41,7 +40,7 @@ class SidebarHeaderView : public views::View,
   METADATA_HEADER(SidebarHeaderView, views::View)
 
  public:
-  SidebarHeaderView(BrowserView* browser_view, std::unique_ptr<SidebarController> controller);
+  explicit SidebarHeaderView(std::unique_ptr<SidebarController> controller);
   SidebarHeaderView(const SidebarHeaderView&) = delete;
   SidebarHeaderView& operator=(const SidebarHeaderView&) = delete;
   ~SidebarHeaderView() override;
@@ -63,8 +62,6 @@ class SidebarHeaderView : public views::View,
 
   // content::WebContentsObserver:
   void DidFinishNavigation(content::NavigationHandle* navigation_handle) override;
-
-  base::WeakPtr<SidebarHeaderView> AsWeakPtr() { return weak_factory_.GetWeakPtr(); }
 
  private:
   void UpdateAddress();

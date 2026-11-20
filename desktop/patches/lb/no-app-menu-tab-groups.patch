@@ -1,0 +1,16 @@
+# Little Browser: the app menu has no "Tab groups" submenu. It lists Chromium's saved tab groups,
+# opens closed ones in the current window and deletes them; Little Browser shows no saved groups
+# (no-saved-groups-button.patch, one-group-close.patch), and a group opened there from another
+# space would turn up twice. New tab groups come from the sidebar's + menu.
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2228,7 +2228,8 @@
+         kBookmarksMenuItem);
+   }
+ 
+-  if (browser_->GetProfile()->IsRegularProfile()) {
++  // Little Browser: no Tab groups menu (saved tab groups: no-app-menu-tab-groups.patch).
++  if (false && browser_->GetProfile()->IsRegularProfile()) {
+     auto saved_tab_groups_model = std::make_unique<ui::SimpleMenuModel>(this);
+     sub_menus_.push_back(std::move(saved_tab_groups_model));
+     AddSubMenuWithStringIdAndVectorIcon(
