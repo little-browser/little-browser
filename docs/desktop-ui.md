@@ -23,14 +23,33 @@ custom window frame, so the 4-weekly Chromium rebase touches as little as possib
 Upstream's vertical tab strip already provides collapse and expand, expand on hover, resizing, tab
 groups, split views, drag and drop, keyboard focus and a two-finger swipe controller. We add views
 around it instead of forking it: the header goes in at index 0 of the strip's flex layout, the
-footer at the end, and the "+ New Tab" row in a slot of the tab list's vertical layout. Chromium's
-new-tab button is hidden; its bottom container stays, because it is what fills the space between
-the tabs and the footer.
+footer at the end, and the "+ New Tab" row in a slot of the tab list's vertical layout, under
+Chromium's own pinned/unpinned separator, which the slot shows whenever there are pinned tabs.
+Chromium's new-tab button is hidden; its bottom container stays, because it is what fills the
+space between the tabs and the footer. The header, footer and row switch to their compact,
+icons-only form (`lb::IsSidebarCompact`) while the strip is collapsed and not expanded on hover;
+an expanded strip dragged narrow keeps the full form, as its tabs do.
 
 **New Tab Group** runs `IDC_CREATE_NEW_TAB_GROUP` through `SidebarController::NewTabGroup()`, which
 remembers the blank tab the group starts with. When another tab joins that group the controller
-closes the placeholder; moving onto it opens the command bar in `kOpenHere` mode, so the chosen page
-opens in the placeholder, inside its group. Placeholders work in private windows too.
+closes the placeholder, but not while a tab drag is under way (a dragged tab passes through groups).
+Clicking the placeholder opens the command bar in `kOpenHere` mode, so the chosen page opens in the
+placeholder, inside its group: `patches/lb/tab-click-hook.patch` reports every tab row click to
+`lb::OnTabClicked`, also on the tab already active, which sends no tab strip notification.
+Placeholders work in private windows too.
+
+**Group colour and closing.** A group the user or an extension makes gets its colour in
+`SidebarController::OnTabGroupAdded`, which Chromium sends only for brand-new groups: the window's
+space hue, mapped to the nearest Chromium group colour by `TabGroupColorForHue` in the model.
+Restored groups and groups moved between windows keep their own colour. Chromium keeps every group
+as a saved group (`TabGroupSyncService`); Little Browser shows none of them. The group menu is
+Chromium's editor bubble built as if saved groups were off (`patches/lb/one-group-close.patch`), so
+it has one Close group and no Delete group, and the app menu has no Tab groups submenu
+(`patches/lb/no-app-menu-tab-groups.patch`). Close group is the one way a group ends that Chromium
+keeps as a closed saved group, so `SidebarController::OnTabGroupWillBeRemoved` deletes that group's
+saved copy; groups that end otherwise (last tab closed, ungrouped) are deleted by Chromium, and
+groups closed with their window stay with their space. `lb::RegisterProfilePrefs` turns off
+Chromium's "delete this saved group?" questions (the `kTabGroupsDeletionSkipDialogOn*` prefs).
 
 The footer's "+" menu runs Chromium's own commands: `IDC_NEW_TAB` (the command bar),
 `chrome::NewSplitTab` and `IDC_CREATE_NEW_TAB_GROUP`. New split view is offered only while the
@@ -43,8 +62,8 @@ title, like the other tabs, and a close button; only the collapsed strip keeps i
 **Sleeping pinned tabs.** Every tab close passes through `lb::SleepInsteadOfClose`
 (`lb/browser/ui/tabs/pinned_tab_sleep.*`, hooked into `TabStripModel::CloseTabs` by
 `patches/lb/pinned-tab-sleep.patch`). A pinned tab the user closes is kept, and right after the
-close returns another tab is shown (the one focused last, preferring awake tabs and leaving out
-tabs closed together with it, or a new tab) and the pinned tab's page is unloaded with Chromium's
+close returns another tab is shown (the one focused last, preferring tabs outside collapsed groups
+and awake tabs and leaving out tabs closed together with it, or a new tab; `lb::ChooseTabToShow`) and the pinned tab's page is unloaded with Chromium's
 own discard (`TabLifecycleUnitExternal::DiscardTab`, the call `chrome.tabs.discard` makes, which
 has no eligibility policy), marked `NeedsReload()` so it loads again whenever it is shown. A tab
 muted on its own stays muted. A page with a beforeunload handler (it may hold unsaved input) is
@@ -55,8 +74,9 @@ tab replaced in a split view closes with `CLOSE_NONE`, so it doesn't sleep.
 Closing a pinned tab that is already asleep removes it, as do closes without a user gesture,
 closing the window, and closing a pinned tab in a split view (Chromium takes it out of the split). A pinned tab counts as asleep when it is discarded or not loaded yet (as after a
 restart or a space switch). The same patch draws a sleeping pinned tab faded (`TabIcon` and the
-title) with "−" instead of "✕" on its close button. Chromium's "press ⌘W again to close a pinned
-tab" toast is skipped: `lb::HandleCommand` closes the selected pinned tabs itself.
+title) with "−" instead of "✕" on its close button; the second click of a double click on "✕",
+which lands on that "−", is ignored. Chromium's "press ⌘W again to close a pinned tab" toast is
+skipped: `lb::HandleCommand` closes the selected pinned tabs itself.
 
 **Dragging** is Chromium's own, with two changes. `patches/lb/drag-pins.patch` lets a tab cross
 between the pinned and the today area the way it crosses into a group. The pointer picks the area
@@ -113,7 +133,8 @@ sidebar switches space, once per gesture and without wrap-around.
 ## Saving and restoring tabs
 
 - Every space's tabs are saved in Local State (`lb.space_tabs`, space id → list), about a second
-  after any tab change and not while a window is closing. The pref is separate from `lb.spaces`,
+  after any tab change and once more when a window starts closing (`WillCloseAllTabs` with
+  `closing_all()`). Closing every tab of a window instead leaves its space's list empty. The pref is separate from `lb.spaces`,
   which sidebars observe, so saving doesn't redraw every window.
 - Saved records keep each tab's active flag, tab group (including its saved-group id) and split
   view. `AddSavedTabs` rebuilds groups first, then splits with `RestoreSplit`, keeping layout and
@@ -133,8 +154,8 @@ sidebar switches space, once per gesture and without wrap-around.
 - A window reopened from Recently Closed (Cmd+Shift+T) returns to its space through
   `lb::OnWindowRestored`, called from `BrowserLiveTabContext::Create`.
 - **Saved tab groups** (Chromium's `TabGroupSyncService`): a group parked with its space is in no
-  tab strip, so it is unsaved while parked and saved again when the space returns; a saved group
-  with no strip would crash the Tab groups menu. A group rebuilt from saved tabs reconnects to its
+  tab strip, so it is unsaved while parked and saved again when the space returns: Chromium's
+  saved-group code expects a connected group to be in a tab strip. A group rebuilt from saved tabs reconnects to its
   saved entry once the service is ready (`TabGroupSaver`) instead of adding a copy on every
   restart.
 - With more than one profile Chromium asks "Who's using Little Browser?" at launch. Spaces span

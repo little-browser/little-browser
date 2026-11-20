@@ -29,6 +29,14 @@ TEST(TabToShowTest, OnlyAsleepTabsTakesTheOneFocusedLast) {
   EXPECT_EQ(ChooseTabToShow({{true, At(10)}, {true, At(20)}}), 1u);
 }
 
+TEST(TabToShowTest, VisibleBeatsCollapsedGroupFocusedLater) {
+  EXPECT_EQ(ChooseTabToShow({{false, At(30), /*in_collapsed_group=*/true}, {true, At(10)}}), 1u);
+}
+
+TEST(TabToShowTest, OnlyCollapsedGroupTabsTakesTheOneFocusedLast) {
+  EXPECT_EQ(ChooseTabToShow({{false, At(10), true}, {false, At(20), true}}), 1u);
+}
+
 TEST(TabToShowTest, TieGoesToTheEarlierTab) {
   EXPECT_EQ(ChooseTabToShow({{false, At(10)}, {false, At(10)}}), 0u);
 }

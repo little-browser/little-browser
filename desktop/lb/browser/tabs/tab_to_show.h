@@ -16,11 +16,13 @@ namespace lb {
 struct TabToShowCandidate {
   bool asleep = false;
   base::Time last_focused;
+  // In a collapsed group: showing it would expand the group again.
+  bool in_collapsed_group = false;
 };
 
 // Which of `others` to show when the shown pinned tab goes to sleep: the one focused last,
-// preferring tabs that are awake so nothing has to reload. Ties go to the earlier tab. Returns
-// nullopt when there are no other tabs.
+// preferring tabs that aren't in a collapsed group, then tabs that are awake so nothing has to
+// reload. Ties go to the earlier tab. Returns nullopt when there are no other tabs.
 std::optional<size_t> ChooseTabToShow(const std::vector<TabToShowCandidate>& others);
 
 }  // namespace lb

@@ -104,18 +104,28 @@
    if (node.type() == TabCollectionNode::Type::GROUP) {
 --- a/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 +++ b/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
-@@ -1692,6 +1692,18 @@
+@@ -1560,7 +1560,8 @@
+       CHECK(it != drag_data_.tab_drag_data_.end());
+       TabDragData& tab_data = *it;
+       std::optional<tab_groups::TabGroupId> group_for_tab = std::nullopt;
+-      if (tab_data.pinned) {
++      // Little Browser: as it left the last window (see TabDragData::lb_pinned_on_detach).
++      if (tab_data.lb_pinned_on_detach.value_or(tab_data.pinned)) {
+         add_types |= AddTabTypes::ADD_PINNED;
+       } else {
+         group_for_tab = focused_group;
+@@ -1692,6 +1693,18 @@
      tab_drag_datum.attached_view = nullptr;
    }
  
 +  // Little Browser: a drag across the vertical strip's pinned area may have pinned or unpinned
 +  // the dragged tabs. They go into the next window as they are now, like the splits detached
-+  // with them, which take their state from the model.
++  // with them, which take their state from the model (Attach reads lb_pinned_on_detach).
 +  for (TabDragData& data : drag_data_.tab_drag_data_) {
 +    if (data.contents) {
 +      const int index = attached_model->GetIndexOfWebContents(data.contents);
 +      if (index != TabStripModel::kNoTab) {
-+        data.pinned = attached_model->IsTabPinned(index);
++        data.lb_pinned_on_detach = attached_model->IsTabPinned(index);
 +      }
 +    }
 +  }
@@ -123,10 +133,11 @@
    std::vector<int> dragged_indices;
    for (const auto& data : drag_data_.tab_drag_data_) {
      if (data.contents) {
-@@ -2193,6 +2205,25 @@
+@@ -2192,6 +2205,25 @@
+     for (TabDragData& tab_datum : drag_data_.tab_drag_data_) {
        tab_datum.attached_view->set_detached();
        tab_datum.attached_view = nullptr;
-     }
++    }
 +  } else {
 +    // Little Browser: a drag across the vertical strip's pinned area may have pinned or unpinned
 +    // the dragged tabs. Give them back their pin state first, so the moves below stay within an
@@ -145,7 +156,20 @@
 +      }
 +      std::ranges::sort(indices);
 +      model->LbSetTabsPinned(indices, pinned);
-+    }
+     }
    }
  
-   // Revert each tab, split and group. We manually increment `i` because
+--- a/chrome/browser/ui/views/tabs/dragging/drag_session_data.h
++++ b/chrome/browser/ui/views/tabs/dragging/drag_session_data.h
+@@ -65,6 +65,11 @@
+   // Is the tab pinned?
+   bool pinned = false;
+ 
++  // Little Browser: whether the tab was pinned when it left the last window it was dragged
++  // through (a drag across the vertical strip's pinned area pins or unpins it live); unset until
++  // then. `pinned` keeps the state at the start of the drag, which cancelling restores.
++  std::optional<bool> lb_pinned_on_detach;
++
+   // Contains the information for the tab's group at the start of the drag.
+   struct TabGroupData {
+     tab_groups::TabGroupId group_id;

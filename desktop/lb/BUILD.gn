@@ -18,6 +18,7 @@ source_set("model") {
     "browser/tabs/tab_to_show.cc",
     "browser/tabs/tab_to_show.h",
   ]
+  public_deps = [ "//components/tab_groups" ]
   deps = [
     "//base",
     "//net",

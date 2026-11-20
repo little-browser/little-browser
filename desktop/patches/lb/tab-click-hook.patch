@@ -1,0 +1,21 @@
+# Little Browser: tell desktop/lb when a tab row is clicked (mouse release, no modifier), also
+# when it is the active tab already, which sends no tab strip notification. A click on a New Tab
+# Group's blank placeholder opens the command bar there (lb::OnTabClicked, docs/ux.md §6.1).
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -98,6 +98,7 @@
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
+ #include "lb/browser/ui/tabs/pinned_tab_sleep.h"  // Little Browser
++#include "lb/browser/ui/views/sidebar/sidebar_controller.h"  // Little Browser
+ 
+ namespace {
+ constexpr int kFocusRingInset = 0.0f;
+@@ -682,6 +683,7 @@
+              !(event.IsShiftDown() || shift_pressed_on_mouse_down_) &&
+              !IsSelectionModifierDown(event)) {
+     controller->SelectTab(GetTabInterface(), GetGestureDetail(event));
++    lb::OnTabClicked(GetTabInterface());  // Little Browser
+   }
+   // Cancel the initialized drag (noop if not started). This is considered
+   // a cancel because the drag handler assumes mouse capture when the drag

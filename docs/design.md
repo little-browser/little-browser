@@ -222,7 +222,7 @@ rest of the table is specified but not built.
   "Personal" Google accounts); **several spaces can share a profile**. Each extra profile costs
   memory, so "New profile" explains that. A new profile starts with empty cookies (we don't copy
   logins across).
-- Switch: Ctrl/Cmd+1…9 or swipe on the sidebar. Inactive spaces' tabs sleep (section 6).
+- Switch: Ctrl+1…9, Ctrl+Option+←/→, the footer or a swipe on the sidebar. Inactive spaces' tabs sleep (section 6).
 - Chromium has tab groups and "saved tab groups"; we build spaces as our own model in the core and
   use Chromium profiles for logins, not tab groups.
 
@@ -246,7 +246,7 @@ rest of the table is specified but not built.
   previews; tablets use the sidebar layout when wide (ux.md §10).
 
 ### 7.3a Tab groups
-- Manual, Arc-style groups in pinned or today, one-click suggestions by project/site, optional
+- Manual, Arc-style groups among today's tabs, one-click suggestions by project/site, optional
   auto-grouping; full behaviour in ux.md §6.1.
 - Built on **Chromium's own tab groups** (tab group model + saved tab groups), so extensions
   (`chrome.tabGroups`), session restore and open-tab sync keep working; no parallel model.
@@ -265,7 +265,7 @@ rest of the table is specified but not built.
 
 ### 7.5 Pinned tabs and tab groups
 - Per space, shown as list rows (icon and title) under the space name; groups (Arc-style folders)
-  are Chromium's own tab groups, in pinned or today.
+  are Chromium's own tab groups, among the today tabs (Chromium can't group pinned tabs).
 - Pinned tabs and groups are saved with the space (Local State, section 8 for sync).
 
 ### 7.6 Import

@@ -5,6 +5,7 @@
 #include "lb/browser/spaces/space_model.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iterator>
 #include <utility>
 #include <vector>
@@ -20,6 +21,18 @@ namespace {
 
 // Golden-angle-ish step: consecutive spaces get clearly different colours.
 constexpr int kHueStep = 137;
+
+// The hue of each Chromium tab group colour (grey has none).
+struct GroupColourHue {
+  tab_groups::TabGroupColorId colour;
+  int hue;
+};
+constexpr GroupColourHue kGroupColourHues[] = {
+    {tab_groups::TabGroupColorId::kRed, 0},      {tab_groups::TabGroupColorId::kOrange, 24},
+    {tab_groups::TabGroupColorId::kYellow, 45},  {tab_groups::TabGroupColorId::kGreen, 140},
+    {tab_groups::TabGroupColorId::kCyan, 185},   {tab_groups::TabGroupColorId::kBlue, 220},
+    {tab_groups::TabGroupColorId::kPurple, 270}, {tab_groups::TabGroupColorId::kPink, 330},
+};
 
 }  // namespace
 
@@ -60,6 +73,27 @@ const char* NextSpaceIcon(const std::vector<Space>& spaces) {
 
 std::string NextSpaceName(const std::vector<Space>& spaces) {
   return "Space " + base::NumberToString(spaces.size() + 1);
+}
+
+int NormalizeHue(int hue) {
+  return ((hue % 360) + 360) % 360;
+}
+
+int HueDistance(int a, int b) {
+  const int d = std::abs(NormalizeHue(a) - NormalizeHue(b));
+  return std::min(d, 360 - d);
+}
+
+size_t NearestSpaceColour(int hue) {
+  const auto it = std::ranges::min_element(
+      kSpaceColours, {}, [hue](const SpaceColour& c) { return HueDistance(c.hue, hue); });
+  return static_cast<size_t>(it - std::begin(kSpaceColours));
+}
+
+tab_groups::TabGroupColorId TabGroupColorForHue(int hue) {
+  return std::ranges::min(kGroupColourHues, {},
+                          [hue](const GroupColourHue& g) { return HueDistance(g.hue, hue); })
+      .colour;
 }
 
 std::optional<std::string> ChooseSpaceForWindow(

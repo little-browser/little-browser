@@ -67,7 +67,9 @@ int TabToShowInstead(const TabStripModel& model, const tabs::TabInterface* tab) 
         TabLifecycleUnitExternal::FromWebContents(other->GetContents());
     tabs.push_back(other);
     others.push_back({.asleep = IsAsleep(*other),
-                      .last_focused = unit ? unit->GetLastFocusedTime() : base::Time()});
+                      .last_focused = unit ? unit->GetLastFocusedTime() : base::Time(),
+                      .in_collapsed_group = other->GetGroup().has_value() &&
+                                            model.IsGroupCollapsed(*other->GetGroup())});
   }
   const std::optional<size_t> chosen = ChooseTabToShow(others);
   return chosen ? model.GetIndexOfTab(tabs[*chosen]) : -1;

@@ -4,22 +4,19 @@
 
 #include "lb/browser/tabs/tab_to_show.h"
 
+#include <tuple>
+
 namespace lb {
 
 std::optional<size_t> ChooseTabToShow(const std::vector<TabToShowCandidate>& others) {
+  // Higher is better: visible before hidden in a collapsed group, awake before asleep, then the
+  // one focused last.
+  auto rank = [](const TabToShowCandidate& tab) {
+    return std::tuple(!tab.in_collapsed_group, !tab.asleep, tab.last_focused);
+  };
   std::optional<size_t> best;
   for (size_t i = 0; i < others.size(); ++i) {
-    if (!best) {
-      best = i;
-      continue;
-    }
-    const TabToShowCandidate& tab = others[i];
-    const TabToShowCandidate& current = others[*best];
-    if (tab.asleep != current.asleep) {
-      if (!tab.asleep) {
-        best = i;
-      }
-    } else if (tab.last_focused > current.last_focused) {
+    if (!best || rank(others[i]) > rank(others[*best])) {
       best = i;
     }
   }

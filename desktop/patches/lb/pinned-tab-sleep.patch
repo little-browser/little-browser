@@ -4,6 +4,7 @@
 # removes it. The decision and the sleep live in lb/browser/ui/tabs/pinned_tab_sleep.cc; here
 # every close passes through it, a tab replaced in a split view really closes, the tab row draws
 # the sleeping look, and a discarded tab drops the old page's media, capture and device alerts.
+# The second click of a double click on "✕" lands on the "−" it has just become, and is ignored.
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -118,6 +118,7 @@
@@ -99,6 +100,19 @@
    close_button_->SetColors(colors);
    alert_indicator_->OnParentTabButtonColorChanged();
  
+@@ -1272,6 +1287,12 @@
+ void TabView::CloseButtonPressed(const ui::Event& event) {
+   CHECK(collection_node_);
+ 
++  // Little Browser: the first click of a double click on a pinned tab's "✕" puts it to sleep and
++  // its button becomes "−" under the pointer; the second click doesn't remove it.
++  if (icon_->lb_dimmed() && event.IsMouseEvent() && event.AsMouseEvent()->GetClickCount() > 1) {
++    return;
++  }
++
+   if (active_) {
+     base::RecordAction(base::UserMetricsAction("CloseTab_Active"));
+   } else {
 --- a/chrome/browser/ui/views/tabs/tab/tab_close_button.cc
 +++ b/chrome/browser/ui/views/tabs/tab/tab_close_button.cc
 @@ -205,10 +205,21 @@

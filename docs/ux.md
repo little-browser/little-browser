@@ -8,8 +8,9 @@
 spaces and profiles (new-space dialog, switching by shortcut, swipe or footer, per-space tint, saved
 tabs per space), pinned tabs as a list, the first-run search-engine choice, the quit warning,
 and Chromium's own tab groups. Everything else here — auto-archive, group suggestions and
-auto-grouping, Peek, the little window, the distinct incognito look, top-mode additions and the
-whole mobile section — is specified but not built.
+auto-grouping, Peek, the little window, the distinct incognito look, top-mode additions, hiding the
+sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button and the whole mobile section — is
+specified but not built.
 
 ---
 
@@ -126,7 +127,8 @@ The centre of the browser. A floating palette in the middle of the window.
 - Spaces are browser-wide. A Chromium window belongs to one profile, so switching to a space in
   another profile brings that profile's window up in the same place and hides the current one.
 - Each space keeps its tabs across restarts: the browser continues where you left off by default,
-  and every window comes back on its space.
+  and every window comes back on its space. Closing a window keeps its space's tabs too; closing
+  all of a window's tabs leaves its space empty.
 - Tabs of inactive spaces go to sleep after a while (memory goal); sleeping tabs look dimmed and
   wake on click.
 - Right-click a tab → “Move to space ▸”.
@@ -136,10 +138,11 @@ The centre of the browser. A floating palette in the middle of the window.
 - **Pinned** tabs are the space's permanent set. Closing a pinned tab (Cmd+W, its ✕, the tab menu,
   a middle click) puts it to sleep instead of deleting it, without asking: it keeps its place, its
   page unloads, it is drawn faded, and clicking it loads the page again. The sidebar shows the tab
-  used last instead (a new tab if there is none). A sleeping pinned tab's button is "−", which
-  removes it; closing it any other way removes it too. A page that asks before it is left (it may
-  hold unsaved input) is only hidden, not unloaded, and a pinned tab in a split view closes as
-  usual. A pinned tab that hasn't loaded since a
+  used last instead, preferring tabs that are awake and tabs that aren't hidden in a collapsed
+  group (a new tab if there is none). A sleeping pinned tab's button is "−", which removes it;
+  closing it any other way removes it too, but a double click on "✕" only puts it to sleep. A page
+  that asks before it is left (it may hold unsaved input) is only hidden, not unloaded, and a
+  pinned tab in a split view closes as usual. A pinned tab that hasn't loaded since a
   restart or a space switch counts as sleeping. Cmd+D pins/unpins.
 - **Today** tabs are everything else. **Auto-archive**: today tabs not used for a while are
   closed and moved to the archive (searchable in the command bar). This keeps the sidebar short and
@@ -148,8 +151,9 @@ The centre of the browser. A floating palette in the middle of the window.
 - Drag to reorder pinned tabs, today tabs and groups. Dragging a tab across "+ New Tab" pins or
   unpins it, live, and it can go anywhere in the other area, a group included; the right-click
   menu pins and unpins too. Groups stay among the today tabs and can't be dragged into the pinned
-  area. Tabs never leave the window by dragging: dragging past the sidebar doesn't open a new
-  window. A tab dragged out of a group leaves it; dropped between two groups, or between a
+  area. Dragging never opens a new window: a tab dragged past the sidebar stays in its window, and
+  one dragged onto another window's sidebar moves into that window. A tab dragged out of a group
+  leaves it; dropped between two groups, or between a
   group's tabs, it lands there (joining the group only when dropped inside it).
 - **Split view** is Chromium's own: two tabs side by side in one sidebar row. The footer's ＋ menu
   (New split view) pairs the current page with a new tab; Chromium's tab menu adds more ways.
@@ -158,7 +162,8 @@ The centre of the browser. A floating palette in the middle of the window.
 
 ### 6.1 Tab groups
 
-Named, collapsible runs of tabs — Arc-style folders — inside pinned or today.
+Named, collapsible runs of tabs — Arc-style folders — among today's tabs (pinned tabs can't be
+grouped).
 
 ```
 │ ⌄ 📁 Civic Pipelines        │      top mode:
@@ -199,12 +204,12 @@ Named, collapsible runs of tabs — Arc-style folders — inside pinned or today
 **Living with groups**
 - **New Tab Group** (the footer's ＋ menu) makes a group with one blank placeholder tab; clicking it opens the command bar, and the chosen page opens in the placeholder, inside the group. The placeholder closes by itself when another tab joins the group.
 - Click the header to collapse / expand; double-click (or its ⋯ menu) to rename; the menu also has
-  Ungroup and Close tabs in group. Tabs removed from a group are never auto-grouped again.
+  Ungroup and Close group. Closing a group closes its tabs for good: it doesn't stay behind as a
+  hidden saved group, and nothing reopens it. Tabs removed from a group are never auto-grouped again.
 - Collapsed groups' tabs **sleep sooner**: after a third of the normal sleep time, at least
   1 minute.
-- **Archive**: a group in today is archived **as a unit**, once none of its tabs has been used
-  for the auto-archive time; the command bar finds it by name and restores the whole named group.
-  Groups in pinned are never archived.
+- **Archive**: a group is archived **as a unit**, once none of its tabs has been used for the
+  auto-archive time; the command bar finds it by name and restores the whole named group.
 - Moving a tab to another space, or pinning it alone takes it out of its
   group.
 - **Phones**: groups sync. In the all-tabs view each group is a collapsible section (name,
@@ -214,7 +219,8 @@ Named, collapsible runs of tabs — Arc-style folders — inside pinned or today
 
 **Real browser** — built on **Chromium's own tab groups** (`TabGroupModel` / saved tab groups), so
 extensions (`chrome.tabGroups`), session restore and sync of open tabs keep working; our sidebar and
-suggestion logic sit on top. Each group gets one of Chromium's group colours, picked from its key.
+suggestion logic sit on top. A new group starts in the Chromium group colour nearest its space's colour (a Blue space makes
+blue groups, Teal makes cyan); the group menu changes it.
 
 ## 7. Peek (link preview)
 
