@@ -26,6 +26,9 @@ namespace lb {
 //   store-links       on a profile with no extensions: checks that the app menu has "Visit Chrome
 //                     Web Store", then follows it and the store links on chrome://extensions;
 //                     each must load a store page.
+//   password-manager  on a fresh profile: the first-run password manager choice must come after
+//                     the search engine choice; picking Proton Pass and accepting the install
+//                     prompt must install it from the store.
 // The extension is uBlock Origin Lite unless --lb-demo-extension=<id> names another. Returns false
 // for any other mode.
 bool MaybeRunExtensionsDemo(BrowserWindowInterface* browser, const std::string& mode);

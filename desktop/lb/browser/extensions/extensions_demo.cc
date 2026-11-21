@@ -7,7 +7,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -25,7 +24,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/no_destructor.h"
 #include "base/strings/escape.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -60,6 +58,9 @@
 #include "extensions/browser/updater/update_data_provider.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_urls.h"
+#include "lb/browser/demo/demo_report.h"
+#include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
+#include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
@@ -85,28 +86,6 @@ std::string DemoExtensionId() {
   return id.empty() ? kDefaultExtensionId : id;
 }
 
-// Logs a mode's result, once: whichever comes second of a result and its deadline is dropped.
-void Report(const std::string& mode, bool pass, const std::string& detail) {
-  static base::NoDestructor<std::set<std::string>> reported;
-  if (!reported->insert(mode).second) {
-    return;
-  }
-  // LOG, not VLOG: the result must be in the log without --vmodule.
-  LOG(WARNING) << "lb demo: " << mode << (pass ? " PASS " : " FAIL ") << detail;
-}
-
-void PostDelayed(base::OnceClosure task, base::TimeDelta delay) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(FROM_HERE, std::move(task),
-                                                                     delay);
-}
-
-// Reports `mode` as failed if it has no result after `limit`.
-void FailAfter(const std::string& mode, base::TimeDelta limit) {
-  PostDelayed(base::BindOnce(&Report, mode, false,
-                             "no result after " + base::NumberToString(limit.InSeconds()) + " s"),
-              limit);
-}
-
 // ------------------------------------------------------------------------------------ web-store
 
 // Presses the store page's "Add to …" button, as the user does, and waits for the install. The
@@ -125,8 +104,8 @@ class WebStoreDemo {
 
   // The object is never deleted (the demo runs once per launch), so base::Unretained is safe.
   void Start() {
-    FailAfter(kMode, base::Seconds(120));
-    PostDelayed(base::BindOnce(&WebStoreDemo::Poll, base::Unretained(this)), kPollEvery);
+    FailDemoAfter(kMode, base::Seconds(120));
+    PostDemoTask(base::BindOnce(&WebStoreDemo::Poll, base::Unretained(this)), kPollEvery);
   }
 
  private:
@@ -170,7 +149,7 @@ class WebStoreDemo {
           base::BindOnce(&WebStoreDemo::OnScriptResult, base::Unretained(this)),
           content::ISOLATED_WORLD_ID_GLOBAL);
     }
-    PostDelayed(base::BindOnce(&WebStoreDemo::Poll, base::Unretained(this)), kPollEvery);
+    PostDemoTask(base::BindOnce(&WebStoreDemo::Poll, base::Unretained(this)), kPollEvery);
   }
 
   void OnScriptResult(base::Value result) {
@@ -189,7 +168,7 @@ class WebStoreDemo {
   }
 
   void Finish(bool pass, const std::string& detail) {
-    Report(kMode, pass, detail);
+    ReportDemo(kMode, pass, detail);
     auto_confirm_.reset();
   }
 
@@ -208,7 +187,7 @@ void RunWebStoreDemo(BrowserWindowInterface* browser) {
   content::WebContents* contents =
       chrome::AddAndReturnTabAt(browser, page, -1, /*foreground=*/true);
   if (!contents) {
-    Report(WebStoreDemo::kMode, false, "could not open " + page.spec());
+    ReportDemo(WebStoreDemo::kMode, false, "could not open " + page.spec());
     return;
   }
   (new WebStoreDemo(browser->GetProfile(), contents, id))->Start();
@@ -344,9 +323,9 @@ void FinishUpdateDemo(std::unique_ptr<UpdateDemoState> demo,
                 base::NumberToString(demo->state ? static_cast<int>(*demo->state) : -1) +
                 ", error " + base::NumberToString(static_cast<int>(error)) + ");";
   }
-  Report(kUpdateMode, problems.empty(),
-         "requests=" + base::NumberToString(posts.size()) + " offered_version=" +
-             demo->next_version + (problems.empty() ? "" : " problems:" + problems));
+  ReportDemo(kUpdateMode, problems.empty(),
+             "requests=" + base::NumberToString(posts.size()) + " offered_version=" +
+                 demo->next_version + (problems.empty() ? "" : " problems:" + problems));
 }
 
 void RunUpdateDemo(BrowserWindowInterface* browser) {
@@ -355,14 +334,14 @@ void RunUpdateDemo(BrowserWindowInterface* browser) {
   const extensions::Extension* extension =
       extensions::ExtensionRegistry::Get(profile)->GetInstalledExtension(id);
   if (!extension) {
-    Report(kUpdateMode, false,
-           id + " is not installed: run --lb-sidebar-demo=web-store on this profile first");
+    ReportDemo(kUpdateMode, false,
+               id + " is not installed: run --lb-sidebar-demo=web-store on this profile first");
     return;
   }
 
   LOG(WARNING) << "lb demo: extension-update checking " << id << " (installed "
                << extension->VersionString() << ")";
-  FailAfter(kUpdateMode, base::Seconds(90));
+  FailDemoAfter(kUpdateMode, base::Seconds(90));
   auto demo = std::make_unique<UpdateDemoState>();
   demo->config = base::MakeRefCounted<RecordingUpdateClientConfig>(profile);
   demo->client = update_client::UpdateClientFactory(demo->config);
@@ -419,24 +398,24 @@ void OnManifestParsed(std::string id,
                       std::unique_ptr<extensions::UpdateManifestResults> results,
                       const std::optional<extensions::ManifestParseFailure>& failure) {
   if (!results) {
-    Report(kManifestMode, false,
-           "the store's update manifest could not be parsed: " +
-               (failure ? failure->error_detail : std::string("no detail")));
+    ReportDemo(kManifestMode, false,
+               "the store's update manifest could not be parsed: " +
+                   (failure ? failure->error_detail : std::string("no detail")));
     return;
   }
   for (const extensions::UpdateManifestResult& result : results->update_list) {
     if (result.extension_id == id) {
-      Report(kManifestMode, !result.version.empty(),
-             "parsed the store's manifest: " + id + " version " + result.version);
+      ReportDemo(kManifestMode, !result.version.empty(),
+                 "parsed the store's manifest: " + id + " version " + result.version);
       return;
     }
   }
-  Report(kManifestMode, false, "the store's manifest has no entry for " + id);
+  ReportDemo(kManifestMode, false, "the store's manifest has no entry for " + id);
 }
 
 void RunUpdateManifestDemo(BrowserWindowInterface* browser) {
   const std::string id = DemoExtensionId();
-  FailAfter(kManifestMode, base::Seconds(60));
+  FailDemoAfter(kManifestMode, base::Seconds(60));
   // The query ExtensionDownloader sends (ManifestFetchData), for an old version of the extension.
   GURL::Replacements query;
   const std::string query_string =
@@ -459,9 +438,10 @@ void RunUpdateManifestDemo(BrowserWindowInterface* browser) {
                                    [](std::unique_ptr<network::SimpleURLLoader> loader,
                                       std::string id, std::optional<std::string> body) {
                                      if (!body) {
-                                       Report(kManifestMode, false,
-                                              "no update manifest from the store (net error " +
-                                                  base::NumberToString(loader->NetError()) + ")");
+                                       ReportDemo(kManifestMode, false,
+                                                  "no update manifest from the store (net error " +
+                                                      base::NumberToString(loader->NetError()) +
+                                                      ")");
                                        return;
                                      }
                                      extensions::ParseUpdateManifest(
@@ -501,7 +481,7 @@ std::optional<base::FilePath> WriteDemoExtensions() {
 
 void CheckMv2(base::WeakPtr<Profile> profile) {
   if (!profile) {
-    Report(kMv2Mode, false, "the profile went away");
+    ReportDemo(kMv2Mode, false, "the profile went away");
     return;
   }
   bool mv2_enabled = false;
@@ -511,20 +491,20 @@ void CheckMv2(base::WeakPtr<Profile> profile) {
     mv2_enabled |= extension->name() == kMv2Name;
     mv3_enabled |= extension->name() == kMv3Name;
   }
-  Report(kMv2Mode, !mv2_enabled && mv3_enabled,
-         std::string("mv2_enabled=") + (mv2_enabled ? "1" : "0") +
-             " mv3_enabled=" + (mv3_enabled ? "1" : "0"));
+  ReportDemo(kMv2Mode, !mv2_enabled && mv3_enabled,
+             std::string("mv2_enabled=") + (mv2_enabled ? "1" : "0") +
+                 " mv3_enabled=" + (mv3_enabled ? "1" : "0"));
 }
 
 void RunMv2Demo(BrowserWindowInterface* browser) {
-  FailAfter(kMv2Mode, base::Seconds(60));
+  FailDemoAfter(kMv2Mode, base::Seconds(60));
   base::WeakPtr<Profile> profile = browser->GetProfile()->GetWeakPtr();
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock()}, base::BindOnce(&WriteDemoExtensions),
       base::BindOnce(
           [](base::WeakPtr<Profile> profile, std::optional<base::FilePath> dir) {
             if (!profile || !dir) {
-              Report(kMv2Mode, false, "could not write the demo extensions");
+              ReportDemo(kMv2Mode, false, "could not write the demo extensions");
               return;
             }
             // Unpacked extensions run only in developer mode, which a developer turns on in
@@ -565,11 +545,12 @@ class StoreLinksDemo {
 
   // The object is never deleted (the demo runs once per launch), so base::Unretained is safe.
   void Start() {
-    FailAfter(kMode, base::Seconds(150));
+    FailDemoAfter(kMode, base::Seconds(150));
     // The item must be in the app menu's Extensions submenu; its command is tried first, while no
     // store tab is open, so it can't just bring an existing one forward.
     if (!extensions_menu_has_store_item()) {
-      Report(kMode, false, "the app menu's Extensions submenu has no \"Visit Chrome Web Store\"");
+      ReportDemo(kMode, false,
+                 "the app menu's Extensions submenu has no \"Visit Chrome Web Store\"");
       return;
     }
     targets_.emplace_back("app menu", GURL());
@@ -587,20 +568,20 @@ class StoreLinksDemo {
         chrome::AddAndReturnTabAt(browser_.get(), GURL("chrome://extensions"), -1,
                                   /*foreground=*/true);
     if (!page) {
-      Report(kMode, false, "could not open chrome://extensions");
+      ReportDemo(kMode, false, "could not open chrome://extensions");
       return;
     }
     page_ = page->GetWeakPtr();
-    PostDelayed(base::BindOnce(&StoreLinksDemo::ReadLinks, base::Unretained(this)), kPollEvery);
+    PostDemoTask(base::BindOnce(&StoreLinksDemo::ReadLinks, base::Unretained(this)), kPollEvery);
   }
 
   void ReadLinks() {
     if (!page_) {
-      Report(kMode, false, "chrome://extensions closed");
+      ReportDemo(kMode, false, "chrome://extensions closed");
       return;
     }
     if (page_->IsLoading()) {
-      PostDelayed(base::BindOnce(&StoreLinksDemo::ReadLinks, base::Unretained(this)), kPollEvery);
+      PostDemoTask(base::BindOnce(&StoreLinksDemo::ReadLinks, base::Unretained(this)), kPollEvery);
       return;
     }
     page_->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
@@ -623,13 +604,14 @@ class StoreLinksDemo {
     const std::string* sidebar = links ? links->FindString("sidebar") : nullptr;
     if (!empty_list || empty_list->empty() || !sidebar || sidebar->empty()) {
       // The page has not rendered yet.
-      PostDelayed(base::BindOnce(&StoreLinksDemo::ReadLinks, base::Unretained(this)), kPollEvery);
+      PostDemoTask(base::BindOnce(&StoreLinksDemo::ReadLinks, base::Unretained(this)), kPollEvery);
       return;
     }
     if (!links->FindBool("empty_list_shown").value_or(false)) {
-      Report(kMode, false,
-             "chrome://extensions doesn't show the empty list's message: run on a profile with no "
-             "extensions");
+      ReportDemo(
+          kMode, false,
+          "chrome://extensions doesn't show the empty list's message: run on a profile with no "
+          "extensions");
       return;
     }
     targets_.emplace_back("empty-list link", GURL(*empty_list));
@@ -640,14 +622,14 @@ class StoreLinksDemo {
   // Opens the next target in a new tab (the links open in one too) and waits for it to load.
   void Next() {
     if (!browser_) {
-      Report(kMode, false, "the window closed");
+      ReportDemo(kMode, false, "the window closed");
       return;
     }
     if (next_ == targets_.size()) {
       if (!page_) {
         OpenExtensionsPage();  // Its two links come next.
       } else {
-        Report(kMode, all_passed_, results_);
+        ReportDemo(kMode, all_passed_, results_);
       }
       return;
     }
@@ -676,7 +658,7 @@ class StoreLinksDemo {
     }
     target_ = contents->GetWeakPtr();
     polls_ = 0;
-    PostDelayed(base::BindOnce(&StoreLinksDemo::CheckTarget, base::Unretained(this)), kPollEvery);
+    PostDemoTask(base::BindOnce(&StoreLinksDemo::CheckTarget, base::Unretained(this)), kPollEvery);
   }
 
   void CheckTarget() {
@@ -687,7 +669,8 @@ class StoreLinksDemo {
     const content::NavigationEntry* entry = target_->GetController().GetLastCommittedEntry();
     const bool loaded = !target_->IsLoading() && entry && !entry->IsInitialEntry();
     if (!loaded && ++polls_ <= kMaxPolls) {
-      PostDelayed(base::BindOnce(&StoreLinksDemo::CheckTarget, base::Unretained(this)), kPollEvery);
+      PostDemoTask(base::BindOnce(&StoreLinksDemo::CheckTarget, base::Unretained(this)),
+                   kPollEvery);
       return;
     }
     const GURL& landed = target_->GetLastCommittedURL();
@@ -717,6 +700,82 @@ class StoreLinksDemo {
   std::string results_;
 };
 
+// ------------------------------------------------------------------------------ password-manager
+
+// The first-run password manager choice (docs/ux.md section 12), on a fresh profile: it must wait
+// for the search engine choice ("Not now" here), and picking Proton Pass and accepting Chromium's
+// install prompt must install it from the store.
+class PasswordManagerDemo {
+ public:
+  static constexpr char kMode[] = "password-manager";
+
+  explicit PasswordManagerDemo(Profile* profile)
+      : profile_(profile->GetWeakPtr()),
+        auto_confirm_(std::make_unique<extensions::ScopedTestDialogAutoConfirm>(
+            extensions::ScopedTestDialogAutoConfirm::ACCEPT)) {}
+
+  // The object is never deleted (the demo runs once per launch), so base::Unretained is safe.
+  void Start() {
+    FailDemoAfter(kMode, base::Seconds(120));
+    PostDemoTask(base::BindOnce(&PasswordManagerDemo::Poll, base::Unretained(this)), kPollEvery);
+  }
+
+ private:
+  static constexpr char16_t kPick[] = u"Proton Pass";
+  static constexpr char kPickId[] = "ghmbeldphafepmbegfdlkpapadhbakde";
+
+  void Poll() {
+    if (!profile_) {
+      Finish(false, "the profile went away");
+      return;
+    }
+    if (const extensions::Extension* extension = extensions::ExtensionRegistry::Get(profile_.get())
+                                                     ->enabled_extensions()
+                                                     .GetByID(kPickId)) {
+      Finish(search_asked_ && second_window_ && !asked_together_ && picked_ &&
+                 extension->from_webstore(),
+             "installed \"" + extension->name() +
+                 "\" from_webstore=" + (extension->from_webstore() ? "1" : "0") +
+                 " search_asked_first=" + (search_asked_ ? "1" : "0") +
+                 " second_window=" + (second_window_ ? "1" : "0") +
+                 " both_open_at_once=" + (asked_together_ ? "1" : "0"));
+      return;
+    }
+    if (!picked_) {
+      const bool search_open = IsSearchChoiceOpenForTesting();
+      if (IsPasswordManagerChoiceOpenForTesting()) {
+        asked_together_ |= search_open;
+        picked_ = ChoosePasswordManagerForTesting(kPick);
+        LOG(WARNING) << "lb demo: password-manager picked Proton Pass: " << picked_;
+      } else if (search_open) {
+        search_asked_ = true;
+        if (!second_window_) {
+          // A window opened while the search choice is up must not ask the next question at the
+          // same time; its first-run check runs a second after it opens.
+          chrome::NewEmptyWindow(profile_.get());
+          second_window_ = true;
+        } else if (++polls_with_second_window_ >= 3) {
+          CloseSearchChoiceForTesting();
+        }
+      }
+    }
+    PostDemoTask(base::BindOnce(&PasswordManagerDemo::Poll, base::Unretained(this)), kPollEvery);
+  }
+
+  void Finish(bool pass, const std::string& detail) {
+    ReportDemo(kMode, pass, detail);
+    auto_confirm_.reset();
+  }
+
+  base::WeakPtr<Profile> profile_;
+  std::unique_ptr<extensions::ScopedTestDialogAutoConfirm> auto_confirm_;
+  bool search_asked_ = false;
+  bool second_window_ = false;
+  int polls_with_second_window_ = 0;
+  bool asked_together_ = false;
+  bool picked_ = false;
+};
+
 }  // namespace
 
 bool MaybeRunExtensionsDemo(BrowserWindowInterface* browser, const std::string& mode) {
@@ -730,6 +789,8 @@ bool MaybeRunExtensionsDemo(BrowserWindowInterface* browser, const std::string& 
     RunMv2Demo(browser);
   } else if (mode == StoreLinksDemo::kMode) {
     (new StoreLinksDemo(browser))->Start();
+  } else if (mode == PasswordManagerDemo::kMode) {
+    (new PasswordManagerDemo(browser->GetProfile()))->Start();
   } else {
     return false;
   }

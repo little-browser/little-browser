@@ -1,10 +1,11 @@
 # Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
-# snapshot tool, pinned tab sleep, extensions demo) with the region view's target.
+# snapshot tool, pinned tab sleep, extensions demo, first-run dialogs) with the region view's
+# target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,31 @@
+@@ -537,7 +537,37 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -13,9 +14,13 @@
 +    "vertical_tab_strip_region_view.cc",
 +
 +    # Little Browser sidebar (desktop/lb, linked into the tree as //lb).
++    "//lb/browser/demo/demo_report.cc",
++    "//lb/browser/demo/demo_report.h",
 +    "//lb/browser/extensions/extensions_demo.cc",
 +    "//lb/browser/extensions/extensions_demo.h",
 +    "//lb/browser/ui/lb_ui_snapshot.cc",
++    "//lb/browser/ui/views/browser_modal_dialog.cc",
++    "//lb/browser/ui/views/browser_modal_dialog.h",
 +    "//lb/browser/ui/views/command_bar/command_bar.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.h",
 +    "//lb/browser/ui/lb_ui_snapshot.h",
@@ -29,6 +34,8 @@
 +    "//lb/browser/ui/views/sidebar/sidebar_header_view.h",
 +    "//lb/browser/ui/views/sidebar/new_space_dialog.cc",
 +    "//lb/browser/ui/views/sidebar/new_space_dialog.h",
++    "//lb/browser/ui/views/password/password_manager_choice_dialog.cc",
++    "//lb/browser/ui/views/password/password_manager_choice_dialog.h",
 +    "//lb/browser/ui/views/search/search_choice_dialog.cc",
 +    "//lb/browser/ui/views/search/search_choice_dialog.h",
 +    "//lb/browser/ui/tabs/pinned_tab_sleep.cc",
@@ -37,7 +44,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +581,12 @@
+@@ -557,6 +587,12 @@
      "//ui/views",
    ]
    deps = [

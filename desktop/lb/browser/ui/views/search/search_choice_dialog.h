@@ -17,8 +17,9 @@ inline constexpr char kSearchChoiceShownPref[] = "lb.search_choice_shown";
 
 // No default search engine: the user picks one on first run. ungoogled-chromium ships a
 // "No Search" placeholder as the default. Shows the choice once per profile while that
-// placeholder is still the default.
-void MaybeShowSearchChoice(BrowserWindowInterface* browser);
+// placeholder is still the default. `then` runs once the dialog has closed, or right away when it
+// isn't shown (the next first-run question waits for this one).
+void MaybeShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure then);
 
 // Shows the choice now (a search with no engine set). `on_chosen` runs after the user picks an
 // engine (not on "Not now"), e.g. to run the search they typed. If the dialog is already open
@@ -27,6 +28,9 @@ void ShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure on_chos
 
 // Closes the dialog as "Not now" does (the --lb-sidebar-demo=search-again check).
 void CloseSearchChoiceForTesting();
+
+// Whether the dialog is open in any window (the --lb-sidebar-demo=password-manager check).
+bool IsSearchChoiceOpenForTesting();
 
 }  // namespace lb
 
