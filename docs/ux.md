@@ -16,8 +16,10 @@ specified but not built.
 
 ## 1. Principles
 
-1. **Content first.** The page fills almost the whole window. No toolbar row, no bookmarks bar, no
-   status bar. All browser chrome lives in one sidebar (or one slim row in top mode).
+1. **Content first.** The page fills almost the whole window. No bookmarks bar, no status bar.
+   Browser chrome lives in one sidebar (or one slim row in top mode), plus, on desktop, Chromium's
+   slim toolbar above the page (back, forward, reload, address, extensions, menu;
+   [desktop-ui.md](desktop-ui.md)).
 2. **One place for everything.** Address, tabs and spaces are all in the sidebar.
 3. **Keyboard first.** A command bar opens everything: new tab, search, switch tab, commands.
    Every action has a shortcut; nothing needs a mouse.
@@ -34,36 +36,38 @@ specified but not built.
 
 ```
 ┌───────────────────┬──────────────────────────────────────────────────┐
-│ ● ● ●     ‹  ›  ⟳ │╭────────────────────────────────────────────────╮│
-│ ╭───────────────╮ ││                                                ││
-│ │ 🔒 github.com  │ ││                                                ││
+│ ● ● ●       ≡   ⌕ │ ‹ › ⟳ ╭ https://github.com/ ─────────╮  🧩 ⬇ ◯ ⋮ │
+│ ╭───────────────╮ │╭────────────────────────────────────────────────╮│
+│ │ github.com    │ ││                                                ││
 │ ╰───────────────╯ ││                                                ││
-│                   ││                                                ││
-│                   ││             page (rounded, inset)              ││
 │ ▸ Personal        ││                                                ││
-│   📌 Calendar     ││                                                ││
+│ ───────────────── ││                                                ││
+│   📌 Calendar     ││             page (rounded, inset)              ││
 │   📌 Mail         ││                                                ││
 │ ───────────────── ││                                                ││
-│   +  New tab      ││                                                ││
+│   +  New Tab      ││                                                ││
 │   ◦ Hacker News   ││                                                ││
 │   ◦ MDN: flexbox  ││                                                ││
 │                   ││                                                ││
-│ ⬇    ● ○ ○    ＋  │╰────────────────────────────────────────────────╯│
+│     ● ○ ○      ＋ │╰────────────────────────────────────────────────╯│
 └───────────────────┴──────────────────────────────────────────────────┘
 ```
 
-Sidebar zones, top to bottom. The address pill stays in the sidebar: the page gets the full
-window height, and with the sidebar hidden the domain is one hover or Cmd+L away.
+Beside the sidebar, above the page, sits Chromium's slim toolbar: back, forward, reload, the full
+address, extensions, downloads, profile and the menu ([desktop-ui.md](desktop-ui.md)). The
+sidebar's address pill shows the domain; the toolbar shows the full address.
+
+Sidebar zones, top to bottom:
 
 | Zone | Content | Notes |
 |---|---|---|
-| Title row | Window controls, back / forward / reload | Drag area for the window |
-| Address pill | Domain only (`github.com`), lock/shield state, loading bar underneath | Click or Cmd+L → command bar with the full URL selected |
-| Space header | Name + icon of the current space; profile badge if it isn't the default profile | Space colour tints the sidebar |
+| Title row | Window controls, the sidebar toggle, the command bar button | Drag area for the window |
+| Address pill | Domain only (`github.com`); the full URL as its tooltip | Click or Cmd+L → command bar with the full URL selected |
+| Space header | Icon + name of the current space; a profile badge (🔒 and the profile's name) if it isn't the default profile | Space colour tints the sidebar |
 | Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles. Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
 | Divider + New tab | "+ New Tab" row, opens the command bar (Cmd+T) | The divider shows only when the space has pinned tabs |
 | Today tabs | Unpinned tabs, newest first | Optional auto-archive (section 6) |
-| Footer | Downloads, space switcher (dots/icons), **＋** in the bottom-right corner | ＋ opens a menu: New space, then, set apart, the tab actions: New tab, New split view (only while a page is open), New tab group |
+| Footer | Space switcher (each space's icon, the current one highlighted), **＋** in the bottom-right corner; a Downloads button on the left (not built yet) | ＋ opens a menu: New space, then, set apart, the tab actions: New tab, New split view (only while a page is open), New tab group |
 
 - **Page area** is inset by 8 px with rounded corners and a soft shadow; this frames the page and
   makes the sidebar feel like part of the window, not a toolbar.
