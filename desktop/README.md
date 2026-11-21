@@ -10,8 +10,8 @@ See [docs/design.md §4.1](../docs/design.md#41-desktop-how-we-fork-chromium).
 | `VERSIONS` | Pinned Chromium version and ungoogled-chromium tag |
 | `args/` | GN build args: `common.gn` + one per platform, applied after ungoogled's `flags.gn` |
 | `patches/series` | Our Chromium patches, in order, one concern each |
-| `patches/ungoogled-exclude.txt` | ungoogled patches we skip (Safe Browsing is kept) |
-| `patches/domsub-exclude.txt` | Paths kept out of domain substitution (Safe Browsing, Widevine) |
+| `patches/ungoogled-exclude.txt` | ungoogled patches we skip (Safe Browsing and the Chrome Web Store are kept, MV2 is off) |
+| `patches/domsub-exclude.txt` | Paths kept out of domain substitution (Safe Browsing, Widevine, the Chrome Web Store) |
 | `branding/BRANDING` | Product name, company, copyright, bundle id |
 | `lb/` | Our own code, linked into the tree as `src/lb` |
 | `scripts/fetch.sh` | Download + prepare the source tree into `build/src` |
@@ -103,7 +103,7 @@ host that `scripts/macos-host.sh` brings up, with an sccache compiler cache (see
 
 ## Things the base patch set changes that we must undo
 
-ungoogled-chromium removes every Google endpoint. We keep two on purpose:
+ungoogled-chromium removes every Google endpoint. We keep three on purpose:
 
 1. **Safe Browsing, standard mode.** ungoogled removes it in four layers; we undo each:
 
@@ -114,7 +114,8 @@ ungoogled-chromium removes every Google endpoint. We keep two on purpose:
    | `remove-unused-preferences-fields.patch` (~6,000 lines: Safe Browsing + unused sign-in prefs) and `move-js-optimizer-unfamiliar-sites.patch` (only needed because of it) | skipped as a whole — cheaper to maintain than splitting it every release. Cost: some unused sign-in fields stay in the Preferences file; sign-in itself stays disabled |
    | `pruning.list` deletes `safe_browsing_prefs.{h,cc}` and `signin_pref_names.{h,cc}` | kept (`patches/prune-keep.txt`) |
 
-   At 157.0.8103.78 the other 127 ungoogled patches apply cleanly without the five.
+   At 157.0.8103.78 the other 125 ungoogled patches apply cleanly without these five and the two
+   in item 3.
 
    Then `patches/lb/safe-browsing-standard-only.patch` makes it *standard only*: enhanced protection
    and extended reporting are hard-disabled (no pref, policy or sync can turn them on), real-time
@@ -138,6 +139,32 @@ ungoogled-chromium removes every Google endpoint. We keep two on purpose:
    URLs, so the updater paths are excluded from substitution
    (`patches/domsub-exclude.txt`). Not built yet: a patch that restricts the updater to Widevine
    only, after user consent.
+3. **Extensions from the Chrome Web Store, updated without pings.** ungoogled keeps extensions
+   but cuts them off from the store; we undo that and keep Manifest V2 off:
+
+   | ungoogled layer | Our counter-measure |
+   |---|---|
+   | Domain substitution of the store's addresses, its update URL, which pages get `chrome.webstorePrivate`, which requests extensions may not see, the namespace of the update manifests `ExtensionDownloader` reads, and the update server store extensions check (`update.googleapis.com`) | `extension_urls.cc`, `_api_features.json`, `web_request_permissions.cc`, `safe_manifest_parser.cc` and `component_updater_url_constants.cc` are excluded (`patches/domsub-exclude.txt`) |
+   | `disable-webstore-urls.patch`: no update checks, no process isolation for the store, store extensions treated as off-store | skipped (`patches/ungoogled-exclude.txt`) |
+   | `0005-disable-default-extensions.patch` empties the store installer's download and install steps | put back by `lb/web-store-install.patch` (the rest of that patch stays) |
+   | `remove-uneeded-ui.patch` removes every link to the store | `lb/web-store-links.patch` restores "Visit Chrome Web Store" (app menu → Extensions) and the store links on `chrome://extensions`; the empty list's link takes the store address from `extension_urls`, like the sidebar's |
+   | `extensions-manifestv2.patch` keeps MV2 extensions running | skipped: MV3 only, as upstream |
+
+   Updates: store extensions update through `update_client` from `update.googleapis.com`; those
+   installed by policy, by another program or from a self-hosted server through
+   `ExtensionDownloader`. ungoogled's `block-requests.patch` stops every `update_client` check;
+   `lb/extension-updates.patch` lets extensions' checks (product id CRX) through, while the
+   component updater's stay stopped, and takes out the pings, the install id and the hardware
+   fields. `ExtensionDownloader` sends no pings because its ping domain stays domain-substituted.
+   What a check carries is listed in `docs/design.md` §5. `lb/web-store-no-referrer-chain.patch`
+   keeps Safe Browsing's referrer chain from the store page.
+
+   Checked in the built browser with `--lb-sidebar-demo=web-store`, `=extension-update`,
+   `=update-manifest`, `=mv2-off` and `=store-links` (`lb/README.md`). In `lb_unittests`,
+   `WebStoreTest` fails if the store's addresses or update server get substituted, and
+   `ExtensionUpdateCheckTest` runs an update check against a local server: it fails if a check
+   carries a ping, an install id or hardware fields, or if a check that isn't an extension's
+   goes out. `fetch.sh` stops if a line of `patches/domsub-exclude.txt` matches no file.
 
 `patches/domsub-exclude.txt` is broader than strictly needed (it also keeps endpoints that other
 patches switch off). Narrow it once a network audit shows which hosts the built browser contacts.

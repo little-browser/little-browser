@@ -1,0 +1,96 @@
+# Little Browser: extensions update from the Chrome Web Store, without usage pings and without
+# hardware fields (docs/design.md section 5 lists what an update check carries).
+# - Update checks: ungoogled's block-requests.patch stops every update_client check (and never
+#   answers it). Checks for extensions (product id CRX) go ahead again; the component updater's
+#   stay blocked.
+# - No pings. ChromeUpdateClientConfig has no ping URL, so no install, update or uninstall events
+#   are sent, and update_checker.cc sends no install id and no ping (roll-call and active days).
+#   Extensions that ExtensionDownloader updates send no pings either: their ping domain is
+#   domain-substituted, so it never matches a real update server.
+# - No hardware fields. protocol_serializer_json.cc leaves out the memory size and CPU features
+#   upstream adds to every update_client request.
+--- a/chrome/browser/extensions/updater/chrome_update_client_config.cc
++++ b/chrome/browser/extensions/updater/chrome_update_client_config.cc
+@@ -229,10 +229,9 @@
+ 
+ std::vector<GURL> ChromeUpdateClientConfig::PingUrl() const {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  if (url_override_.has_value()) {
+-    return {*url_override_};
+-  }
+-  return impl_.PingUrl();
++  // Little Browser: no pings for extensions. No install, update or uninstall events are sent, and
++  // update checks carry no usage data (components/update_client/update_checker.cc).
++  return {};
+ }
+ 
+ std::string ChromeUpdateClientConfig::GetProdId() const {
+--- a/components/update_client/update_checker.cc
++++ b/components/update_client/update_checker.cc
+@@ -38,6 +38,7 @@
+ #include "components/update_client/task_traits.h"
+ #include "components/update_client/update_client.h"
+ #include "components/update_client/update_engine.h"
++#include "components/update_client/update_query_params.h"
+ #include "components/update_client/utils.h"
+ #include "url/gurl.h"
+ 
+@@ -104,7 +105,13 @@
+     scoped_refptr<UpdateContext> context,
+     const base::flat_map<std::string, std::string>& additional_attributes,
+     UpdateCheckCallback update_check_callback) {
+-  return;
++  // Little Browser: ungoogled's block-requests.patch stops every update check here. Extensions
++  // (product id CRX) may check the Chrome Web Store for updates; the component updater stays
++  // blocked.
++  if (config_->GetProdId() !=
++      UpdateQueryParams::GetProdIdString(UpdateQueryParams::ProdId::CRX)) {
++    return;
++  }
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
+   update_check_callback_ = std::move(update_check_callback);
+@@ -219,9 +226,11 @@
+       cached_hashes.push_back(i->second);
+     }
+ 
++    // Little Browser: no install id and no ping (roll-call and active days). They only serve to
++    // count users.
+     apps.push_back(MakeProtocolApp(
+         app_id, crx_component->version, crx_component->ap, crx_component->brand,
+-        active_ids.contains(app_id) ? metadata->GetInstallId(app_id) : "",
++        /*install_id=*/"",
+         crx_component->lang.empty() ? config_->GetLang() : crx_component->lang,
+         metadata->GetInstallDate(app_id), install_source,
+         crx_component->install_location, crx_component->installer_attributes,
+@@ -243,8 +252,7 @@
+             return {{"install", install_data_index, ""}};
+           }
+         }(crx_component->install_data_index),
+-        MakeProtocolPing(app_id, config_->GetPersistedData(),
+-                         active_ids.contains(app_id)),
++        /*ping=*/std::nullopt,
+         std::nullopt));
+   }
+ 
+--- a/components/update_client/protocol_serializer_json.cc
++++ b/components/update_client/protocol_serializer_json.cc
+@@ -63,17 +63,7 @@
+     request_node.Set("domainjoined", *request.domain_joined);
+   }
+ 
+-  // HW platform information.
+-  base::DictValue hw_node;
+-  hw_node.Set("physmemory", static_cast<int>(request.hw.physmemory));
+-  hw_node.Set("sse", request.hw.sse);
+-  hw_node.Set("sse2", request.hw.sse2);
+-  hw_node.Set("sse3", request.hw.sse3);
+-  hw_node.Set("sse41", request.hw.sse41);
+-  hw_node.Set("sse42", request.hw.sse42);
+-  hw_node.Set("ssse3", request.hw.ssse3);
+-  hw_node.Set("avx", request.hw.avx);
+-  request_node.Set("hw", std::move(hw_node));
++  // Little Browser: no hardware fields (memory size, CPU features); an update doesn't need them.
+ 
+   // OS version and platform information.
+   base::DictValue os_node;

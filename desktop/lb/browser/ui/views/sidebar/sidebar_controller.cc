@@ -77,6 +77,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "lb/browser/extensions/extensions_demo.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
@@ -1683,6 +1684,10 @@ void SidebarController::SeedDemoData() {
               // What the crash bubble's Restore button does.
               SessionRestore::RestoreSessionAfterCrash(self->browser());
               return;
+            }
+            // Extensions demos run in the space the window opened with: they open their own tabs.
+            if (MaybeRunExtensionsDemo(self->browser(), demo)) {
+              return;  // Modes: lb/browser/extensions/extensions_demo.h.
             }
             self->SwitchTo(1);
             if (demo == "command-bar") {

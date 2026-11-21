@@ -1,0 +1,111 @@
+# Little Browser: the ways to the Chrome Web Store that ungoogled-chromium's remove-uneeded-ui.patch
+# takes out: "Visit Chrome Web Store" in the app menu's Extensions submenu, the store link at the
+# bottom of chrome://extensions' sidebar, and the empty list's "find extensions" link. The sidebar's
+# developer-docs promo stays out. The empty list's message gets its link the way the sidebar's does
+# (getMoreExtensionsUrl, built from extension_urls), instead of a store address written into the
+# string, which domain substitution would rewrite.
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -1180,6 +1180,16 @@
+   SetElementIdentifierAt(
+       GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS).value(),
+       kManageExtensionsMenuItem);
++  AddItemWithStringId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
++                      IDS_EXTENSIONS_SUBMENU_CHROME_WEBSTORE_ITEM);
++  SetElementIdentifierAt(
++      GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE)
++          .value(),
++      kVisitChromeWebStoreMenuItem);
++#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
++  SetCommandIcon(this, IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
++                 vector_icons::kGoogleChromeWebstoreIcon);
++#endif
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////
+--- a/chrome/browser/resources/extensions/sidebar.html.ts
++++ b/chrome/browser/resources/extensions/sidebar.html.ts
+@@ -45,6 +45,16 @@
+     <cr-ripple></cr-ripple>
+   </a>
+ </cr-menu-selector>
++<div class="separator"></div>
++<div class="cr-nav-menu-item" id="moreExtensions">
++  <cr-icon id="web-store-icon" icon="extensions-icons:web_store-custom">
++  </cr-icon>
++  <span id="discover-more-text" class="cr-secondary-text"
++      @click="${this.onMoreExtensionsClick_}"
++      .innerHTML="${this.computeDiscoverMoreText_()}">
++  </span>
++  <cr-ripple></cr-ripple>
++</div>
+ <!--_html_template_end_-->`;
+   // clang-format on
+ }
+--- a/chrome/browser/resources/extensions/sidebar.ts
++++ b/chrome/browser/resources/extensions/sidebar.ts
+@@ -23,6 +23,7 @@
+     sectionsExtensions: HTMLElement,
+     sectionsShortcuts: HTMLElement,
+     sectionsSitePermissions: HTMLElement,
++    moreExtensions: HTMLElement,
+   };
+ }
+ 
+@@ -116,6 +117,13 @@
+     }
+   }
+ 
++  protected computeDiscoverMoreText_(): TrustedHTML {
++    return this.i18nAdvanced('sidebarDiscoverMore', {
++      tags: ['a'],
++      attrs: ['target'],
++      substitutions: [loadTimeData.getString('getMoreExtensionsUrl')],
++    });
++  }
+ }
+ 
+ declare global {
+--- a/chrome/app/extensions_strings.grdp
++++ b/chrome/app/extensions_strings.grdp
+@@ -407,7 +407,7 @@
+     No recent activities
+   </message>
+   <message name="IDS_EXTENSIONS_NO_INSTALLED_ITEMS" desc="The message shown to the user on the Extensions settings page when there are no extensions or apps installed.">
+-    Find extensions and themes in the <ph name="BEGIN_LINK">&lt;a target="_blank" href="https://chrome.google.com/webstore/category/extensions"&gt;</ph>Chrome Web Store<ph name="END_LINK">&lt;/a&gt;<ex>&lt;/a&gt;</ex></ph>
++    Find extensions and themes in the <ph name="BEGIN_LINK">&lt;a target="_blank" href="$1"&gt;</ph>Chrome Web Store<ph name="END_LINK">&lt;/a&gt;<ex>&lt;/a&gt;</ex></ph>
+   </message>
+   <message name="IDS_EXTENSIONS_NO_DESCRIPTION" desc="The message shown to the user when an extension does not have any description.">
+     No description provided
+--- a/chrome/browser/resources/extensions/item_list.html.ts
++++ b/chrome/browser/resources/extensions/item_list.html.ts
+@@ -32,6 +32,12 @@
+       </div>
+     ` : ''}
+ 
++    <div id="no-items" class="empty-list-message"
++        ?hidden="${!this.shouldShowEmptyItemsMessage_()}">
++      <span @click="${this.onNoExtensionsClick_}"
++          .innerHTML="${this.computeNoItemsText_()}">
++      </span>
++    </div>
+     <div id="no-search-results" class="empty-list-message"
+         ?hidden="${!this.shouldShowEmptySearchMessage_()}">
+       <span>$i18n{noSearchResults}</span>
+--- a/chrome/browser/resources/extensions/item_list.ts
++++ b/chrome/browser/resources/extensions/item_list.ts
+@@ -290,6 +290,14 @@
+   protected shouldShowEmptySearchMessage_(): boolean {
+     return !this.shouldShowEmptyItemsMessage_() && this.shownAppsCount_ === 0 &&
+         this.shownExtensionsCount_ === 0;
++  }
++
++  protected computeNoItemsText_(): TrustedHTML {
++    return this.i18nAdvanced('noExtensionsOrApps', {
++      tags: ['a'],
++      attrs: ['target'],
++      substitutions: [loadTimeData.getString('getMoreExtensionsUrl')],
++    });
+   }
+ 
+   protected onNoExtensionsClick_(e: Event) {
