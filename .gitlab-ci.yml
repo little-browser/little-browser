@@ -244,6 +244,18 @@ release:
     tag_name: $CI_COMMIT_TAG
     description: "Little Browser $CI_COMMIT_TAG: https://littlebrowser.app/#download"
 
+# Scheduled, daily: downloads and updates of each release file, counted from the downloads
+# host's logs (no IP addresses or user agents in them), published as stats.json for the website.
+download-stats:
+  extends: .aws
+  stage: publish
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $LB_SCHEDULE == "download-stats"
+  before_script:
+    - yum install -y -q python3
+  script:
+    - desktop/scripts/download-stats.sh
+
 # ------------------------------------------------------------------ website
 # littlebrowser.app from site/, on main only: when site/ changes, or from "Run pipeline" (or the
 # API) on main.
