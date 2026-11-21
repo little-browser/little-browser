@@ -25,6 +25,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "lb/browser/command_bar/command_matching.h"
 #include "lb/browser/spaces/space_model.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "url/gurl.h"
@@ -40,9 +41,9 @@ class PrefRegistrySyncable;
 
 namespace lb {
 
-// What the command bar can open: a new tab; a page in the current tab (a New Tab Group's blank
-// first tab); the current tab's address, to edit; or the space's name, to rename.
-enum class CommandBarMode { kNewTab, kOpenHere, kEditAddress, kRenameSpace };
+// Spaces (Local State, browser-wide) and each profile's last active space (profile prefs).
+inline constexpr char kSpacesPref[] = "lb.spaces";
+inline constexpr char kActiveSpacePref[] = "lb.active_space";
 
 // A space colour as the window tint and the colour swatches show it.
 SkColor SpaceTint(int hue);
@@ -273,9 +274,15 @@ class SidebarController : public TabStripModelObserver {
 // the full form, as its tabs do.
 bool IsSidebarCompact(BrowserWindowInterface* browser, int width);
 
-// Little Browser's hook into Chromium's command dispatch
-// (desktop/patches/lb/command-hooks.patch): Cmd+T / Cmd+L open the command bar. Returns
-// true if handled.
+// Little Browser's hooks into Chromium's command dispatch (desktop/patches/lb/command-hooks.patch),
+// for commands from the keyboard, the menus and the command bar. Return true if handled.
+//
+// Before Chromium looks the command up, in any window: our own commands, which its command table
+// doesn't list (Cmd+Option+N: the command bar for a little window), and, while the window shows a
+// Peek, the commands that would act on the page under it (HandlePeekCommand).
+bool HandleCommandFirst(BrowserWindowInterface* browser, int command_id);
+// For enabled commands, in windows with our sidebar: Cmd+T / Cmd+L open the command bar, Cmd+W
+// closes a pinned tab straight away.
 bool HandleCommand(BrowserWindowInterface* browser, int command_id);
 
 // Little Browser's hook into the new-tab action (kActionNewTab: buttons, menus): opens the

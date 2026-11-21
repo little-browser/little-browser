@@ -15,6 +15,19 @@ namespace lb {
 
 // Command bar text rules that don't need views (unit tested in command_matching_unittest.cc).
 
+// What the command bar can open: a new tab; a page in the current tab (a New Tab Group's blank
+// first tab); the current tab's address, to edit; the space's name, to rename; or a page in a new
+// little window (Cmd+Option+N).
+enum class CommandBarMode { kNewTab, kOpenHere, kEditAddress, kRenameSpace, kLittleWindow };
+
+// The kinds of result the command bar lists.
+enum class CommandBarResult { kOpenTab, kCommand, kHistory, kAddress, kSearch };
+
+// Whether the bar in `mode` lists results of `kind`. In the little-window mode everything chosen
+// opens a page in a new little window, so it lists no open tabs (they'd switch the window behind)
+// and no commands (they'd act on it).
+bool OffersResult(CommandBarMode mode, CommandBarResult kind);
+
 // How well `query` matches `text`, case-insensitively; 0 means no match. A substring scores
 // above 2 (more at the start of the text or of a word); letters in order with gaps score
 // below 1, less the bigger the gaps.

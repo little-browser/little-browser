@@ -1,11 +1,11 @@
 # Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
-# snapshot tool, pinned tab sleep, extensions demo, first-run dialogs, ad blocker) with the region
-# view's target.
+# snapshot tool, pinned tab sleep, extensions demo, first-run dialogs, ad blocker, Peek, little
+# window) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,43 @@
+@@ -537,7 +537,50 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -24,11 +24,18 @@
 +    "//lb/browser/demo/demo_report.h",
 +    "//lb/browser/extensions/extensions_demo.cc",
 +    "//lb/browser/extensions/extensions_demo.h",
++    "//lb/browser/peek/peek_demo.cc",
++    "//lb/browser/peek/peek_demo.h",
++    "//lb/browser/ui/lb_command_ids.h",
 +    "//lb/browser/ui/lb_ui_snapshot.cc",
 +    "//lb/browser/ui/views/browser_modal_dialog.cc",
 +    "//lb/browser/ui/views/browser_modal_dialog.h",
 +    "//lb/browser/ui/views/command_bar/command_bar.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.h",
++    "//lb/browser/ui/views/little_window/little_window.cc",
++    "//lb/browser/ui/views/little_window/little_window.h",
++    "//lb/browser/ui/views/peek/peek.cc",
++    "//lb/browser/ui/views/peek/peek.h",
 +    "//lb/browser/ui/lb_ui_snapshot.h",
 +    "//lb/browser/ui/views/sidebar/new_tab_row_view.cc",
 +    "//lb/browser/ui/views/sidebar/new_tab_row_view.h",
@@ -50,7 +57,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +593,15 @@
+@@ -557,6 +600,15 @@
      "//ui/views",
    ]
    deps = [

@@ -137,4 +137,11 @@ std::optional<TypedAddress> InputAsAddress(std::u16string_view input) {
   return TypedAddress{url, known_domain};
 }
 
+bool OffersResult(CommandBarMode mode, CommandBarResult kind) {
+  if (mode == CommandBarMode::kLittleWindow) {
+    return kind != CommandBarResult::kOpenTab && kind != CommandBarResult::kCommand;
+  }
+  return true;
+}
+
 }  // namespace lb

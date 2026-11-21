@@ -106,7 +106,7 @@ class FontLabelButton : public views::LabelButton {
 BEGIN_METADATA(FontLabelButton)
 END_METADATA
 
-std::u16string DisplayHost(const GURL& url) {
+std::u16string AddressPillText(const GURL& url) {
   if (!url.is_valid() || url.is_empty()) {
     return u"Search or enter address";
   }
@@ -275,7 +275,7 @@ void SidebarHeaderView::UpdateAddress() {
   content::WebContents* contents =
       controller_->browser()->GetTabStripModel()->GetActiveWebContents();
   const GURL url = contents ? contents->GetVisibleURL() : GURL();
-  address_->SetText(DisplayHost(url));
+  address_->SetText(AddressPillText(url));
   address_->SetTooltipText(base::UTF8ToUTF16(url.possibly_invalid_spec()));
 }
 

@@ -15,8 +15,12 @@ source_set("model") {
     "browser/adblock/site_ads.h",
     "browser/command_bar/command_matching.cc",
     "browser/command_bar/command_matching.h",
+    "browser/little_window/little_window_rules.cc",
+    "browser/little_window/little_window_rules.h",
     "browser/password/password_manager_choice.cc",
     "browser/password/password_manager_choice.h",
+    "browser/peek/peek_rules.cc",
+    "browser/peek/peek_rules.h",
     "browser/search/search_choice.cc",
     "browser/search/search_choice.h",
     "browser/spaces/space_model.cc",
@@ -29,12 +33,20 @@ source_set("model") {
     "browser/tabs/restore_order.h",
     "browser/tabs/tab_to_show.cc",
     "browser/tabs/tab_to_show.h",
+    "browser/ui/lb_command_ids.h",  # also in the sidebar's views target, which includes it
   ]
-  public_deps = [ "//components/tab_groups" ]
+  public_deps = [
+    "//components/security_state/core",  # Peek: the site label's warning
+    "//components/tab_groups",
+    "//ui/base:types",
+    "//ui/gfx/geometry",
+  ]
   deps = [
     "//base",
+    "//chrome/app:command_ids",  # Peek: which browser commands act on the Peek's page
     "//components/subresource_filter/core/common",
     "//components/subresource_filter/tools/rule_parser",
+    "//components/url_formatter",
     "//components/url_pattern_index",
     "//net",
     "//third_party/protobuf:protobuf_lite",
@@ -51,7 +63,9 @@ test("lb_unittests") {
     "browser/command_bar/command_matching_unittest.cc",
     "browser/extensions/update_check_unittest.cc",
     "browser/extensions/web_store_unittest.cc",
+    "browser/little_window/little_window_rules_unittest.cc",
     "browser/password/password_manager_choice_unittest.cc",
+    "browser/peek/peek_rules_unittest.cc",
     "browser/search/search_choice_unittest.cc",
     "browser/spaces/space_model_unittest.cc",
     "browser/spaces/swipe_tracker_unittest.cc",
@@ -63,6 +77,7 @@ test("lb_unittests") {
     ":model",
     "//base",
     "//base/test:test_support",
+    "//chrome/app:command_ids",
     "//components/component_updater",
     "//components/prefs:test_support",
     "//components/subresource_filter/core/browser",
@@ -78,6 +93,7 @@ test("lb_unittests") {
     "//net",
     "//testing/gtest",
     "//third_party/protobuf:protobuf_lite",
+    "//ui/gfx:test_support",  # gtest printers for gfx geometry
     "//url",
   ]
 }

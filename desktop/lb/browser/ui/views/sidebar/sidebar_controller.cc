@@ -79,9 +79,14 @@
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/adblock/ad_blocker.h"
 #include "lb/browser/adblock/ad_blocker_demo.h"
+#include "lb/browser/demo/demo_report.h"
 #include "lb/browser/extensions/extensions_demo.h"
+#include "lb/browser/peek/peek_demo.h"
+#include "lb/browser/ui/lb_command_ids.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
+#include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
+#include "lb/browser/ui/views/peek/peek.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -201,11 +206,9 @@ void LogTabs(BrowserWindowInterface* browser, const char* step) {
   VLOG(1) << "drag-pins " << step << ": " << line;
 }
 
-constexpr char kSpacesPref[] = "lb.spaces";  // Local State
 // Local State: id -> the saved tabs of each space no window shows. Kept apart from lb.spaces so
 // saving tabs doesn't notify every window's sidebar (it observes lb.spaces).
 constexpr char kSpaceTabsPref[] = "lb.space_tabs";
-constexpr char kActiveSpacePref[] = "lb.active_space";
 // Favourite URLs and titles that profiles from earlier builds may still hold. Nothing reads
 // them any more, so every profile has them cleared.
 constexpr char kObsoleteFavouritesPref[] = "lb.favourites";
@@ -442,8 +445,10 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
   if (!demo_done && base::CommandLine::ForCurrentProcess()->HasSwitch(kDemoSwitch)) {
     demo_done = true;
     SeedDemoData();
-    if (base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch) == "ad-blocker") {
-      PrepareAdBlockerDemo(browser_->GetProfile());  // before the first-run questions below
+    const std::string mode =
+        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
+    if (mode == "ad-blocker" || mode == "peek") {
+      SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
   }
 
@@ -1705,6 +1710,10 @@ void SidebarController::SeedDemoData() {
               RunAdBlockerDemo(self->browser());
               return;
             }
+            if (demo == "peek") {
+              RunPeekDemo(self->browser());
+              return;
+            }
             if (MaybeRunExtensionsDemo(self->browser(), demo)) {
               return;  // Modes: lb/browser/extensions/extensions_demo.h.
             }
@@ -2156,6 +2165,13 @@ void OnTabClicked(const tabs::TabInterface* tab) {
   if (SidebarController* controller = SidebarController::FromBrowser(browser)) {
     controller->OnTabClicked(*tab);
   }
+}
+
+bool HandleCommandFirst(BrowserWindowInterface* browser, int command_id) {
+  if (command_id == IDC_NEW_LITTLE_WINDOW) {
+    return ShowLittleWindowCommandBar(browser);
+  }
+  return HandlePeekCommand(browser, command_id);
 }
 
 bool HandleCommand(BrowserWindowInterface* browser, int command_id) {

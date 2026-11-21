@@ -1,0 +1,63 @@
+# Little Browser: a link's context menu has "Open Link in Little Window", after "Open Link in New
+# Window" (desktop/lb/browser/ui/views/little_window).
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -3,6 +3,9 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
++
++#include "lb/browser/ui/lb_command_ids.h"
++#include "lb/browser/ui/views/little_window/little_window.h"
+ 
+ #include <stddef.h>
+ 
+@@ -773,6 +776,11 @@
+   if (id >= IDC_OPEN_LINK_IN_PROFILE_FIRST &&
+       id <= IDC_OPEN_LINK_IN_PROFILE_LAST) {
+     return IDC_OPEN_LINK_IN_PROFILE_FIRST;
++  }
++
++  // Little Browser: counted with "Open Link in New Window".
++  if (id == IDC_CONTENT_CONTEXT_OPENLINKLITTLEWINDOW) {
++    return IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW;
+   }
+ 
+   return id;
+@@ -2020,6 +2028,10 @@
+                               features::IsRoundedIconsEnabled()
+                                   ? kOpenInNewIcon
+                                   : kOpenInNewOldIcon);
++      // Little Browser: a small window with no tabs
++      // (lb/browser/ui/views/little_window).
++      menu_model_.AddItem(IDC_CONTENT_CONTEXT_OPENLINKLITTLEWINDOW,
++                          lb::kOpenLinkInLittleWindow);
+     }
+ 
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -3553,6 +3565,7 @@
+     case IDC_CONTENT_CONTEXT_OPENLINKINPROFILE:
+     case IDC_CONTENT_CONTEXT_OPENLINKNEWTAB:
+     case IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW:
++    case IDC_CONTENT_CONTEXT_OPENLINKLITTLEWINDOW:
+       return navigation_allowed && params_.link_url.is_valid() &&
+              IsOpenLinkAllowedByDlp(params_.link_url);
+ 
+@@ -3915,6 +3928,17 @@
+       }
+       break;
+     }
++
++    case IDC_CONTENT_CONTEXT_OPENLINKLITTLEWINDOW:
++      // With the page's referrer and initiator, as "Open Link in New Window".
++      lb::OpenUrlInLittleWindow(
++          GetProfile(),
++          GetOpenURLParamsWithExtraHeaders(
++              params_.link_url, params_.frame_url, params_.frame_origin,
++              WindowOpenDisposition::NEW_POPUP, ui::PAGE_TRANSITION_LINK,
++              /*extra_headers=*/std::string(),
++              /*started_from_context_menu=*/true));
++      break;
+ 
+     case IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW:
+       DCHECK(!IsInProgressiveWebApp());

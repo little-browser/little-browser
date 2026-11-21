@@ -36,3 +36,7 @@ lb/ad-blocking.patch                 # the built-in ad blocker: Chromium's subre
 lb/ad-blocking-settings.patch        # Settings calls it "Ads" and describes the ad blocker as it works
 lb/ad-blocking-page-info.patch       # an Ads switch in the site-info panel's "Cookies and site data", under third-party cookies
 lb/no-cookie-controls-icon.patch     # no third-party cookies eye icon; its switch is in the site-info panel
+lb/peek-hooks.patch                  # Shift+click opens a link in Peek, a card over the page
+lb/little-window-toolbar.patch       # a little window's toolbar row has Copy URL and Open in <space>
+lb/little-window-shortcut.patch      # Cmd+Option+N opens the command bar for a new little window
+lb/little-window-link-menu.patch     # a link's context menu has Open Link in Little Window

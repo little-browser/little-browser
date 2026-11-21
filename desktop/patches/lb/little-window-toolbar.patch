@@ -1,0 +1,22 @@
+# Little Browser: a little window (Chromium's popup window) has "Copy URL" and "Open in <space>"
+# at the end of its toolbar row (desktop/lb/browser/ui/views/little_window).
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
++
++#include "lb/browser/ui/views/little_window/little_window.h"
+ 
+ #include <algorithm>
+ #include <memory>
+@@ -376,6 +378,8 @@
+     pinned_toolbar_actions_container_ = AddChildView(
+         std::make_unique<PinnedToolbarActionsContainer>(browser_view_, this));
+     pinned_toolbar_actions_ = pinned_toolbar_actions_container_;
++    // Little Browser: a little window's "Copy URL" and "Open in <space>".
++    lb::AddLittleWindowControls(this, browser_);
+     SetBackground(views::CreateSolidBackground(kColorLocationBarBackground));
+     SetLayoutManager(std::make_unique<views::FlexLayout>())
+         ->SetOrientation(views::LayoutOrientation::kHorizontal)

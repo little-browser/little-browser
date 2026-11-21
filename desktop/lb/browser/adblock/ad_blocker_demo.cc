@@ -32,7 +32,6 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/infobars/content/content_infobar_manager.h"
-#include "components/prefs/pref_service.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/reload_type.h"
@@ -46,15 +45,9 @@
 #include "lb/browser/demo/demo_report.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/command_bar/command_bar.h"
-#include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
-#include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 #include "ui/base/page_transition_types.h"
-#include "ui/events/base_event_utils.h"
-#include "ui/events/event.h"
-#include "ui/events/event_constants.h"
-#include "ui/events/types/event_type.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/toggle_button.h"
@@ -336,20 +329,14 @@ class AdBlockerDemo : public content::WebContentsObserver {
     Later(&AdBlockerDemo::ClickSwitches);
   }
 
-  static void Click(views::View* view) {
-    const gfx::Point center = view->GetLocalBounds().CenterPoint();
-    view->OnMousePressed(ui::MouseEvent(ui::EventType::kMousePressed, center, center,
-                                        ui::EventTimeForNow(), ui::EF_LEFT_MOUSE_BUTTON,
-                                        ui::EF_LEFT_MOUSE_BUTTON));
-    view->OnMouseReleased(ui::MouseEvent(ui::EventType::kMouseReleased, center, center,
-                                         ui::EventTimeForNow(), ui::EF_LEFT_MOUSE_BUTTON,
-                                         ui::EF_LEFT_MOUSE_BUTTON));
-  }
-
   void ClickSwitches() {
     views::BubbleDialogDelegateView* panel = PageInfoBubbleViewBase::GetPageInfoBubbleForTesting();
     views::View* root = panel && panel->GetWidget() ? panel->GetWidget()->GetRootView() : nullptr;
     views::View* ads_switch = FindSiteAdsSwitch(root);
+    if ((!ads_switch || !tab_) && ++switch_tries_ < 10) {
+      Later(&AdBlockerDemo::ClickSwitches);  // the subpage may still be on its way in
+      return;
+    }
     if (!ads_switch || !tab_) {
       Fail("no Ads switch in the site-info panel's Cookies and site data");
       return;
@@ -365,9 +352,9 @@ class AdBlockerDemo : public content::WebContentsObserver {
     // The cookie switch first: on its own it leaves a "reload this page" prompt for when the
     // panel closes; the Ads switch's reload makes that unnecessary.
     if (cookie_switch_shown) {
-      Click(cookie_switch);
+      ClickViewForDemo(cookie_switch);
     }
-    Click(ads_switch);
+    ClickViewForDemo(ads_switch);
     Check("switch_allows", AreAdsAllowedOnSite(GetProfile(), GURL(kPage)));
     stage_ = Stage::kAllowedBySwitch;
     Later(&AdBlockerDemo::ProbeWhenLoaded);
@@ -479,15 +466,11 @@ class AdBlockerDemo : public content::WebContentsObserver {
   int abusive_ads_messages_ = 0;
   std::string settings_url_;
   int settings_reads_ = 0;
+  int switch_tries_ = 0;
   std::vector<std::pair<std::string, bool>> checks_;
 };
 
 }  // namespace
-
-void PrepareAdBlockerDemo(Profile* profile) {
-  profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
-  profile->GetPrefs()->SetBoolean(kPasswordManagerChoiceShownPref, true);
-}
 
 void RunAdBlockerDemo(BrowserWindowInterface* browser) {
   (new AdBlockerDemo(browser))->Start();

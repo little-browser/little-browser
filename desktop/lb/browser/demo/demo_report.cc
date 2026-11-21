@@ -13,6 +13,14 @@
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/prefs/pref_service.h"
+#include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
+#include "lb/browser/ui/views/search/search_choice_dialog.h"
+#include "ui/events/base_event_utils.h"
+#include "ui/events/event.h"
+#include "ui/events/event_constants.h"
+#include "ui/views/view.h"
 
 namespace lb {
 
@@ -34,6 +42,19 @@ void FailDemoAfter(const std::string& mode, base::TimeDelta limit) {
 void PostDemoTask(base::OnceClosure task, base::TimeDelta delay) {
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(FROM_HERE, std::move(task),
                                                                      delay);
+}
+
+void SkipFirstRunQuestionsForDemo(Profile* profile) {
+  profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
+  profile->GetPrefs()->SetBoolean(kPasswordManagerChoiceShownPref, true);
+}
+
+void ClickViewForDemo(views::View* view, std::optional<gfx::Point> point) {
+  const gfx::Point at = point.value_or(view->GetLocalBounds().CenterPoint());
+  view->OnMousePressed(ui::MouseEvent(ui::EventType::kMousePressed, at, at, ui::EventTimeForNow(),
+                                      ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
+  view->OnMouseReleased(ui::MouseEvent(ui::EventType::kMouseReleased, at, at, ui::EventTimeForNow(),
+                                       ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON));
 }
 
 }  // namespace lb

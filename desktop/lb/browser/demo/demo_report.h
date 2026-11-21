@@ -5,10 +5,18 @@
 #ifndef LB_BROWSER_DEMO_DEMO_REPORT_H_
 #define LB_BROWSER_DEMO_DEMO_REPORT_H_
 
+#include <optional>
 #include <string>
 
 #include "base/functional/callback_forward.h"
 #include "base/time/time.h"
+#include "ui/gfx/geometry/point.h"
+
+class Profile;
+
+namespace views {
+class View;
+}  // namespace views
 
 namespace lb {
 
@@ -24,6 +32,14 @@ void FailDemoAfter(const std::string& mode, base::TimeDelta limit);
 
 // Runs `task` on the UI thread after `delay`.
 void PostDemoTask(base::OnceClosure task, base::TimeDelta delay);
+
+// Counts the first-run questions as answered, so they don't open over the window first (and take
+// the --lb-ui-snapshot-dialog snapshot). Call when the window opens, before they are asked.
+void SkipFirstRunQuestionsForDemo(Profile* profile);
+
+// Clicks `view` with the left mouse button, as the mouse does (press, then release), at `point` in
+// its own coordinates, or its centre.
+void ClickViewForDemo(views::View* view, std::optional<gfx::Point> point = std::nullopt);
 
 }  // namespace lb
 

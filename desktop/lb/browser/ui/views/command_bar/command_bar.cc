@@ -7,7 +7,9 @@
 #include "lb/browser/adblock/ad_blocker.h"
 #include "lb/browser/adblock/site_ads.h"
 #include "lb/browser/command_bar/command_matching.h"
+#include "lb/browser/ui/lb_command_ids.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
+#include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 
 #include <algorithm>
@@ -81,10 +83,13 @@ struct Item {
   base::RepeatingClosure run;
 };
 
-// Opens `url` in a new tab, or (open-here and edit-address modes) in the current one. Free
-// function so result actions don't depend on the command bar, which closes before they run.
+// Opens `url` in a new tab, in the current one (open-here and edit-address modes) or in a new
+// little window. Free function so result actions don't depend on the command bar, which closes
+// before they run.
 void OpenUrlIn(BrowserWindowInterface* browser, CommandBarMode mode, const GURL& url) {
-  if (mode == CommandBarMode::kOpenHere || mode == CommandBarMode::kEditAddress) {
+  if (mode == CommandBarMode::kLittleWindow) {
+    OpenUrlInLittleWindow(browser->GetProfile(), url);
+  } else if (mode == CommandBarMode::kOpenHere || mode == CommandBarMode::kEditAddress) {
     NavigateParams params(browser, url, ui::PAGE_TRANSITION_TYPED);
     params.disposition = WindowOpenDisposition::CURRENT_TAB;
     Navigate(&params);
@@ -191,6 +196,8 @@ class CommandBarView : public views::View, public views::TextfieldController {
       if (content::WebContents* contents = browser->GetTabStripModel()->GetActiveWebContents()) {
         field_->SetText(base::UTF8ToUTF16(contents->GetVisibleURL().spec()));
       }
+    } else if (mode_ == CommandBarMode::kLittleWindow) {
+      field_->SetPlaceholderText(u"Search or enter an address for a little window");
     } else {
       field_->SetPlaceholderText(u"Search, enter an address, or type a command");
     }
@@ -251,6 +258,18 @@ class CommandBarView : public views::View, public views::TextfieldController {
 
  private:
   BrowserWindowInterface* browser() { return controller_->browser(); }
+
+  // What the address result says it does.
+  const char16_t* GoLabel() const {
+    switch (mode_) {
+      case CommandBarMode::kNewTab:
+        return u"Open in new tab";
+      case CommandBarMode::kLittleWindow:
+        return u"Open in a little window";
+      default:
+        return u"Go";
+    }
+  }
 
   base::RepeatingClosure Open(const GURL& url) {
     return base::BindRepeating(&OpenUrlIn, browser(), mode_, url);
@@ -351,6 +370,7 @@ class CommandBarView : public views::View, public views::TextfieldController {
                b->GetProfile()->GetPrefs()->SetBoolean(prefs::kVerticalTabsEnabled, false);
              },
              b)},
+        {u"New little window", u"Command", u"⌥⌘N", 0, exec(IDC_NEW_LITTLE_WINDOW)},
         {u"Copy URL", u"Command", u"⇧⌘C", 0, exec(IDC_COPY_URL)},
         {u"New incognito window", u"Command", u"⇧⌘N", 0, exec(IDC_NEW_INCOGNITO_WINDOW)},
         {u"History", u"Command", u"⌘Y", 0, exec(IDC_SHOW_HISTORY)},
@@ -406,22 +426,24 @@ class CommandBarView : public views::View, public views::TextfieldController {
                   base::BindRepeating(&SidebarController::GoToTab, controller_->GetWeakPtr(), tab)};
     };
 
+    const bool tabs = OffersResult(mode_, CommandBarResult::kOpenTab);
     if (query.empty()) {
       // Recent: this space's tabs, then other spaces'.
-      for (const TabEntry& tab : controller_->GetAllTabs()) {
+      for (const TabEntry& tab : tabs ? controller_->GetAllTabs() : std::vector<TabEntry>()) {
         items_.push_back(tab_item(tab, 0));
       }
       Render();
       return;
     }
 
-    for (const TabEntry& tab : controller_->GetAllTabs()) {
+    for (const TabEntry& tab : tabs ? controller_->GetAllTabs() : std::vector<TabEntry>()) {
       if (double s = MatchScore(query, tab.title + u" " + base::UTF8ToUTF16(tab.url.spec()));
           s > 0) {
         items_.push_back(tab_item(tab, s + 0.3));
       }
     }
-    for (Item& command : Commands()) {
+    for (Item& command :
+         OffersResult(mode_, CommandBarResult::kCommand) ? Commands() : std::vector<Item>()) {
       if (double s = MatchScore(query, command.title); s > 0) {
         command.score = s + 0.2;
         items_.push_back(std::move(command));
@@ -440,9 +462,7 @@ class CommandBarView : public views::View, public views::TextfieldController {
     Item search = SearchItem(query);
     if (address) {
       // A clear address first, then the search; something like "node.js" the other way round.
-      Item go = {base::UTF8ToUTF16(address->url.spec()),
-                 mode_ == CommandBarMode::kNewTab ? u"Open in new tab" : u"Go", u"", 100,
-                 Open(address->url)};
+      Item go = {base::UTF8ToUTF16(address->url.spec()), GoLabel(), u"", 100, Open(address->url)};
       items_.insert(items_.begin(), address->certain ? std::move(go) : std::move(search));
       items_.insert(items_.begin() + 1, address->certain ? std::move(search) : std::move(go));
     } else if (!items_.empty() && items_.front().score >= 3) {

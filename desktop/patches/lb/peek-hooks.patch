@@ -1,0 +1,43 @@
+# Little Browser: Shift+click on a link opens it in Peek, a card over the page
+# (desktop/lb/browser/ui/views/peek), instead of a new window. Two hooks in the tabs' delegate:
+# links the page opens with OpenURLFromTab, and pages the renderer creates for target=_blank
+# links (AddNewContents). The context menu's "Open Link in New Window" still opens a window.
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
++
++#include "lb/browser/ui/views/peek/peek.h"
+ 
+ #include "base/check_deref.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -540,6 +542,13 @@
+     DCHECK(window);
+     return window->OpenURLFromTab(source, params,
+                                   std::move(navigation_handle_callback));
++  }
++
++  // Little Browser: Shift+click opens the link in Peek
++  // (lb/browser/ui/views/peek/peek.h).
++  if (content::WebContents* peek = lb::MaybeOpenLinkInPeek(
++          &*browser_, source, params, navigation_handle_callback)) {
++    return peek;
+   }
+ 
+   // If the source is already split, navigate the other pane instead of
+@@ -666,6 +675,13 @@
+     const blink::mojom::WindowFeatures& window_features,
+     bool user_gesture,
+     bool* was_blocked) {
++  // Little Browser: Shift+click on a link that opens a new page
++  // (target=_blank) opens it in Peek.
++  if (lb::ShouldShowNewContentsInPeek(&*browser_, source, disposition,
++                                      user_gesture)) {
++    return lb::ShowNewContentsInPeek(&*browser_, std::move(new_contents));
++  }
++
+   FullscreenController* fullscreen_controller =
+       exclusive_access_manager_->fullscreen_controller();
+ #if BUILDFLAG(IS_MAC)

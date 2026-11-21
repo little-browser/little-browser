@@ -16,6 +16,11 @@ lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab 
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
 lb/browser/password/password_manager_choice.*  first-run password managers, when to offer them, what follows an install
 lb/browser/search/search_choice.*   when the first-run search choice opens, or waits for the open one
+lb/browser/peek/peek_rules.*        what opens in Peek, what links in it do, which commands act on it,
+                                    the card's size, growth, site label and buttons, when it offers a
+                                    split view
+lb/browser/peek/peek_demo.*         --lb-sidebar-demo=peek (below; also covers the little window)
+lb/browser/little_window/little_window_rules.*  a new little window's bounds, "Open in <space>"
 lb/browser/adblock/
   filter_lists.*                    the ad blocker's filter lists, when to update, list text → ruleset
                                     (uBlock Origin's !#if, !#include, option names and badfilter)
@@ -25,7 +30,7 @@ lb/browser/adblock/
                                     the per-site setting
   ad_blocker_demo.*                 --lb-sidebar-demo=ad-blocker (below)
   ad_blocking_unittest.cc           Chromium's filter is on for every site
-lb/browser/demo/demo_report.*       PASS/FAIL logging and deadlines for the demo modes
+lb/browser/demo/demo_report.*       PASS/FAIL logging, deadlines and clicks for the demo modes
 lb/browser/extensions/
   web_store_unittest.cc             store addresses, update server, install API not substituted
   update_check_unittest.cc          update checks: extensions' go out bare, others stay blocked
@@ -38,7 +43,11 @@ lb/browser/ui/
   views/sidebar/sidebar_footer_view.*  space switcher (switch; right-click rename/icon/colour/delete) and the "+" menu
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
-  views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill)
+  views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
+  views/peek/peek.*                    Peek: the card over the dimmed window, its page, the buttons beside it
+  views/little_window/little_window.*  the little window: opening one, its toolbar buttons, moving
+                                       its page into a tab
+  lb_command_ids.h                     our command ids (Cmd+Option+N, the link menu's little window)
   views/search/search_choice_dialog.*  first-run search engine choice
   views/password/password_manager_choice_dialog.*  first-run password manager choice
   views/browser_modal_dialog.*      base for our browser-modal dialogs (deletes itself when closed)
@@ -49,10 +58,12 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
 `command-hooks.patch`, `session-spaces.patch`, `restore-selected-first.patch`,
 `tab-metrics-detached-guard.patch`, `contents-card.patch`, `ad-blocking.patch`,
-`ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker);
+`ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker), `peek-hooks.patch`
+(Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch` and
+`little-window-link-menu.patch` (the little window);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
-Not built yet: peek, the little window, element hiding, tracking-parameter stripping, the
+Not built yet: element hiding, tracking-parameter stripping, the
 Widevine consent prompt, and the link to `lb-core` (spaces are stored in C++ prefs).
 
 Unit tests (`*_unittest.cc` next to the code):
@@ -106,7 +117,26 @@ panel's "Cookies and site data", clicking the cookie switch and then the Ads swi
 let the ad script load and leave no "reload this page" prompt; the command bar's "Block ads on
 this site" must block it again, also with Settings set to "Sites can show ads"; and the site's
 Settings page and the Ads page must use our wording (with
-`--lb-ui-snapshot-dialog=<png> --lb-ui-snapshot-delay=0` it captures the site-info panel); the
+`--lb-ui-snapshot-dialog=<png> --lb-ui-snapshot-delay=0` it captures the site-info panel),
+`=peek`, on a fresh profile, writes four local pages and sends real mouse and key events to them:
+Shift+click must open a link in Peek with no new tab, growing to a card as tall as the window and a
+little narrower than the page, with its site shown above it and the ad blocker on its page; Reload
+must act on the Peek's page and View Source do nothing; Esc, the Close button, Cmd+W pressed in
+the page, the Close Tab command and a click on the backdrop must each close it and no tab;
+Shift+click inside the Peek must replace its page; its page must not open a window without a
+click, its alert() must show and its requestFullscreen() be refused; Cmd+click in it must open a
+tab behind it, the Peek keeping the keyboard, and a tab its page opens in front must keep that
+page as a tab (window.opener alive); "Open as tab" must make its page a tab next to the first one
+without reloading it, and record it in history; a Shift+clicked `target=_blank` link must open in
+Peek too and "Open in split view" must pair its page with the first one, after which no second
+split is offered; showing another tab must close the Peek; a page asking "Leave site?" must ask
+and close on "Leave"; a Peek in a little window must offer no split view and "Open as tab" must
+move its page into the window with tabs; Cmd+Option+N's command bar must open a little window (a
+960 x 680 page, "Open in <space>" following the space's name, Copy URL) whose button moves it into
+a tab, and a link's "Open Link in Little Window" must open one too; it then closes what it opened
+and deletes its pages (with `--lb-ui-snapshot-peek=<png>` or
+`--lb-ui-snapshot-little-window=<png>` it stops at the first Peek or little window and captures
+it); the
 extension is uBlock Origin Lite unless
 `--lb-demo-extension=<id>`, and each logs
 `lb demo: <mode> PASS` or `FAIL` once, without `--vmodule`;

@@ -1,0 +1,35 @@
+# Little Browser: Cmd+Option+N opens the command bar for a new little window
+# (IDC_NEW_LITTLE_WINDOW in desktop/lb/browser/ui/lb_command_ids.h, handled by
+# lb::HandleCommandFirst through command-hooks.patch). On macOS Chromium gives the shortcut to "New
+# Split Tab", which keeps its menu item without a shortcut.
+--- a/chrome/browser/global_keyboard_shortcuts_mac.mm
++++ b/chrome/browser/global_keyboard_shortcuts_mac.mm
+@@ -13,6 +13,7 @@
+ #include "base/no_destructor.h"
+ #include "build/buildflag.h"
+ #include "chrome/app/chrome_command_ids.h"
++#include "lb/browser/ui/lb_command_ids.h"
+ #import "chrome/browser/app_controller_mac.h"
+ #include "chrome/browser/ui/cocoa/accelerators_cocoa.h"
+ #include "chrome/browser/ui/tabs/features.h"
+@@ -145,6 +146,8 @@
+ 
+       {true,  true,  false, false, kVK_ANSI_M,            IDC_SHOW_AVATAR_MENU},
+       {true,  false, false, true,  kVK_ANSI_L,            IDC_SHOW_DOWNLOADS},
++      // Little Browser: a new little window (lb/browser/ui/lb_command_ids.h).
++      {true,  false, false, true,  kVK_ANSI_N,            IDC_NEW_LITTLE_WINDOW},
+       {true,  true,  false, false, kVK_ANSI_C,            IDC_DEV_TOOLS_INSPECT},
+       {true,  false, false, true,  kVK_ANSI_C,            IDC_DEV_TOOLS_INSPECT},
+       {true,  false, false, true,  kVK_DownArrow,         IDC_FOCUS_NEXT_PANE},
+--- a/chrome/browser/ui/cocoa/accelerators_cocoa.mm
++++ b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+@@ -115,7 +115,8 @@
+     {IDC_TAB_SEARCH, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_A},
+     {IDC_TOGGLE_VERTICAL_TABS_COLLAPSE, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN,
+      ui::VKEY_L},
+-    {IDC_NEW_SPLIT_TAB, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN, ui::VKEY_N},
++    // Little Browser: Cmd+Option+N opens a little window
++    // (chrome/browser/global_keyboard_shortcuts_mac.mm), not a new split tab.
+ };
+ 
+ ui::Accelerator AcceleratorForCloseWindow() {

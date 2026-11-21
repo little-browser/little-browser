@@ -126,5 +126,25 @@ TEST(InputAsAddressTest, EverythingElseIsASearch) {
   EXPECT_EQ(InputAsAddress(u"john@example.com"), std::nullopt);
 }
 
+TEST(OffersResultTest, LittleWindowModeListsOnlyPagesToOpen) {
+  // Everything chosen opens in a new little window: no tabs to switch to, no commands.
+  EXPECT_FALSE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kOpenTab));
+  EXPECT_FALSE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kCommand));
+  EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kHistory));
+  EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kAddress));
+  EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kSearch));
+}
+
+TEST(OffersResultTest, OtherModesListEverything) {
+  for (CommandBarMode mode :
+       {CommandBarMode::kNewTab, CommandBarMode::kOpenHere, CommandBarMode::kEditAddress}) {
+    for (CommandBarResult kind :
+         {CommandBarResult::kOpenTab, CommandBarResult::kCommand, CommandBarResult::kHistory,
+          CommandBarResult::kAddress, CommandBarResult::kSearch}) {
+      EXPECT_TRUE(OffersResult(mode, kind));
+    }
+  }
+}
+
 }  // namespace
 }  // namespace lb

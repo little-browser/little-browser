@@ -57,7 +57,7 @@ build is in `../AGENTS.md`.
 
 - **`//lb:model`**, a `source_set` for logic that needs no views or browser window
   (`browser/spaces/`, `browser/command_bar/`, `browser/tabs/`, `browser/adblock/`,
-  `browser/password/`, `browser/search/`). The sidebar's views target depends on it through
+  `browser/password/`, `browser/search/`, `browser/peek/`, `browser/little_window/`). The sidebar's views target depends on it through
   `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this file.
 - **`lb_unittests`**, a gtest binary built from `*_unittest.cc` files next to the code they
   test.
