@@ -1,11 +1,11 @@
 # Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
-# snapshot tool, pinned tab sleep, extensions demo, first-run dialogs) with the region view's
-# target.
+# snapshot tool, pinned tab sleep, extensions demo, first-run dialogs, ad blocker) with the region
+# view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,37 @@
+@@ -537,7 +537,43 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -14,6 +14,12 @@
 +    "vertical_tab_strip_region_view.cc",
 +
 +    # Little Browser sidebar (desktop/lb, linked into the tree as //lb).
++    "//lb/browser/adblock/ad_blocker.cc",
++    "//lb/browser/adblock/ad_blocker.h",
++    "//lb/browser/adblock/ad_blocker_demo.cc",
++    "//lb/browser/adblock/ad_blocker_demo.h",
++    "//lb/browser/adblock/site_ads_row.cc",
++    "//lb/browser/adblock/site_ads_row.h",
 +    "//lb/browser/demo/demo_report.cc",
 +    "//lb/browser/demo/demo_report.h",
 +    "//lb/browser/extensions/extensions_demo.cc",
@@ -44,7 +50,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +587,12 @@
+@@ -557,6 +593,15 @@
      "//ui/views",
    ]
    deps = [
@@ -54,6 +60,9 @@
 +    "//components/update_client",  # Little Browser: extensions demo
 +    "//extensions/browser",  # Little Browser: extensions demo
 +    "//extensions/common",  # Little Browser: extensions demo
++    "//components/subresource_filter/content/browser",  # Little Browser: ad blocker
++    "//components/subresource_filter/core/browser",  # Little Browser: ad blocker
++    "//services/network/public/cpp",  # Little Browser: ad blocker (filter list downloads)
      ":browser_view_header",
      ":custom_corners_background",
      ":frame",

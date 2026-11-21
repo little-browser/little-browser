@@ -6,6 +6,7 @@
 #define LB_BROWSER_UI_VIEWS_COMMAND_BAR_COMMAND_BAR_H_
 
 #include <memory>
+#include <string>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -33,6 +34,9 @@ class CommandBar : public views::WidgetObserver {
   void Close();
   bool IsShowing() const { return !!widget_; }
 
+  // RunCommandBarForTesting() for this bar.
+  bool RunForTesting(const std::u16string& text);
+
   // Called by the view when its preferred height changes.
   void UpdateBounds();
 
@@ -48,6 +52,11 @@ class CommandBar : public views::WidgetObserver {
   base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
   base::WeakPtrFactory<CommandBar> weak_factory_{this};
 };
+
+// Types `text` into the open command bar and runs the shown result titled `text`, as choosing it
+// does; false if no bar is open or no such result is shown (the --lb-sidebar-demo=ad-blocker
+// check).
+bool RunCommandBarForTesting(const std::u16string& text);
 
 }  // namespace lb
 
