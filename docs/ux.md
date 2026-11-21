@@ -7,10 +7,10 @@
 **Built so far (macOS desktop):** the sidebar layout on upstream's vertical tabs, the command bar,
 spaces and profiles (new-space dialog, switching by shortcut, swipe or footer, per-space tint, saved
 tabs per space), pinned tabs as a list, the first-run search-engine and password-manager choices,
-the ad blocker, the quit warning, and Chromium's own tab groups. Everything else here —
-auto-archive, group suggestions and auto-grouping, Peek, the little window, the distinct incognito
-look, top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button
-and the whole mobile section — is specified but not built.
+the ad blocker, Peek, the little window, the quit warning, and Chromium's own tab groups. Everything
+else here — auto-archive, group suggestions and auto-grouping, the distinct incognito look,
+top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button and
+the whole mobile section — is specified but not built.
 
 ---
 
@@ -112,8 +112,8 @@ The centre of the browser. A floating palette in the middle of the window.
 
 - Results, in one list, ranked by fuzzy match: **open tabs** (switch, across all spaces) ·
   pinned · history · archived tabs · **commands** (“Toggle sidebar”, “New space”,
-  “Tabs on top”, “Incognito window”, “Copy URL”, “Allow ads on this site” / “Block ads on this
-  site”…) · URL / “Search with ‹engine›”.
+  “Tabs on top”, “Incognito window”, “New little window”, “Copy URL”, “Allow ads on this site” /
+  “Block ads on this site”…) · URL / “Search with ‹engine›”.
 - Enter takes the top result; ↑/↓ moves; Esc closes and returns focus to the page.
 - Opens in < 50 ms; it's a native/overlay view, not a page.
 - Search suggestions from the engine appear only if the user turns them on (privacy default).
@@ -237,21 +237,54 @@ blue groups, Teal makes cyan); the group menu changes it.
 
 ## 7. Peek (link preview)
 
-- **Shift+click** a link (configurable: Option/Alt+click). It replaces Chromium's "open in new
-  window", which we hardly need; Alt+click stays "download link". Optional: links that leave the site of a
-  pinned tab always open in Peek.
-- The card grows from the click point to ~85% of the page area over a dimmed backdrop.
-- Controls at the card's top-right: **Open as tab** (the card expands into the page area and becomes
-  a today tab — the page is *not* reloaded), **Open in Little window**, **Close** (Esc or click the
-  backdrop).
-- Only one Peek at a time; opening another replaces it.
+- **Shift+click** a link, also one that opens a new page (`target=_blank`), in a normal or a little
+  window. It replaces Chromium's Shift+click "open in new window", which we hardly need; the link
+  menu's "Open Link in New Window" stays, and Alt+click stays "download link".
+- Only the user's own Shift+click opens a Peek: a page can't open one with a script, even during a
+  click.
+- The card grows from the click point while the whole window dims. Open, it runs from a margin at
+  the top of the window, over the toolbar, all the way down to the window's bottom edge, and is a
+  little narrower than the page area (about 8% off each side), with no toolbar of its own: just the
+  page, its top corners rounded. With reduced motion the card fades in where it ends up.
+- In the margin above the card, a small label with the page's site, so a page in a Peek can't pass
+  for the one under it: the domain alone, without "www." (`kp.ru`), as the address pill shows it,
+  with the full URL as its tooltip. It isn't a button, so a secure page gets no icon; a page the
+  address bar would warn about leads with its warning icon and "Not secure" or "Dangerous".
+- Round buttons in a column to the right of the card, from its top: **Close**, **Open as tab** (the
+  card expands into the page area and becomes a today tab next to the page it came from — the page
+  is *not* reloaded — and the visit goes into history) and **Open in split view** (the card moves
+  into the right half and the page becomes a tab in a split view with the one under it; not offered
+  when that one is already in a split view, or in a little window). Esc, ⌘W or a left click on the
+  backdrop also close it. A page that asks before it is left ("Leave site?") asks first.
+- Only one Peek per window. Shift+click inside it replaces its page. Other links in it that open a
+  new tab or window open in the window, as from any tab (the popup blocker included); one that
+  opens a tab in front first makes the Peek's page a tab, so the page that opened it stays. Showing
+  another tab lets the Peek go.
+- While a Peek is open, the page commands act on it: reload, stop, back, forward, zoom and Copy
+  URL; find, print, view source, DevTools, the address (⌘L) and the like do nothing until it is a
+  tab. The window's own commands (new tab, switch tab, ...) work as usual.
+- A page in a Peek has the ad blocker, the popup blocker, passwords and its dialogs (alert,
+  confirm), as in a tab. It can't ask for permissions (camera, location, notifications, ...),
+  sign in to a server or open another app, and it can't go fullscreen: those are refused until it
+  is opened as a tab.
+- Not built yet: Option+click as a setting instead of Shift+click, and links that leave the site of
+  a pinned tab always opening in Peek.
 
 ## 8. Little window
 
-- Cmd+Alt+N, or a link's context menu “Open in Little window”. (Later: links from other apps.)
-- A small window (≈ 960 × 680) with no sidebar or tabs: one header row with the domain pill, copy
-  URL, and **“Open in ‹space›”**, which moves the page into the main window as a tab.
-- Several little windows can be open; Cmd+W closes one.
+- ⌥⌘N opens the command bar (“Search or enter an address for a little window”); what you pick opens
+  in a new little window. Also: a link's context menu **“Open Link in Little Window”**. A page's own
+  popups (`window.open` with a size) are little windows too.
+  (Later: links from other apps.)
+- The command bar for a little window lists addresses, searches and history, not open tabs or
+  commands: everything chosen there opens a page.
+- A small window (its page ≈ 960 × 680, smaller on a small screen; each new one a step down and to
+  the right of the last while it fits) with no sidebar or tabs: below the title bar, one row with
+  the address, **Copy URL**, and **“Open in ‹space›”**, which moves the page into the window
+  showing that space, as its active tab, without reloading it. The label follows the space's name.
+- Several little windows can be open; ⌘W closes one.
+- On macOS Chromium gives ⌥⌘N to "New Split Tab"; here a split view starts from a tab's or a link's
+  menu.
 
 ## 9. Incognito
 

@@ -202,9 +202,9 @@ Legend: ✅ planned for the platform · 🟡 adapted · ⏳ later · ❌ not on 
 
 Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run search-engine
 and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering),
-tab groups and split view (Chromium's own), Safe Browsing in standard mode, the quit warning, and
-everything Chromium already provides (incognito, DevTools, PiP, import). The rest of the table is
-specified but not built.
+Peek, the little window, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
+the quit warning, and everything Chromium already provides (incognito, DevTools, PiP, import). The
+rest of the table is specified but not built.
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -233,13 +233,17 @@ specified but not built.
   use Chromium profiles for logins, not tab groups.
 
 ### 7.2 Peek (quick preview overlay)
-- Trigger: Shift+click by default (configurable: Alt+click, middle-click, long-press). Optional rule:
-  links from a pinned tab that leave its site open in Peek (Arc does this).
-- UI: a floating card over the current page, with "open as tab", "open in little window", "close"
-  (Esc / click outside). Scrolling and interaction work inside it.
-- Implementation: a separate `WebContents` hosted in an overlay widget; on "open as tab" we **move**
-  that `WebContents` into the tab strip, so nothing reloads. Chromium has had an experimental "Link
-  Preview" feature based on prerendering — evaluate it before writing our own.
+- Trigger: Shift+click. Not built yet: other triggers as a setting (Alt+click, middle-click,
+  long-press), and the rule that links from a pinned tab that leave its site open in Peek (Arc does
+  this).
+- UI: a floating card over the current page, as tall as the window and a little narrower than the
+  page, over the dimmed window, with the page's site above it and round buttons beside it:
+  "close", "open as tab", "open in split view" (Esc / ⌘W / click outside also close it). Scrolling
+  and interaction work inside it.
+- Implementation: a separate `WebContents` with the helpers a tab's page needs from its first load
+  (ad blocking, popup blocking, passwords, ...), hosted in a child widget over the whole window; on
+  "open as tab" we **move** that `WebContents` into the tab strip, so nothing reloads
+  (desktop-ui.md).
 - Mobile: long-press on a link → on iOS the system link-preview menu via `WKUIDelegate` with our
   actions added; on Android our bottom-sheet Peek (ux.md §10).
 
@@ -261,11 +265,11 @@ specified but not built.
 
 ### 7.4 Little window
 - A minimal window with **no tab strip**: just the page and a compact address/actions bar.
-  Global shortcut (default Cmd/Ctrl+Alt+N).
-- Option: open links coming from **other apps** (mail, chat) in a little window instead of the main
-  window.
-- "Move to space" button turns it into a normal tab without reloading (same `WebContents` move).
-- Built on Chromium's popup/app window type plus our own frame.
+  Shortcut ⌥⌘N, through the command bar.
+- Not built yet: an option to open links coming from **other apps** (mail, chat) in a little window
+  instead of the main window.
+- "Open in ‹space›" turns it into a normal tab without reloading (same `WebContents` move).
+- Built on Chromium's popup window type: its one-row toolbar (address only) plus our two buttons.
 - Android equivalent: serve **Custom Tabs** for other apps — a small overlay browser that other apps
   open, which is exactly the "little window" idea on mobile.
 
@@ -479,9 +483,9 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Safe Browsing (standard), branding, quit warning |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning |
 | Windows, Linux desktop | Not built: the platform recipes aren't wired up |
-| Element hiding, tracking-parameter stripping, Peek, little window, import, auto-PiP, on-demand Widevine | Specified, not built |
+| Element hiding, tracking-parameter stripping, import, auto-PiP, on-demand Widevine | Specified, not built |
 | `lb-core` | Data model and the sync `Transport` trait with an in-memory transport; no dependencies yet |
 | Sync, iOS, Android | Not started |
 
@@ -557,7 +561,8 @@ on the macOS runner. A patch to a widely included header can cost almost as much
 7. **Publish (manual).** After internal testing, a person runs the `publish` job
    (`desktop/scripts/publish-release.sh`): it uploads the same file to
    `downloads.littlebrowser.app/<version>/` and adds it, with its size and SHA-256, to
-   `releases.json`, which littlebrowser.app reads for its download button and list of releases.
+   `releases.json` in the `beta` channel. littlebrowser.app reads that file for its download button
+   and its list of releases, which shows each file's full SHA-256 with a button to copy it.
    Published files are never replaced or deleted. Later: the exact build arguments and an SBOM
    alongside, and the Sparkle update feed (static, signed files, no user data). Nothing is rebuilt.
 

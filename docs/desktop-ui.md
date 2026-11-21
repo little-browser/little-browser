@@ -235,6 +235,65 @@ content settings → **Ads** lists the sites and can turn the blocker off for al
 ads", blocking only on sites known for misleading ads). Element hiding is
 not done: Chromium's filter indexes element-hiding rules but nothing in Blink applies them yet.
 
+## Peek and the little window
+
+**Peek** (`lb/browser/ui/views/peek/peek.*`) catches Shift+click in the tabs' web contents
+delegate (`patches/lb/peek-hooks.patch`): a link the page opens with `OpenURLFromTab`, and a page
+the renderer creates for a `target=_blank` link (`AddNewContents`). The rules are in `//lb:model`
+(`lb/browser/peek/peek_rules.*`). `OpensInPeek` takes Shift+click's new-window disposition, started
+by the page with a user gesture from a trusted event, in a normal or little window; the link menu's
+"Open Link in New Window" is started by the browser, and a script's dispatched Shift+click is
+untrusted, so both still open a window.
+
+The Peek's page is its own `WebContents`. Chromium creates most of a tab's helpers (`TabFeatures`)
+only when a page joins a tab strip, so `PreviewTab::Adopt` attaches, before its first navigation,
+those it needs in the Peek and that must have seen that navigation once it is a tab: page content
+settings, the subresource filter (the ad blocker), the popup blocker, the favicon driver, the
+password manager, page-load metrics and the extensions' tab helpers, as Chromium's prerendering
+does for pages it later turns into tabs. `TabFeatures` reuses them. The Peek is the page's
+delegate: dialogs go to the app-modal dialog manager; fullscreen, permission prompts, HTTP sign-in
+and external-protocol prompts are refused (they need a tab's dialog managers and a browser to
+anchor to); links stay in it, replace it on the user's Shift+click (`ActionForLinkInPeek`), or go
+to the window through the popup blocker, and one that opens a tab in front first turns the Peek's
+page into a tab (`PromotesPeekBeforeOpening`), so `window.opener` survives. While a Peek is open,
+`lb::HandleCommandFirst` (`patches/lb/command-hooks.patch`, before Chromium's command table) sends
+each browser command through `PeekCommandActionFor`: Esc/⌘W close the Peek (after the page's
+beforeunload), reload, back, zoom and Copy URL act on the Peek's page, other page commands do
+nothing, and the window's commands pass.
+
+It is shown in a child widget over the whole browser window: the dimmed backdrop, the card (from
+a margin at the top down to the window's bottom edge, rounded at the top only, and a little
+narrower than the page area, `BrowserView::contents_container()`; `PeekCardBounds`), the site label
+above it (`PeekLabelBounds`; its text, tooltip and warning from `PeekSiteLabelFor`, which takes the
+site from `url_formatter::FormatUrlForDisplayOmitSchemePathAndTrivialSubdomains` and the warning
+from the page's security level, with the address bar's icon for that warning only) and the round
+buttons beside it (`PeekControlBounds`). The card is laid out once at its size and moves
+by its layer's transform, so the page isn't resized while it grows from `PeekStartBounds` or
+expands; the page's corners are rounded on the web view's layer, as Chromium rounds its own. "Open
+as tab" animates the card to the page area, then adds the same `WebContents` to the tab strip after
+the page it came from and records the visit in history (a page isn't recorded while in a Peek);
+"Open in split view" animates it to the right half (`PeekSplitBounds`), adds it the same way and
+pairs it with that page (`AddToNewSplit`, as Chromium's "Open link in split view" does), when
+`CanOpenPeekInSplitView` allows. A `TabStripModelObserver` lets the Peek go when the window shows
+another tab.
+
+The **little window** (`lb/browser/ui/views/little_window/little_window.*`) is Chromium's popup
+window, whose toolbar is a single row with the address. `patches/lb/little-window-toolbar.patch`
+adds Copy URL and "Open in ‹space›" to that row; the button reads the space of the profile's most
+recently used window with tabs whenever spaces change and when the little window comes to the
+front, and moves the page there as Chromium's own "Show as tab" does (detach the `WebContents`, add
+it to the window `chrome::ScopedTabbedBrowserDisplayer` finds or opens). New little windows get
+their bounds from `LittleWindowBounds` (`little_window_rules.*`): a page of 960 × 680 when the
+screen has room, the window (with its title bar and toolbar, measured from the newest little
+window) centred, or a step down from the last one while it fits. ⌥⌘N is `IDC_NEW_LITTLE_WINDOW`,
+an id of ours (`lb/browser/ui/lb_command_ids.h`) that Chromium's command table doesn't list, so
+`lb::HandleCommandFirst` handles it before that table: it opens the command bar in its
+little-window mode, which lists only pages to open (`OffersResult`), in a new little window.
+`patches/lb/little-window-shortcut.patch` maps the key, taking it from "New Split Tab", which has it
+in Chromium on macOS. `patches/lb/little-window-link-menu.patch` adds "Open Link in Little Window"
+to a link's menu; it opens with the page's referrer and initiator, as "Open Link in New Window"
+does.
+
 ## Quit warning
 
 With "Warn Before Quitting" on (the default), every user quit asks — Cmd+Q, the menu, the Dock and
