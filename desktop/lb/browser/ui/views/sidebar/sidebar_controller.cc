@@ -77,6 +77,8 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "lb/browser/adblock/ad_blocker.h"
+#include "lb/browser/adblock/ad_blocker_demo.h"
 #include "lb/browser/extensions/extensions_demo.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
@@ -440,6 +442,9 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
   if (!demo_done && base::CommandLine::ForCurrentProcess()->HasSwitch(kDemoSwitch)) {
     demo_done = true;
     SeedDemoData();
+    if (base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch) == "ad-blocker") {
+      PrepareAdBlockerDemo(browser_->GetProfile());  // before the first-run questions below
+    }
   }
 
   // After the window's first tabs are in: fill a fresh window with the space's saved tabs,
@@ -1695,7 +1700,11 @@ void SidebarController::SeedDemoData() {
               SessionRestore::RestoreSessionAfterCrash(self->browser());
               return;
             }
-            // Extensions demos run in the space the window opened with: they open their own tabs.
+            // These demos run in the space the window opened with: they open their own tabs.
+            if (demo == "ad-blocker") {
+              RunAdBlockerDemo(self->browser());
+              return;
+            }
             if (MaybeRunExtensionsDemo(self->browser(), demo)) {
               return;  // Modes: lb/browser/extensions/extensions_demo.h.
             }
@@ -2202,6 +2211,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   registry->RegisterListPref(kSpacesPref);
   registry->RegisterDictionaryPref(kSpaceTabsPref);
+  RegisterAdBlockerLocalStatePrefs(registry);
 }
 
 std::string GetWindowSpaceId(BrowserWindowInterface* browser) {

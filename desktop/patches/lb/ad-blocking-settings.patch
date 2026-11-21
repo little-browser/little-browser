@@ -1,0 +1,64 @@
+# Little Browser: Settings describes the built-in ad blocker (patches/lb/ad-blocking.patch) as it
+# works. Chromium's wording is for Chrome's blocking, which only acts on sites known to show
+# intrusive or misleading ads; ours blocks ad and tracker requests on every site. The setting is
+# called "Ads". Other languages fall back to English for these strings until they are translated.
+--- a/components/site_settings_strings.grdp
++++ b/components/site_settings_strings.grdp
+@@ -2,10 +2,10 @@
+ <grit-part>
+   <!-- Site Settings common -->
+-  <message name="IDS_SITE_SETTINGS_TYPE_ADS" desc="This string is the name of the intrusive ads setting (visit chrome://settings/content and click 'Additional content settings').">
++  <message name="IDS_SITE_SETTINGS_TYPE_ADS" desc="This string is the name of the ads setting, the built-in ad blocker (visit chrome://settings/content and click 'Additional content settings').">
+-    Intrusive ads
++    Ads
+   </message>
+-  <message name="IDS_SITE_SETTINGS_TYPE_ADS_MID_SENTENCE" desc="This string is the name of the intrusive ads setting (visit chrome://settings/content and click 'Additional content settings') when used mid-sentence.">
++  <message name="IDS_SITE_SETTINGS_TYPE_ADS_MID_SENTENCE" desc="This string is the name of the ads setting, the built-in ad blocker (visit chrome://settings/content and click 'Additional content settings') when used mid-sentence.">
+-    intrusive ads
++    ads
+   </message>
+   <message name="IDS_SITE_SETTINGS_TYPE_ANTI_ABUSE" desc="The label used for the anti-abuse site settings controls.">
+     Auto-verify
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -2408,19 +2408,19 @@
+       Sites listed below follow a custom setting
+     </message>
+-    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_DESCRIPTION" desc="Description of the ads content setting. In order to comply with the ND4C regulations the translations for this message should use one of the legally approved terms as an alternative to 'free'.">
++    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_DESCRIPTION" desc="Description of the ads content setting: the built-in ad blocker and its filter lists.">
+-      Sites usually show ads so they can provide content or services free of charge. But, some sites are known to show intrusive or misleading ads.
++      Little Browser blocks ad and tracker requests on every site, using filter lists from their maintainers. Allow ads on a site you want to support, or where blocking breaks something.
+     </message>
+-    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_ALLOWED" desc="1 of 2 states for the 'Intrusive ads' setting.">
++    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_ALLOWED" desc="1 of 2 states for the 'Ads' setting: the ad blocker is off.">
+-      Any site you visit can show any ad to you
++      Sites can show ads (the ad blocker is off)
+     </message>
+-    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCKED" desc="2 of 2 states for the 'intrusive ads' setting.">
++    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCKED" desc="2 of 2 states for the 'Ads' setting: the ad blocker is on.">
+-      Ads are blocked on sites known to show intrusive or misleading ads
++      Block ads and trackers on every site
+     </message>
+     <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_ALLOWED_EXCEPTIONS" desc="Label for the allowed exceptions site list of the ads content setting.">
+-      Allowed to show any ads
++      Allowed to show ads
+     </message>
+     <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCKED_EXCEPTIONS" desc="Label for the blocked exceptions site list of the ads content setting.">
+-      Not allowed to show intrusive or misleading ads
++      Not allowed to show ads
+     </message>
+     <message name="IDS_SETTINGS_SITE_SETTINGS_AR_DESCRIPTION" desc="Description of the augmented reality content setting.">
+       Sites usually track your camera position for AR features, like games or heads-up directions
+@@ -3267,10 +3267,10 @@
+       Allowlisted internally
+     </message>
+     <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCK_BLOCKLISTED_SINGULAR" desc="A subtitle for the ‘Ads’ setting, shown if a website is known to show ads that have a poor user experience (intrusive, misleading) and is blocked from showing ads by Chrome.">
+       Site shows intrusive or misleading ads
+     </message>
+-    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCK_NOT_BLOCKLISTED_SINGULAR" desc="A subtitle for the ‘Ads’ setting, shown if user chooses to Block ads. ‘Block’ refers to the blocking of ads.">
+-      Block if site shows intrusive or misleading ads
++    <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCK_NOT_BLOCKLISTED_SINGULAR" desc="A subtitle for the ‘Ads’ setting on a site's page, shown when the built-in ad blocker blocks ads there.">
++      Ads and trackers are blocked
+     </message>
+     <message name="IDS_SETTINGS_SITE_SETTINGS_SOURCE_KILL_SWITCH" desc="A label shown when a permission on the Site Details page is temporarily blocked for the user's safety.">
+       Temporarily blocked to protect your security

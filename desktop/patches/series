@@ -32,3 +32,7 @@ lb/web-store-install.patch           # "Add to Chrome" on the Chrome Web Store d
 lb/extension-updates.patch           # extensions update from the Chrome Web Store, with no usage pings or hardware fields
 lb/web-store-links.patch             # links to the Chrome Web Store in the app menu and on chrome://extensions
 lb/web-store-no-referrer-chain.patch # the Chrome Web Store page gets no referrer chain (the pages that led to it)
+lb/ad-blocking.patch                 # the built-in ad blocker: Chromium's subresource filter on every site, quietly
+lb/ad-blocking-settings.patch        # Settings calls it "Ads" and describes the ad blocker as it works
+lb/ad-blocking-page-info.patch       # an Ads switch in the site-info panel's "Cookies and site data", under third-party cookies
+lb/no-cookie-controls-icon.patch     # no third-party cookies eye icon; its switch is in the site-info panel

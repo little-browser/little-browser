@@ -4,6 +4,8 @@
 
 #include "lb/browser/ui/views/command_bar/command_bar.h"
 
+#include "lb/browser/adblock/ad_blocker.h"
+#include "lb/browser/adblock/site_ads.h"
 #include "lb/browser/command_bar/command_matching.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
@@ -205,6 +207,18 @@ class CommandBarView : public views::View, public views::TextfieldController {
     field_->SelectAll(false);
   }
 
+  bool RunForTesting(const std::u16string& text) {
+    field_->SetText(text);
+    Rebuild();
+    for (size_t i = 0; i < items_.size() && i < kMaxRows; ++i) {
+      if (items_[i].title == text) {
+        Run(static_cast<int>(i));  // destroys this view
+        return true;
+      }
+    }
+    return false;
+  }
+
   // views::TextfieldController:
   void ContentsChanged(views::Textfield* sender, const std::u16string& new_contents) override {
     Rebuild();
@@ -344,6 +358,21 @@ class CommandBarView : public views::View, public views::TextfieldController {
         {u"Settings", u"Command", u"⌘,", 0, exec(IDC_OPTIONS)},
         {u"Developer tools", u"Command", u"⌥⌘I", 0, exec(IDC_DEV_TOOLS_TOGGLE)},
     };
+    // The built-in ad blocker's per-site switch, for the page in the active tab.
+    content::WebContents* tab = b->GetTabStripModel()->GetActiveWebContents();
+    const GURL page = tab ? tab->GetLastCommittedURL() : GURL();
+    const bool ads_allowed = tab && AreAdsAllowedOnSite(b->GetProfile(), page);
+    if (std::optional<std::u16string> label = SiteAdsCommand(page, ads_allowed)) {
+      commands.push_back({*label, u"Command", u"", 0,
+                          base::BindRepeating(
+                              [](base::WeakPtr<content::WebContents> tab, GURL page, bool allow) {
+                                // Only for the page the command was offered for.
+                                if (tab && tab->GetLastCommittedURL() == page) {
+                                  SetAdsAllowedForTab(tab.get(), allow);
+                                }
+                              },
+                              tab->GetWeakPtr(), page, !ads_allowed)});
+    }
     return commands;
   }
 
@@ -504,8 +533,23 @@ END_METADATA
 CommandBar::CommandBar(SidebarController* controller, views::Widget* browser_widget)
     : controller_(controller), browser_widget_(browser_widget) {}
 
+namespace {
+
+// The bar that is open, for RunCommandBarForTesting().
+CommandBar* g_open_bar = nullptr;
+
+}  // namespace
+
 CommandBar::~CommandBar() {
   Close();
+}
+
+bool CommandBar::RunForTesting(const std::u16string& text) {
+  return view_ && view_->RunForTesting(text);
+}
+
+bool RunCommandBarForTesting(const std::u16string& text) {
+  return g_open_bar && g_open_bar->RunForTesting(text);
 }
 
 void CommandBar::Show(CommandBarMode mode) {
@@ -527,10 +571,14 @@ void CommandBar::Show(CommandBarMode mode) {
   widget_->Show();
   widget_->Activate();
   view_->FocusField();
+  g_open_bar = this;
   MaybeScheduleUiSnapshot(widget_.get(), "lb-ui-snapshot-command-bar");
 }
 
 void CommandBar::Close() {
+  if (g_open_bar == this) {
+    g_open_bar = nullptr;
+  }
   if (!widget_) {
     return;
   }
@@ -567,6 +615,9 @@ void CommandBar::OnWidgetActivationChanged(views::Widget* widget, bool active) {
 }
 
 void CommandBar::OnWidgetDestroying(views::Widget* widget) {
+  if (g_open_bar == this) {
+    g_open_bar = nullptr;
+  }
   observation_.Reset();
   view_ = nullptr;
 }

@@ -1,0 +1,21 @@
+# Little Browser: no third-party cookies "eye" icon in the address bar. With third-party cookies
+# blocked by default it shows on most sites, a standing badge (docs/ux.md section 1, "Calm"), and
+# its bubble repeats the switch in the site-info panel's "Cookies and site data", which also has
+# the ad blocker's Ads switch (patches/lb/ad-blocking-page-info.patch).
+--- a/chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_page_action_controller.cc
++++ b/chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_page_action_controller.cc
+@@ -244,11 +244,9 @@
+ }
+ 
+ void CookieControlsPageActionController::UpdateIconVisibility() {
+-  if (!ShouldShowIcon()) {
+-    page_action_controller_->Hide(kActionShowCookieControls);
+-    return;
+-  }
+-  page_action_controller_->Show(kActionShowCookieControls);
++  // Little Browser: no eye icon in the address bar. Its switch is also in the site-info panel's
++  // "Cookies and site data", next to the ad blocker's Ads switch, which is the one place for both.
++  page_action_controller_->Hide(kActionShowCookieControls);
+ }
+ 
+ std::u16string CookieControlsPageActionController::GetLabelForState() const {

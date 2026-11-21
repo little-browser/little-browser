@@ -9,6 +9,10 @@ import("//testing/test.gni")
 # is also what makes GN load this file.
 source_set("model") {
   sources = [
+    "browser/adblock/filter_lists.cc",
+    "browser/adblock/filter_lists.h",
+    "browser/adblock/site_ads.cc",
+    "browser/adblock/site_ads.h",
     "browser/command_bar/command_matching.cc",
     "browser/command_bar/command_matching.h",
     "browser/password/password_manager_choice.cc",
@@ -29,7 +33,11 @@ source_set("model") {
   public_deps = [ "//components/tab_groups" ]
   deps = [
     "//base",
+    "//components/subresource_filter/core/common",
+    "//components/subresource_filter/tools/rule_parser",
+    "//components/url_pattern_index",
     "//net",
+    "//third_party/protobuf:protobuf_lite",
     "//url",
   ]
 }
@@ -37,6 +45,9 @@ source_set("model") {
 # desktop/lb/AGENTS.md says how to build and run these.
 test("lb_unittests") {
   sources = [
+    "browser/adblock/ad_blocking_unittest.cc",
+    "browser/adblock/filter_lists_unittest.cc",
+    "browser/adblock/site_ads_unittest.cc",
     "browser/command_bar/command_matching_unittest.cc",
     "browser/extensions/update_check_unittest.cc",
     "browser/extensions/web_store_unittest.cc",
@@ -54,6 +65,10 @@ test("lb_unittests") {
     "//base/test:test_support",
     "//components/component_updater",
     "//components/prefs:test_support",
+    "//components/subresource_filter/core/browser",
+    "//components/subresource_filter/core/common",
+    "//components/subresource_filter/core/mojom",
+    "//components/url_pattern_index",
     "//components/update_client",
     "//components/update_client:test_support",
     "//extensions/common",
@@ -62,6 +77,7 @@ test("lb_unittests") {
     "//mojo/core/test:run_all_unittests",  # the update check test needs Mojo (network requests)
     "//net",
     "//testing/gtest",
+    "//third_party/protobuf:protobuf_lite",
     "//url",
   ]
 }
