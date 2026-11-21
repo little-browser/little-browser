@@ -203,8 +203,8 @@ Legend: ✅ planned for the platform · 🟡 adapted · ⏳ later · ❌ not on 
 Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run search-engine
 and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering),
 Peek, the little window, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
-the quit warning, and everything Chromium already provides (incognito, DevTools, PiP, import). The
-rest of the table is specified but not built.
+the quit warning, the updater, and everything Chromium already provides (incognito, DevTools, PiP,
+import). The rest of the table is specified but not built.
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -346,14 +346,18 @@ Plus:
   release: playback, seeking, quality switch, fullscreen, PiP, live streams.
 
 ### 7.13 Update check and prompt
-The desktop browser checks for a new version and asks the user to update. It checks at launch and
-then every few hours, reading the static, signed update feed (§9; Sparkle on macOS, our own
-updater on Windows, the package repository on Linux). When a newer version is out, the browser
-shows a small prompt: **Update now**, which downloads it, verifies the signature and offers to
-restart, or **Later**. A security release says so in the prompt and asks again sooner. The check
-sends only the current version and platform. On Linux installs managed by a package manager or
-Flatpak, the prompt points to that instead of updating itself. Android and iOS leave updates to
-the app stores.
+The desktop browser checks for a new version and asks the user to update. On macOS that is
+Sparkle (`desktop/lb/browser/update/`), which `package-macos.sh` adds to a release: it reads the
+update feed (§9, §14) every four hours while the browser runs. When a newer version is out it shows
+its small update window: **Install Update**, which downloads it, checks its EdDSA signature against
+the key built into the app (and its Apple signature) and offers to restart into it; **Remind Me
+Later**; or **Skip This Version**. Later holds that version back for a day. A security release says
+it is an important update, can't be skipped, and asks again at the next check. The restart into an
+update doesn't ask "Quit Little Browser?". The check sends only the current version and platform
+(Sparkle's user agent); Sparkle's system profile is off. Development builds have no updater.
+Windows will get our own updater and Linux the package repository: on installs managed by a
+package manager or Flatpak, the prompt points to that instead of updating itself. Android and iOS
+leave updates to the app stores.
 
 ---
 
@@ -456,7 +460,7 @@ carrier networks.
 
 | Purpose | What it is | Sees |
 |---|---|---|
-| Updates (desktop) | Static, signed update feeds + binaries on a CDN (Sparkle on macOS; equivalent on Windows; apt/rpm repos + Flatpak on Linux) | IP, version |
+| Updates and downloads (desktop) | Static files on `downloads.littlebrowser.app` (S3 + CloudFront): the releases, `releases.json`, and on macOS the Sparkle feed `updates/macos-arm64.xml` with signed update files under `updates/` (later: Windows' equivalent; apt/rpm repos + Flatpak on Linux) | IP, version and platform. Its log keeps only each request's time, method, file, status and bytes sent (no IP address or user agent), for a week, to count downloads (§14) |
 | Mobile distribution | App Store, Google Play, F-Droid/APK | — (store's own data) |
 | Filter-list updates | Every 4 days, straight from the lists' maintainers: `easylist.to`, `ublockorigin.github.io`, `pgl.yoyo.org`; an hour later after a failed download | IP, version (the user agent); no cookies |
 | Widevine DRM component | Downloaded from Google, only after the user agrees on first use | IP, version |
@@ -483,7 +487,7 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key) |
 | Windows, Linux desktop | Not built: the platform recipes aren't wired up |
 | Element hiding, tracking-parameter stripping, import, auto-PiP, on-demand Widevine | Specified, not built |
 | `lb-core` | Data model and the sync `Transport` trait with an in-memory transport; no dependencies yet |
@@ -555,16 +559,34 @@ on the macOS runner. A patch to a widely included header can cost almost as much
    the compiler cache; keys (Safe Browsing, Widevine signing) are injected from protected
    CI/CD variables, never committed.
 5. **Sign.** macOS Developer ID + notarization → `.dmg`; Windows code signing → installer; Linux
-   `.deb`/`.rpm` + Flatpak.
+   `.deb`/`.rpm` + Flatpak. On macOS `package-macos.sh --release <version>` also adds the updater
+   (Sparkle, pinned by checksum) with the feed address and the update public key, sets the app's
+   `CFBundleVersion` to `<Chromium build>.<patch>.<revision>` so the updater can tell releases on
+   the same Chromium version apart, and signs the finished `.dmg` with the update key (EdDSA,
+   `little-browser/signing/sparkle-ed25519`) into a `.update.json` next to it.
 6. **Internal channel.** The signed `.dmg` is kept as a pipeline artifact for 30 days; internal
    testers download it from the tag's pipeline.
 7. **Publish (manual).** After internal testing, a person runs the `publish` job
    (`desktop/scripts/publish-release.sh`): it uploads the same file to
    `downloads.littlebrowser.app/<version>/` and adds it, with its size and SHA-256, to
    `releases.json` in the `beta` channel. littlebrowser.app reads that file for its download button
-   and its list of releases, which shows each file's full SHA-256 with a button to copy it.
+   and its list of releases, which shows each file's full SHA-256 with a button to copy it. The
+   same file also goes to `updates/<version>/`, the updater's copy, and `updates/macos-arm64.xml`,
+   the updater's feed, is rewritten to offer it (`update_feed.py`: only the newest release, marked
+   critical for versions older than the newest security release). A release is a security release
+   when `LB_SECURITY_RELEASE=1` is set on the job, or, unset, when it is on a new Chromium
+   version. Without a `.update.json` (no update key yet) the release is a download only.
    Published files are never replaced or deleted. Later: the exact build arguments and an SBOM
-   alongside, and the Sparkle update feed (static, signed files, no user data). Nothing is rebuilt.
+   alongside. Nothing is rebuilt.
+
+**Download counts.** CloudFront logs each request to `downloads.littlebrowser.app` with only its
+time, method, file, status, bytes sent and byte range, into a private bucket that deletes them after
+a week. A daily scheduled job (`download-stats`, `desktop/scripts/download-stats.sh`) counts, per
+file, the responses that delivered its last byte (so a resumed download counts once and HEAD
+requests or cut-off downloads don't), separately for the download (`<version>/…`) and the updater's
+copy (`updates/<version>/…`), and publishes the running totals as `stats.json` there. Each run adds
+the days up to two days ago that it hasn't counted, so late logs still count and none counts
+twice. The website's list of releases shows each file's downloads and updates.
 
 The website itself is the `site/` folder, uploaded to `littlebrowser.app` by the `site` job when it
 changes on `main` (`desktop/scripts/deploy-site.sh`).
@@ -572,8 +594,8 @@ changes on `main` (`desktop/scripts/deploy-site.sh`).
 Security releases follow Chromium's (roughly weekly) within days, so only steps 2 and 7 wait on a
 person.
 
-**Prerequisites:** Apple Developer account (US$99/yr), a Windows signing identity, the macOS
-runner, and replacing the community-built LLVM before the first public build (`desktop/README.md`).
+**Prerequisites:** Apple Developer account (US$99/yr), a Windows signing identity, the update
+signing key (Sparkle's `generate_keys`, kept in Secrets Manager), the macOS runner, and replacing the community-built LLVM before the first public build (`desktop/README.md`).
 The pipeline lives in `.gitlab-ci.yml`; its Chromium jobs are untested until the runners exist.
 
 ---
