@@ -1,0 +1,19 @@
+# Little Browser: the Chrome Web Store page gets no referrer chain (docs/design.md section 5).
+# webstorePrivate.getReferrerChain hands the store Safe Browsing's record of the navigations that
+# led to it: the pages' addresses, their referrers and server IPs. The store works without it.
+--- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
++++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
+@@ -108,9 +108,10 @@
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+ bool ChromeWebstorePrivateAPIDelegate::IsSafeBrowsingEnabledAndReady(
+     content::BrowserContext* context) {
+-  PrefService* prefs = Profile::FromBrowserContext(context)->GetPrefs();
+-  return safe_browsing::SafeBrowsingNavigationObserverManager::
+-      IsEnabledAndReady(prefs, g_browser_process->safe_browsing_service());
++  // Little Browser: this function's only caller is webstorePrivate.getReferrerChain, which would
++  // give the store page Safe Browsing's referrer chain (the pages that led to the store, with
++  // their addresses). Reporting Safe Browsing as not ready gives the store an empty chain.
++  return false;
+ }
+ 
+ safe_browsing::SafeBrowsingNavigationObserverManager*

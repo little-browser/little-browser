@@ -28,3 +28,7 @@ lb/no-app-menu-tab-groups.patch      # no Tab groups (saved tab groups) menu in 
 lb/tab-click-hook.patch              # a click on a tab row reaches desktop/lb (New Tab Group placeholder)
 lb/no-restore-background-load.patch  # a restored session loads only the shown tab; sleeping pinned tabs stay asleep
 lb/restore-selected-first.patch      # a restored window adds its selected tab first, so no other tab wakes
+lb/web-store-install.patch           # "Add to Chrome" on the Chrome Web Store downloads and installs the extension
+lb/extension-updates.patch           # extensions update from the Chrome Web Store, with no usage pings or hardware fields
+lb/web-store-links.patch             # links to the Chrome Web Store in the app menu and on chrome://extensions
+lb/web-store-no-referrer-chain.patch # the Chrome Web Store page gets no referrer chain (the pages that led to it)

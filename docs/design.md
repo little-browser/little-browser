@@ -97,8 +97,9 @@ same UI concepts, the same Rust core and the same sync.
 - Base: upstream Chromium **stable** + the **ungoogled-chromium** patch set (BSD-3) as an upstream
   dependency. That patch set already removes Google sign-in, sync, telemetry, field-trial downloads and
   most background calls to Google. It is maintained by a community, so we inherit their rebases.
-- Exception to the base patch set: ungoogled-chromium removes Safe Browsing; we **keep** Safe
-  Browsing in standard mode, so we skip or revert those patches (`desktop/README.md`).
+- Exceptions to the base patch set: ungoogled-chromium removes Safe Browsing and cuts extensions
+  off from the Chrome Web Store; we **keep** Safe Browsing in standard mode and the store (install
+  and update), so we skip or revert those patches (`desktop/README.md`).
 - Our own code is licensed **MPL-2.0**, which lets us reuse Brave and adblock-rust code and is
   safe for App Store distribution.
 - Our code lives in a **separate source tree** (`lb/`) that hooks into Chromium through as few
@@ -159,7 +160,7 @@ stripping and cosmetic tweaks, `isInspectable` for Safari Web Inspector.
 | Search | **No default — choice screen on first run** | Offer privacy-respecting engines first (e.g. DuckDuckGo, Brave Search, Startpage), plus the mainstream ones. Search **suggestions off by default** (each keystroke would go to the provider). |
 | Safe Browsing | **Standard mode on** | Local database of hash prefixes; only a short hash prefix is sent to Google on a match, never the URL. "Enhanced" (real-time) mode removed. The threat lists need an agreement with Google; until it is in place the database stays empty ([legal/safe-browsing.md](legal/safe-browsing.md)). |
 | Site isolation | **On** | Costs memory but is our main defence against Spectre-class attacks. Not negotiable. |
-| Extensions | Chrome Web Store, **MV3 only** | Chrome removed the last Manifest V2 switches in mid-2026. Keeping MV2 alive means patching code upstream has deleted, every release. Our native blocker makes it unnecessary; uBlock Origin Lite (MV3) still works for those who want it. |
+| Extensions | Chrome Web Store, **MV3 only**, updated without pings | Install from the store's pages and update automatically from it, as in Chrome. An update check sends, per extension: its id and version, whether it is enabled (and why not), how it was installed, its install date and store cohort, and hashes of update files the browser already has; and once per check: the browser version, OS and its version, architecture, language and whether the computer is in a managed domain. No hardware details, no active-user or roll-call pings, no install ids, no install/update/uninstall events. Extensions not from the store that name no update server are checked against the store too, as in Chrome. The store page gets no referrer chain (the pages that led to it); as in Chrome, it can see which extensions are installed and turn them on or off (`chrome.management`), and extensions can't see or block its requests. Chrome removed the last Manifest V2 switches in mid-2026. Keeping MV2 alive means patching code upstream has deleted, every release. Our native blocker makes it unnecessary; uBlock Origin Lite (MV3) still works for those who want it. |
 | Incognito | Extensions off by default, all third-party storage blocked, wiped on close | |
 
 ---
@@ -195,10 +196,10 @@ magic. Targets must be measured, not promised.
 
 Legend: ✅ planned for the platform · 🟡 adapted · ⏳ later · ❌ not on this platform
 
-Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run
-search-engine choice, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
-the quit warning, and everything Chromium already provides (incognito, DevTools, PiP, import). The
-rest of the table is specified but not built.
+Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run search-engine
+choice, Chrome Web Store extensions (MV3), tab groups and split view (Chromium's own), Safe Browsing
+in standard mode, the quit warning, and everything Chromium already provides (incognito, DevTools,
+PiP, import). The rest of the table is specified but not built.
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -449,6 +450,7 @@ carrier networks.
 | Filter-list updates | Fetched directly from list maintainers, or from our signed mirror | IP |
 | Widevine DRM component | Downloaded from Google, only after the user agrees on first use | IP, version |
 | Safe Browsing | Google's update API (hash prefixes only) | Hash prefixes, IP |
+| Extensions (desktop) | The Chrome Web Store: its pages, the extension download, update checks to `update.googleapis.com` every few hours while extensions are installed, and `chromewebstore.googleapis.com` for the details of an extension another program installed or one being repaired | IP, the update check's contents (§5): installed extensions' ids, versions, state and install dates, browser version, OS, language; the store page also sees which extensions are installed |
 | Crash reports | **Opt-in** only, self-hosted | Crash dump |
 | P2P relay for device-to-device sync — **ours by default** (2–3 regions), public/user relays as fallback | Forwards encrypted bytes, stores nothing, no request logs | IP, timing/size of encrypted traffic |
 

@@ -1,9 +1,11 @@
 # Path regexes (Python re, matched against paths in domain_substitution.list) that must keep their
-# real Google endpoints, so the two Google services we keep still work:
+# real Google endpoints, so the Google services we keep still work:
 #   - Safe Browsing, standard mode
 #   - the Widevine CDM download, via the component updater
-# Check a change to this list by grepping the substituted tree for these services.
-# At 157.0.8103.78: 73 of 17944 files excluded. This is broad: it also keeps the endpoints of
+#   - the Chrome Web Store: installing and updating extensions
+# Check a change to this list by grepping the substituted tree for these services. fetch.sh stops
+# when a line matches no file, so an upstream rename cannot silently drop an exclusion.
+# At 157.0.8103.78: 77 of 17944 files excluded. This is broad: it also keeps the endpoints of
 # real-time URL lookup, extension telemetry, incident reporting and client-side detection. Those are
 # switched off by lb/safe-browsing-standard-only.patch (enhanced-only features, real-time lookups)
 # and ungoogled's iridium patches (incident reporting). The list is broader than the hosts standard
@@ -11,6 +13,13 @@
 ^components/safe_browsing/
 ^chrome/browser/safe_browsing/
 ^components/component_updater/
-^components/update_client/
-^chrome/browser/component_updater/widevine
-^third_party/widevine/
+# Chrome Web Store: its address and update URL, which pages may use chrome.webstorePrivate, which
+# requests extensions may not see or change (the store's and Safe Browsing's), and the namespace of
+# the update manifests ExtensionDownloader reads. Store extensions' update checks go to
+# update.googleapis.com, set in component_updater_url_constants.cc; the component updater line
+# above keeps it too, but the store needs it whether or not Widevine is built.
+^extensions/common/extension_urls\.cc$
+^extensions/common/api/_api_features\.json$
+^extensions/browser/api/web_request/web_request_permissions\.cc$
+^extensions/browser/updater/safe_manifest_parser\.cc$
+^components/component_updater/component_updater_url_constants\.cc$

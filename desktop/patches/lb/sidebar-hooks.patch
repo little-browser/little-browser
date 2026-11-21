@@ -1,10 +1,10 @@
 # Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
-# snapshot tool, pinned tab sleep) with the region view's target.
+# snapshot tool, pinned tab sleep, extensions demo) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,29 @@
+@@ -537,7 +537,31 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -13,6 +13,8 @@
 +    "vertical_tab_strip_region_view.cc",
 +
 +    # Little Browser sidebar (desktop/lb, linked into the tree as //lb).
++    "//lb/browser/extensions/extensions_demo.cc",
++    "//lb/browser/extensions/extensions_demo.h",
 +    "//lb/browser/ui/lb_ui_snapshot.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.h",
@@ -35,12 +37,16 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +579,8 @@
+@@ -557,6 +581,12 @@
      "//ui/views",
    ]
    deps = [
 +    "//lb:model",  # Little Browser: view-free sidebar logic (desktop/lb/BUILD.gn)
 +    "//chrome/browser/resource_coordinator:mojo_bindings",  # Little Browser: pinned tab sleep
++    "//chrome/browser/extensions",  # Little Browser: extensions demo (lb/browser/extensions)
++    "//components/update_client",  # Little Browser: extensions demo
++    "//extensions/browser",  # Little Browser: extensions demo
++    "//extensions/common",  # Little Browser: extensions demo
      ":browser_view_header",
      ":custom_corners_background",
      ":frame",

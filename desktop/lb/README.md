@@ -14,6 +14,10 @@ lb/browser/command_bar/command_matching.*  command bar scoring and "is this an a
 lb/browser/tabs/pinned_close.*      what closing a tab does: close, sleep or only hide (unit tested)
 lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab goes to sleep
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
+lb/browser/extensions/
+  web_store_unittest.cc             store addresses, update server, install API not substituted
+  update_check_unittest.cc          update checks: extensions' go out bare, others stay blocked
+  extensions_demo.*                 --lb-sidebar-demo=<extension modes> (below)
 lb/browser/ui/
   lb_ui_snapshot.*                  --lb-ui-snapshot=<png>: save the window's UI and quit (dev tool)
   tabs/pinned_tab_sleep.*           closing a pinned tab puts it to sleep instead
@@ -66,6 +70,17 @@ audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `--vmodule=sidebar_controller=1,pinned_tab_sleep=1`, with each pinned row's button;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and
 out of a tab group, as single jumps and with Esc, logging the tabs after each drag;
+`=web-store` opens an extension's Chrome Web Store page, presses "Add to …" and accepts the
+prompt (it must install from the store, and the page must get an empty referrer chain),
+`=extension-update`, run again on that profile, checks the store for an update to it as the
+extension updater does and records the request (it must reach `update.googleapis.com`, be
+offered the update and carry no pings and no hardware fields), `=update-manifest` fetches the
+store's update manifest for it and parses it as `ExtensionDownloader` does, `=mv2-off` loads an
+unpacked MV2 and MV3 extension (only MV3 may run), `=store-links`, on a profile with no
+extensions, checks the app menu's "Visit Chrome Web Store" and follows it and the store links
+on `chrome://extensions` (each must load a store page); the extension is uBlock Origin Lite
+unless `--lb-demo-extension=<id>`, and each logs `lb demo: <mode> PASS` or `FAIL` once, without
+`--vmodule`;
 `--lb-ui-snapshot-dialog=<png>` captures a dialog; `--lb-command-bar-text=<q>`
 prefills it; `--lb-ui-snapshot-command-bar=<png>` captures it; `--lb-ui-snapshot-delay=<seconds>`
 sets the wait before any capture, 4 by default). Add `--use-mock-keychain` to any

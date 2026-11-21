@@ -88,13 +88,17 @@ apply_series "$UGM/patches"
 apply_series "$DESKTOP/patches"
 if [ "$PATCHES_ONLY" = 1 ]; then log "Done: every patch applies."; exit 0; fi
 
-log "Domain substitution (keeping Safe Browsing / Widevine endpoints)"
+log "Domain substitution (keeping Safe Browsing, Widevine and Chrome Web Store endpoints)"
 python3 - "$UG/domain_substitution.list" "$DESKTOP/patches/domsub-exclude.txt" \
   > "$BUILD/domain_substitution.list" <<'PY'
 import re, sys
 files = open(sys.argv[1]).read().splitlines()
 pats = [re.compile(l.split('#', 1)[0].strip()) for l in open(sys.argv[2])
         if l.split('#', 1)[0].strip()]
+unmatched = [p.pattern for p in pats if not any(p.search(f) for f in files)]
+if unmatched:
+    sys.exit("domsub-exclude.txt lines that match no file (renamed upstream?): " +
+             ", ".join(unmatched))
 kept = [f for f in files if f and not any(p.search(f) for p in pats)]
 sys.stderr.write(f"substituting {len(kept)} of {len(files)} files "
                  f"({len(files) - len(kept)} excluded)\n")
