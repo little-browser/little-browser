@@ -79,6 +79,7 @@
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/extensions/extensions_demo.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
+#include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -442,7 +443,8 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
   }
 
   // After the window's first tabs are in: fill a fresh window with the space's saved tabs,
-  // record the window's space in the session, and offer the search engine choice.
+  // record the window's space in the session, and ask the first-run questions (search engine,
+  // password manager).
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(
                      [](base::WeakPtr<SidebarController> self) {
@@ -458,7 +460,15 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
       base::BindOnce(
           [](base::WeakPtr<SidebarController> self) {
             if (self) {
-              MaybeShowSearchChoice(self->browser());
+              // First-run questions, one after the other (docs/ux.md section 12).
+              MaybeShowSearchChoice(self->browser(),
+                                    base::BindOnce(
+                                        [](base::WeakPtr<BrowserWindowInterface> browser) {
+                                          if (browser) {
+                                            MaybeShowPasswordManagerChoice(browser.get());
+                                          }
+                                        },
+                                        self->browser()->GetWeakPtr()));
             }
           },
           GetWeakPtr()),
@@ -2176,6 +2186,7 @@ bool HandleNewTab(BrowserWindowInterface* browser) {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterStringPref(kActiveSpacePref, std::string());
   registry->RegisterBooleanPref(kSearchChoiceShownPref, false);
+  registry->RegisterBooleanPref(kPasswordManagerChoiceShownPref, false);
   registry->RegisterListPref(kObsoleteFavouritesPref);
   // Chromium keeps every tab group as a saved group and asks before ungrouping, closing or
   // removing the last tab of one "deletes" it. Nothing here shows saved groups, so don't ask.

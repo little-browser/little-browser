@@ -16,20 +16,18 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
-#include "base/scoped_observation.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "components/constrained_window/constrained_window_views.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_data.h"
 #include "components/search_engines/template_url_service.h"
-#include "lb/browser/ui/lb_ui_snapshot.h"
+#include "lb/browser/search/search_choice.h"
+#include "lb/browser/ui/views/browser_modal_dialog.h"
 #include "third_party/search_engines_data/resources/definitions/prepopulated_engines.h"
-#include "ui/base/base_window.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
@@ -41,7 +39,6 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
-#include "ui/views/widget/widget_observer.h"
 #include "ui/views/window/dialog_delegate.h"
 
 namespace lb {
@@ -101,8 +98,6 @@ void SetDefault(Profile* profile, const Engine& engine) {
   }
 }
 
-// Browser-modal dialogs don't own their delegate (only allow-listed classes may ask the widget
-// to), so the dialog deletes itself once its widget is gone.
 class SearchChoiceDialog;
 
 // The open dialog of each profile (one per profile; showing it again brings it to the front).
@@ -111,7 +106,7 @@ std::map<Profile*, base::WeakPtr<SearchChoiceDialog>>& OpenDialogs() {
   return *dialogs;
 }
 
-class SearchChoiceDialog : public views::DialogDelegate, public views::WidgetObserver {
+class SearchChoiceDialog : public BrowserModalDialog {
  public:
   ~SearchChoiceDialog() override {
     Forget();
@@ -150,8 +145,6 @@ class SearchChoiceDialog : public views::DialogDelegate, public views::WidgetObs
     SetContentsView(std::move(contents));
   }
 
-  void ObserveWidget(views::Widget* widget) { observation_.Observe(widget); }
-
   // Runs after the user picks an engine (e.g. the search they typed); several can wait.
   void AddOnChosen(base::OnceClosure on_chosen) {
     if (on_chosen) {
@@ -159,14 +152,23 @@ class SearchChoiceDialog : public views::DialogDelegate, public views::WidgetObs
     }
   }
 
+  // Runs once the dialog has closed, whatever the answer; several can wait.
+  void AddOnClosed(base::OnceClosure on_closed) {
+    if (on_closed) {
+      on_closed_.push_back(std::move(on_closed));
+    }
+  }
+
   base::WeakPtr<SearchChoiceDialog> GetWeakPtr() { return weak_factory_.GetWeakPtr(); }
 
-  // views::WidgetObserver:
-  void OnWidgetDestroyed(views::Widget* widget) override {
-    observation_.Reset();
-    // Gone from the screen: a ShowSearchChoice before the deletion below opens a new dialog.
+  // BrowserModalDialog:
+  void OnClosed() override {
+    // Gone from the screen: a ShowSearchChoice from now on opens a new dialog.
     Forget();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE, this);
+    for (base::OnceClosure& on_closed : on_closed_) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE, std::move(on_closed));
+    }
+    on_closed_.clear();
   }
 
   // views::DialogDelegate:
@@ -208,33 +210,42 @@ class SearchChoiceDialog : public views::DialogDelegate, public views::WidgetObs
   raw_ptr<views::View> contents_ = nullptr;
   raw_ptr<Profile> profile_;
   std::vector<base::OnceClosure> on_chosen_;
+  std::vector<base::OnceClosure> on_closed_;
   std::vector<raw_ptr<views::RadioButton>> radios_;
-  base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
   base::WeakPtrFactory<SearchChoiceDialog> weak_factory_{this};
 };
 
 }  // namespace
 
-void ShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure on_chosen) {
-  if (!browser) {
-    return;
-  }
+namespace {
+
+// Shows the choice, or brings the open one to the front. `on_chosen` runs after an engine is
+// picked, `on_closed` after the dialog closes either way.
+void Show(BrowserWindowInterface* browser,
+          base::OnceClosure on_chosen,
+          base::OnceClosure on_closed) {
   Profile* profile = browser->GetProfile()->GetOriginalProfile();
   if (auto it = OpenDialogs().find(profile); it != OpenDialogs().end() && it->second) {
     it->second->AddOnChosen(std::move(on_chosen));
+    it->second->AddOnClosed(std::move(on_closed));
     if (views::Widget* open = it->second->GetWidget()) {
       open->Activate();
     }
     return;
   }
-  auto* dialog = new SearchChoiceDialog(profile, std::move(on_chosen));
-  views::Widget* widget = constrained_window::CreateBrowserModalDialogViews(
-      dialog, browser->GetWindow()->GetNativeWindow());
-  dialog->ObserveWidget(widget);
+  auto dialog = std::make_unique<SearchChoiceDialog>(profile, std::move(on_chosen));
+  dialog->AddOnClosed(std::move(on_closed));
   OpenDialogs()[profile] = dialog->GetWeakPtr();
   VLOG(1) << "lb: search choice shown";
-  widget->Show();
-  MaybeScheduleUiSnapshot(widget, "lb-ui-snapshot-dialog");
+  BrowserModalDialog::Show(std::move(dialog), browser);
+}
+
+}  // namespace
+
+void ShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure on_chosen) {
+  if (browser) {
+    Show(browser, std::move(on_chosen), base::OnceClosure());
+  }
 }
 
 void CloseSearchChoiceForTesting() {
@@ -245,32 +256,54 @@ void CloseSearchChoiceForTesting() {
   }
 }
 
-void MaybeShowSearchChoice(BrowserWindowInterface* browser) {
+bool IsSearchChoiceOpenForTesting() {
+  for (const auto& [profile, dialog] : OpenDialogs()) {
+    if (dialog && dialog->GetWidget()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void MaybeShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure then) {
   Profile* profile = browser->GetProfile();
-  if (profile->IsOffTheRecord() || profile->GetPrefs()->GetBoolean(kSearchChoiceShownPref)) {
-    return;
-  }
-  TemplateURLService* service = TemplateURLServiceFactory::GetForProfile(profile);
-  if (!service) {
-    return;
-  }
-  if (!service->loaded()) {
-    service->Load();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE,
-        base::BindOnce(
-            [](base::WeakPtr<BrowserWindowInterface> browser) {
-              if (browser) {
-                MaybeShowSearchChoice(browser.get());
-              }
-            },
-            browser->GetWeakPtr()),
-        base::Seconds(1));
-    return;
-  }
-  profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
-  if (StillNoSearch(service)) {
-    ShowSearchChoice(browser, base::OnceClosure());
+  TemplateURLService* service =
+      profile->IsOffTheRecord() ? nullptr : TemplateURLServiceFactory::GetForProfile(profile);
+  const auto open = OpenDialogs().find(profile->GetOriginalProfile());
+  SearchChoiceState state;
+  state.off_the_record = profile->IsOffTheRecord();
+  state.open = open != OpenDialogs().end() && open->second && open->second->GetWidget();
+  state.offered_before = profile->GetPrefs()->GetBoolean(kSearchChoiceShownPref);
+  state.has_engines = service != nullptr;
+  state.engines_loaded = service && service->loaded();
+  state.no_search_engine = state.engines_loaded && StillNoSearch(service);
+  switch (NextSearchChoiceStep(state)) {
+    case SearchChoiceStep::kAsk:
+      profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
+      Show(browser, base::OnceClosure(), std::move(then));
+      return;
+    case SearchChoiceStep::kSkip:
+      if (state.engines_loaded) {
+        profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
+      }
+      std::move(then).Run();
+      return;
+    case SearchChoiceStep::kWaitForOpenChoice:
+      open->second->AddOnClosed(std::move(then));
+      return;
+    case SearchChoiceStep::kWaitForEngines:
+      service->Load();
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE,
+          base::BindOnce(
+              [](base::WeakPtr<BrowserWindowInterface> browser, base::OnceClosure then) {
+                if (browser) {
+                  MaybeShowSearchChoice(browser.get(), std::move(then));
+                }
+              },
+              browser->GetWeakPtr(), std::move(then)),
+          base::Seconds(1));
+      return;
   }
 }
 

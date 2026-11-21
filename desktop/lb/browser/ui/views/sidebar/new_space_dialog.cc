@@ -12,18 +12,14 @@
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/scoped_observation.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "components/constrained_window/constrained_window_views.h"
-#include "lb/browser/ui/lb_ui_snapshot.h"
+#include "lb/browser/ui/views/browser_modal_dialog.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "ui/base/base_window.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/simple_combobox_model.h"
@@ -44,7 +40,6 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
-#include "ui/views/widget/widget_observer.h"
 #include "ui/views/window/dialog_delegate.h"
 
 namespace lb {
@@ -101,20 +96,8 @@ views::Label* AddCaption(views::View* parent, std::u16string text) {
   return label;
 }
 
-// Browser-modal dialogs don't own their delegate, so the dialog deletes itself once its widget
-// is gone.
-class NewSpaceDialog : public views::DialogDelegate,
-                       public views::TextfieldController,
-                       public views::WidgetObserver {
+class NewSpaceDialog : public BrowserModalDialog, public views::TextfieldController {
  public:
-  void ObserveWidget(views::Widget* widget) { observation_.Observe(widget); }
-
-  // views::WidgetObserver:
-  void OnWidgetDestroyed(views::Widget* widget) override {
-    observation_.Reset();
-    base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE, this);
-  }
-
   explicit NewSpaceDialog(SidebarController* controller)
       : controller_(controller->GetWeakPtr()), profiles_(controller->GetProfiles()) {
     auto contents = std::make_unique<views::View>();
@@ -275,18 +258,12 @@ class NewSpaceDialog : public views::DialogDelegate,
   size_t colour_index_ = 0;
   size_t icon_ = 0;
   int hue_ = kFirstSpaceHue;
-  base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
 };
 
 }  // namespace
 
 void ShowNewSpaceDialog(SidebarController* controller) {
-  auto* dialog = new NewSpaceDialog(controller);
-  views::Widget* widget = constrained_window::CreateBrowserModalDialogViews(
-      dialog, controller->browser()->GetWindow()->GetNativeWindow());
-  dialog->ObserveWidget(widget);
-  widget->Show();
-  MaybeScheduleUiSnapshot(widget, "lb-ui-snapshot-dialog");
+  BrowserModalDialog::Show(std::make_unique<NewSpaceDialog>(controller), controller->browser());
 }
 
 }  // namespace lb
