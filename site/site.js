@@ -38,13 +38,13 @@
     };
     spaces.forEach((b) => b.addEventListener('click', () => setSpace(b)));
 
-    // Grow the card from the link in the article, wherever the text wrapped it.
-    const page = mock.querySelector('.m-page');
+    // Grow the card from the link in the article, wherever the text wrapped it. The card and the
+    // dot are placed in the whole mock (the window), which the Peek covers.
     const link = mock.querySelector('[data-peek-link]');
     const card = mock.querySelector('.m-card');
     const aim = () => {
-      if (!page || !link || !card) return;
-      const p = page.getBoundingClientRect();
+      if (!link || !card) return;
+      const p = mock.getBoundingClientRect();
       const l = link.getBoundingClientRect();
       const x = l.left + l.width / 2 - p.left;
       const y = l.top + l.height / 2 - p.top;
@@ -78,7 +78,7 @@
   // Downloads: a button for this visitor's system (home page and /downloads), and the list of
   // every release (/downloads). The list is releases.json on downloads.littlebrowser.app, written
   // by the release pipeline:
-  //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "alpha",
+  //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "beta",
   //       "chromium": "157.0.8103.78", "files": [ { "platform": "macos", "arch": "arm64",
   //       "url": "https://downloads.littlebrowser.app/...dmg", "size": 123, "sha256": "..." } ] } ] }
   // Newest first. Nothing here is sent anywhere: the system is guessed locally from the browser.
@@ -135,6 +135,51 @@
       for (const k of kids) n.append(k);
       return n;
     };
+    // "beta" -> "Beta": the release's channel, as written by the release pipeline.
+    const channel = (r) => (r && r.channel ? r.channel[0].toUpperCase() + r.channel.slice(1) : 'Beta');
+    const svg = (cls, d) => {
+      const n = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      n.setAttribute('viewBox', '0 0 16 16');
+      n.setAttribute('class', cls);
+      n.setAttribute('aria-hidden', 'true');
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'currentColor');
+      path.setAttribute('stroke-width', '1.5');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      n.append(path);
+      return n;
+    };
+    // The full SHA-256, and a button that copies it.
+    const shaRow = (sha) => {
+      const button = el('button', { type: 'button', className: 'copy', title: 'Copy SHA-256' },
+        svg('icon', 'M5.5 5.5V3.5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M3.5 5.5h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z'),
+        svg('done', 'M3.5 8.5l3 3 6-7'));
+      const code = el('code', { className: 'sha' }, sha);
+      button.setAttribute('aria-label', 'Copy SHA-256');
+      button.addEventListener('click', async () => {
+        let copied = false;
+        try { await navigator.clipboard.writeText(sha); copied = true; } catch {}
+        // Where the Clipboard API is refused, select the checksum: copy it the old way, and if
+        // that fails too it stays selected for ⌘C.
+        const range = document.createRange();
+        range.selectNodeContents(code);
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        if (!copied) {
+          try { copied = document.execCommand('copy'); } catch {}
+        }
+        if (!copied) return;
+        sel.removeAllRanges();
+        button.classList.add('copied');
+        button.title = 'Copied';
+        setTimeout(() => { button.classList.remove('copied'); button.title = 'Copy SHA-256'; }, 1500);
+      });
+      return el('div', { className: 'sha-row' }, 'SHA-256 ', code, button);
+    };
 
     const load = async () => {
       let src = RELEASES;
@@ -157,7 +202,10 @@
         const id = card.dataset.platform;
         const status = card.querySelector('[data-platform-status]');
         if (STORES[id]) status.replaceChildren(el('a', { href: STORES[id].url }, STORES[id].label));
-        else if (rows.some((r) => r.files.some((f) => f.platform === id))) status.textContent = 'Alpha · download below';
+        else {
+          const newest = rows.find((r) => r.files.some((f) => f.platform === id));
+          if (newest) status.textContent = `${channel(newest)} · download below`;
+        }
         if (id === os) card.classList.add('yours');
       }
 
@@ -174,7 +222,7 @@
             const a = el('a', { href, className: 'file' }, label(f));
             if (f.size) a.append(el('span', { className: 'dim' }, ` · ${size(f.size)}`));
             const item = el('div', {}, a);
-            if (f.sha256) item.append(el('code', { className: 'sha', title: `SHA-256 ${f.sha256}` }, `SHA-256 ${String(f.sha256).slice(0, 12)}…`));
+            if (f.sha256) item.append(shaRow(String(f.sha256)));
             files.append(item);
           }
           const version = el('td', {}, el('b', {}, r.version));
@@ -203,13 +251,13 @@
       } else if (href) {
         primary.href = href;
         primary.textContent = `Download for ${PLATFORMS[os]}`;
-        meta.replaceChildren(`Alpha ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, all);
+        meta.replaceChildren(`${channel(latest)} ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, all);
       } else if (!latest) {
-        toAll('The first alpha build is on its way.');
+        toAll('The first build is on its way.');
       } else if (os === 'macos' && arch === 'x64') {
-        toAll('This Mac has an Intel chip; the alpha needs Apple silicon (M1 or later).');
+        toAll('This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.');
       } else if (os && os !== 'macos') {
-        toAll(`Not available for ${PLATFORMS[os]} yet; the alpha is macOS only.`);
+        toAll(`Not available for ${PLATFORMS[os]} yet; the beta is macOS only.`);
       } else {
         toAll();
       }
