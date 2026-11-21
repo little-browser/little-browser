@@ -70,31 +70,45 @@
         <p class="dl-meta" data-dl-meta><a href="/downloads">All downloads</a></p>
       </div>
 
-      <div class="mock" aria-label="Little Browser window: a sidebar on the left and a page on the right">
+      <div class="mock" aria-label="Little Browser window: a sidebar on the left; a slim toolbar and the page on the right">
         <aside class="m-side">
-          <div class="m-lights"><i></i><i></i><i></i></div>
-          <div class="m-url">littlebrowser.app</div>
-          <div class="m-favs">
-            <span><b style="background:#c2513f"></b></span>
-            <span><b style="background:#3f8c5a"></b></span>
-            <span><b style="background:#3f63c2"></b></span>
-            <span><b style="background:#9a4fa8"></b></span>
+          <div class="m-top">
+            <div class="m-lights"><i></i><i></i><i></i></div>
+            <svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h9M2 8h6M2 12h9M14 5.5 11.5 8l2.5 2.5"/></svg>
+            <span class="m-icon-box"><svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h5M2 8h3M2 12h4"/><circle cx="10.5" cy="8.5" r="3"/><path d="m12.7 10.7 1.8 1.8"/></svg></span>
           </div>
-          <div class="m-ws-name">Personal</div>
+          <div class="m-url">quietweb.example</div>
+          <div class="m-ws-name"><span class="m-ws-icon">🏡</span><span class="m-ws-label">Personal</span></div>
+          <div class="m-sep"></div>
           <div class="m-tabs">
-            <div class="m-tab"><b class="logo"></b>Start</div>
+            <div class="m-tab pinned"><b style="background:#3f63c2"></b>Calendar</div>
+            <div class="m-tab pinned"><b style="background:#c2513f"></b>Mail</div>
+          </div>
+          <div class="m-sep"></div>
+          <div class="m-new">+ New Tab</div>
+          <div class="m-tabs">
             <div class="m-tab on"><b style="background:#e07b39"></b>The quiet web, explained</div>
             <div class="m-tab"><b style="background:#2c8c8c"></b>Recipes for a slow Sunday</div>
           </div>
-          <div class="m-sep"></div>
-          <div class="m-new">+ New tab</div>
-          <div class="m-spaces" aria-label="Spaces">
-            <button style="--h:222" data-h="222" title="Personal" aria-pressed="true" aria-label="Personal space"></button>
-            <button style="--h:150" data-h="150" title="Garden" aria-pressed="false" aria-label="Garden space"></button>
-            <button style="--h:24" data-h="24" title="Work" aria-pressed="false" aria-label="Work space"></button>
-            <button style="--h:300" data-h="300" title="Reading" aria-pressed="false" aria-label="Reading space"></button>
+          <div class="m-foot">
+            <div class="m-spaces" aria-label="Spaces">
+              <button data-h="222" title="Personal" aria-pressed="true" aria-label="Personal space">🏡</button>
+              <button data-h="150" title="Garden" aria-pressed="false" aria-label="Garden space">🌱</button>
+              <button data-h="24" title="Work" aria-pressed="false" aria-label="Work space">💼</button>
+              <button data-h="300" title="Reading" aria-pressed="false" aria-label="Reading space">📚</button>
+            </div>
+            <span class="m-plus" aria-hidden="true">+</span>
           </div>
         </aside>
+        <div class="m-main">
+        <div class="m-toolbar" aria-hidden="true">
+          <svg class="m-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4 3 8l4 4"/></svg>
+          <svg class="m-icon dim" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          <svg class="m-icon" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.5M13 3v3h-3"/></svg>
+          <div class="m-omni">https://quietweb.example/explained</div>
+          <svg class="m-icon m-wide" viewBox="0 0 16 16"><path d="m8 2 1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3l-3.7 2 .8-4.1L2 6.3l4.2-.5Z"/></svg>
+          <svg class="m-icon m-wide" viewBox="0 0 16 16"><circle cx="8" cy="3.5" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="8" cy="12.5" r=".6"/></svg>
+        </div>
         <div class="m-page">
           <article class="m-article">
             <p class="m-kicker">Essay · 6 min read</p>
@@ -133,8 +147,9 @@
             </article>
           </div>
         </div>
+        </div>
       </div>
-      <p class="mock-caption">A design preview, not a screenshot. Pick a space colour in the sidebar, or <button data-peek>replay the Peek</button> (Peek is coming soon; it isn't built yet).</p>
+      <p class="mock-caption">A design preview, not a screenshot. Pick a space at the bottom of the sidebar, or <button data-peek>replay the Peek</button> (Peek is coming soon; it isn't built yet).</p>
     </div>
   </section>
 
@@ -143,13 +158,13 @@
       <div class="section-head">
         <span class="eyebrow">Features</span>
         <h2>Small on purpose.</h2>
-        <p>Only a few things, done carefully. No toolbar or bookmarks bar, and no badges or pop-ups. The page gets the whole window.</p>
+        <p>Only a few things, done carefully. A slim toolbar, no bookmarks bar, and no badges or pop-ups. The page gets almost all of the window.</p>
       </div>
       <div class="grid">
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></div>
           <h3>One quiet sidebar</h3>
-          <p>Address, tabs and spaces sit in one place, built on Chromium's own vertical tabs. Collapse it down to icons when you want more page.</p>
+          <p>Tabs and spaces sit in one place, built on Chromium's own vertical tabs. Collapse it down to icons when you want more page.</p>
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/><rect x="10" y="4" width="10" height="10" rx="2.5"/><path d="M8 16l2.5-2.5" opacity=".6"/></svg></div>
@@ -173,8 +188,8 @@
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.5-.8z"/></svg></div>
-          <h3>The extensions you use</h3>
-          <p>On desktop it's Chromium underneath, so Chrome Web Store extensions, DevTools and Picture-in-Picture come along. Only Manifest V3 extensions run, as in Chrome itself.</p>
+          <h3>The extensions you use <span class="tag">Coming soon</span></h3>
+          <p>On desktop it's Chromium underneath, so DevTools and Picture-in-Picture come along. Installing extensions from the Chrome Web Store arrives in the next alpha, and only Manifest V3 extensions will run, as in Chrome itself.</p>
         </article>
       </div>
     </div>
@@ -191,7 +206,7 @@
       <div class="grid">
         <div class="item"><h3>No telemetry</h3><p>No usage stats, field trials or browser sign-in. It starts from ungoogled-chromium, which removes Google's background services.</p></div>
         <div class="item"><h3>Ad and tracker blocking built in <span class="tag">Coming soon</span></h3><p>A native blocker, so it works even where extensions don't. Tracking parameters are stripped from links.</p></div>
-        <div class="item"><h3>Stricter defaults <span class="tag">Coming soon</span></h3><p>Third-party cookies blocked and HTTPS-First on by default. Site isolation stays on.</p></div>
+        <div class="item"><h3>Stricter defaults</h3><p>Third-party cookies are blocked by default, and site isolation stays on. HTTPS-First on by default is coming soon.</p></div>
         <div class="item"><h3>Sync you own <span class="tag">Coming soon</span></h3><p>End-to-end encrypted, device to device or through your own iCloud, Google Drive, Dropbox or WebDAV. Pair devices with a QR code.</p></div>
         <div class="item"><h3>You pick the search engine</h3><p>There's no default. Choose on first run, and suggestions stay off, so nothing is sent while you type.</p></div>
         <div class="item"><h3>Safe Browsing, standard only</h3><p>Checks against a local list of hash prefixes, with no real-time lookups. The threat lists need an agreement with Google, which we haven't finished, so it has no data yet.</p></div>
