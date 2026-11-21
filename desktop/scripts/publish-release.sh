@@ -57,7 +57,7 @@ jq --arg v "$VERSION" --arg d "$DATE" --arg c "$CHROMIUM_VERSION" \
   { platform: "macos", arch: "arm64", url: $u, size: $s, sha256: $h } as $file
   | if any(.releases[]; .version == $v)
     then .releases |= map(if .version == $v then .files += [$file] else . end)
-    else .releases = [ { version: $v, date: $d, channel: "alpha", chromium: $c, files: [ $file ] } ] + .releases
+    else .releases = [ { version: $v, date: $d, channel: "beta", chromium: $c, files: [ $file ] } ] + .releases
     end' "$TMP/current.json" > "$TMP/releases.json"
 
 echo "publishing $NAME ($SIZE bytes, SHA-256 $SHA256)"
