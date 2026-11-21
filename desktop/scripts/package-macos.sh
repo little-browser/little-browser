@@ -6,13 +6,24 @@
 # Sign out/Default's Little Browser.app and package it as a disk image,
 # desktop/build/LittleBrowser-macos-<arch>.dmg: the app next to an Applications link.
 #
-#   desktop/scripts/package-macos.sh             ad-hoc signature (local testing)
-#   desktop/scripts/package-macos.sh --release   Developer ID signature, notarised and stapled (CI)
+#   desktop/scripts/package-macos.sh [<version>]             ad-hoc signature (local testing)
+#   desktop/scripts/package-macos.sh --release <version>     Developer ID signature, notarised
+#                                                            and stapled (CI)
 #
 # --release reads the signing material from AWS Secrets Manager (little-browser/signing/
 # apple-developer-id and apple-notarization), which only the release builder can read. While the
 # certificate secret is empty it falls back to an ad-hoc signature, and without notarisation
 # credentials it signs but doesn't notarise; it says so either way.
+#
+# <version> is the release, e.g. 157.0.8103.78-1. It goes into the app's CFBundleVersion as
+# <Chromium build>.<patch>.<revision>, which the updater compares, and turns on the updater:
+# Sparkle (pinned below) in Contents/Frameworks, the feed and public key in Info.plist, and
+# LittleBrowser-macos-<arch>.update.json next to the disk image with the disk image's EdDSA
+# signature, which publish-release.sh puts in the feed. The update key ({"private_key",
+# "public_key"} from Sparkle's generate_keys) is the little-browser/signing/sparkle-ed25519
+# secret with --release, or the JSON file LB_UPDATE_KEY_FILE names otherwise; without one the
+# app has no updater, with a warning. LB_UPDATE_FEED_URL replaces the feed's address, for
+# testing an update locally.
 #
 # Signing order and options follow ungoogled-chromium-macos's sign_and_package_app.sh: nested
 # code first (libraries, tools, helpers), then the framework, then the app, with the hardened
@@ -29,17 +40,36 @@ REGION="${LB_AWS_REGION:-ap-southeast-2}"
 # Developer ID Certification Authority (G2), valid until 2031-09-17.
 APPLE_DEVID_CA_URL=https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
 APPLE_DEVID_CA_SHA256=f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643d2df3a
+# The updater (MIT licence): Sparkle's own release build, pinned by checksum.
+SPARKLE_VERSION=2.10.1
+SPARKLE_SHA256=1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27
+SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+UPDATE_FEED_URL="${LB_UPDATE_FEED_URL:-https://downloads.littlebrowser.app/updates/macos-arm64.xml}"
+# Hours between update checks while the browser runs (docs/design.md §7.13).
+UPDATE_CHECK_SECONDS=14400
 
 die() { echo "error: $*" >&2; exit 1; }
 warn() { echo "warning: $*" >&2; }
+usage() { die "usage: package-macos.sh [--release] [<version>] (--release needs the version)"; }
 
 RELEASE=0
-case "${1:-}" in
-  --release) RELEASE=1 ;;
-  "") ;;
-  *) die "usage: package-macos.sh [--release]" ;;
-esac
+VERSION=""
+for arg in "$@"; do
+  case "$arg" in
+    --release) RELEASE=1 ;;
+    -*) usage ;;
+    *) [ -z "$VERSION" ] || usage; VERSION="$arg" ;;
+  esac
+done
+[ "$RELEASE" = 0 ] || [ -n "$VERSION" ] || usage
 [ -d "$APP" ] || die "no release build at $APP"
+# shellcheck source=../VERSIONS
+source "$DESKTOP/VERSIONS"
+if [ -n "$VERSION" ]; then
+  [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){3}-([0-9]+)$ ]] || die "version $VERSION is not <chromium version>-<revision>"
+  [ "${VERSION%-*}" = "$CHROMIUM_VERSION" ] ||
+    die "version $VERSION is not on this tree's Chromium version, $CHROMIUM_VERSION"
+fi
 
 # Keychain identities only count as valid in a user's own launchd session. The GitLab runner is a
 # LaunchDaemon, so CI jobs run in the System session, where codesign finds "no identity". Re-run
@@ -141,6 +171,64 @@ if [ "$RELEASE" = 1 ]; then
   fi
 fi
 
+# --------------------------------------------------------------- update key (with a version)
+UPDATE_KEY_JSON=""
+if [ -n "$VERSION" ]; then
+  if [ "$RELEASE" = 1 ]; then
+    UPDATE_KEY_JSON="$(secret sparkle-ed25519)"
+  elif [ -n "${LB_UPDATE_KEY_FILE:-}" ]; then
+    UPDATE_KEY_JSON="$(cat "$LB_UPDATE_KEY_FILE")"
+  fi
+  if [ -z "$(field "$UPDATE_KEY_JSON" private_key)" ] || [ -z "$(field "$UPDATE_KEY_JSON" public_key)" ]; then
+    warn "no update signing key: the app has no updater"
+    UPDATE_KEY_JSON=""
+  fi
+fi
+
+# --------------------------------------------------------------- updater
+PLIST="$APP/Contents/Info.plist"
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+SPARKLE_KEYS=(SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUScheduledCheckInterval
+              SUAllowsAutomaticUpdates SUAutomaticallyUpdate SUShowReleaseNotes
+              SUVerifyUpdateBeforeExtraction)
+# A clean slate: an earlier run may have added the updater to this build.
+rm -rf "$SPARKLE"
+for key in "${SPARKLE_KEYS[@]}"; do
+  plutil -remove "$key" "$PLIST" 2>/dev/null || true
+done
+IFS=. read -r _ _ build patch <<<"$CHROMIUM_VERSION"
+BUNDLE_VERSION="$build.$patch${VERSION:+.${VERSION##*-}}"
+plutil -replace CFBundleVersion -string "$BUNDLE_VERSION" "$PLIST"
+
+if [ -n "$UPDATE_KEY_JSON" ]; then
+  tarball="$DESKTOP/build/download_cache/Sparkle-$SPARKLE_VERSION.tar.xz"
+  sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+  if [ ! -f "$tarball" ] || [ "$(sha "$tarball")" != "$SPARKLE_SHA256" ]; then
+    mkdir -p "$(dirname "$tarball")"
+    curl -fsSL --retry 3 -o "$tarball.part" "$SPARKLE_URL"
+    mv "$tarball.part" "$tarball"
+  fi
+  [ "$(sha "$tarball")" = "$SPARKLE_SHA256" ] ||
+    die "Sparkle $SPARKLE_VERSION doesn't match its pinned checksum"
+  mkdir "$TMP/sparkle"
+  tar -xJf "$tarball" -C "$TMP/sparkle"
+  ditto "$TMP/sparkle/Sparkle.framework" "$SPARKLE"
+  # Its XPC services are only for sandboxed apps, which the browser isn't.
+  rm -rf "$SPARKLE/XPCServices" "$SPARKLE/Versions/B/XPCServices"
+  # The browser loads Sparkle when these are set (desktop/lb/browser/update/). Checks run on a
+  # schedule without asking first; an update is offered, never installed on its own; no release
+  # notes, so the prompt stays small; the download's signature is checked before it is opened.
+  plutil -replace SUFeedURL -string "$UPDATE_FEED_URL" "$PLIST"
+  plutil -replace SUPublicEDKey -string "$(field "$UPDATE_KEY_JSON" public_key)" "$PLIST"
+  plutil -replace SUEnableAutomaticChecks -bool YES "$PLIST"
+  plutil -replace SUScheduledCheckInterval -integer "$UPDATE_CHECK_SECONDS" "$PLIST"
+  plutil -replace SUAllowsAutomaticUpdates -bool NO "$PLIST"
+  plutil -replace SUAutomaticallyUpdate -bool NO "$PLIST"
+  plutil -replace SUShowReleaseNotes -bool NO "$PLIST"
+  plutil -replace SUVerifyUpdateBeforeExtraction -bool YES "$PLIST"
+  echo "updater: Sparkle $SPARKLE_VERSION, version $BUNDLE_VERSION, feed $UPDATE_FEED_URL"
+fi
+
 # --------------------------------------------------------------- sign
 bundle_id() { /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$1"; }
 
@@ -180,6 +268,12 @@ for helper in "$HELPERS"/*.app; do
   esac
 done
 sign "$(bundle_id "$FW/Resources/Info.plist")" "" "" "$FW"
+if [ -d "$SPARKLE" ]; then
+  sign org.sparkle-project.Sparkle.Autoupdate runtime "" "$SPARKLE/Versions/B/Autoupdate"
+  sign "$(bundle_id "$SPARKLE/Versions/B/Updater.app/Contents/Info.plist")" runtime "" \
+    "$SPARKLE/Versions/B/Updater.app"
+  sign org.sparkle-project.Sparkle "" "" "$SPARKLE"
+fi
 if [ "$IDENTITY" = - ]; then
   sign "$APP_ID" restrict,library,runtime,kill "$ENT/app-entitlements.plist" "$APP"
 else
@@ -214,6 +308,8 @@ fi
 # --------------------------------------------------------------- disk image
 arch="$(lipo -archs "$APP/Contents/MacOS/Little Browser")"
 DMG="$DESKTOP/build/LittleBrowser-macos-${arch// /-}.dmg"
+UPDATE_INFO="${DMG%.dmg}.update.json"
+rm -f "$UPDATE_INFO"
 mkdir -p "$TMP/stage"
 ditto "$APP" "$TMP/stage/Little Browser.app"
 ln -s /Applications "$TMP/stage/Applications"
@@ -226,6 +322,22 @@ fi
 if [ "${#NOTARY[@]}" -gt 0 ]; then
   notarise "$DMG"
   xcrun stapler staple "$DMG"
+fi
+
+# --------------------------------------------------------------- update signature
+# The updater installs only a disk image whose EdDSA signature matches the public key in the
+# running app's Info.plist. Signed last: stapling changes the file.
+if [ -n "$UPDATE_KEY_JSON" ]; then
+  sign_update="$TMP/sparkle/bin/sign_update"
+  signature="$(field "$UPDATE_KEY_JSON" private_key | "$sign_update" --ed-key-file - -p "$DMG")"
+  [ -n "$signature" ] || die "sign_update printed no signature"
+  field "$UPDATE_KEY_JSON" private_key |
+    "$sign_update" --ed-key-file - --verify "$DMG" "$signature" >/dev/null ||
+    die "the update signature doesn't verify"
+  jq -n --arg b "$BUNDLE_VERSION" --arg s "$signature" \
+    --arg m "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST")" \
+    '{ bundle_version: $b, minimum_system_version: $m, ed_signature: $s }' > "$UPDATE_INFO"
+  echo "update signature: $UPDATE_INFO"
 fi
 
 case "$IDENTITY" in

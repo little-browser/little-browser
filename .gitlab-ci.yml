@@ -74,6 +74,14 @@ lb-tests:
   script:
     - python3 -I desktop/scripts/check_lb_tests.py
 
+# Unit tests of the release scripts' Python (download counts, the update feed).
+script-tests:
+  extends: .check
+  tags: [lb-linux]
+  image: python:3-slim
+  script:
+    - python3 -I -m unittest discover -s desktop/scripts -p 'test_*.py'
+
 scripts:
   extends: .check
   tags: [lb-linux]
@@ -180,7 +188,9 @@ macos-arm64:
 # ------------------------------------------------------------------ package, sign, publish
 # A tag builds and signs; the signed files are the internal test build (pipeline artifacts).
 # After internal testing, a person runs the manual `publish` job: it puts the same .dmg on
-# downloads.littlebrowser.app and lists it in releases.json, which the website reads.
+# downloads.littlebrowser.app, lists it in releases.json, which the website reads, and offers it
+# in the updater's feed. Set LB_SECURITY_RELEASE=1 or 0 when running it to say whether it is a
+# security release (unset: a new Chromium version is one).
 
 macos-arm64-package:
   stage: package
@@ -195,9 +205,10 @@ macos-arm64-package:
     # Developer ID signature, notarised and stapled, with the signing material from Secrets
     # Manager (only this builder can read it). While those secrets are empty, an ad-hoc
     # signature, and macOS asks people to confirm the first launch.
-    - desktop/scripts/package-macos.sh --release
+    # The release version turns on the updater and goes into the app's bundle version.
+    - desktop/scripts/package-macos.sh --release "${CI_COMMIT_TAG#v}"
   artifacts:
-    paths: ["desktop/build/*.dmg"]
+    paths: ["desktop/build/*.dmg", "desktop/build/*.update.json"]   # .update.json: the update's signature
     expire_in: 30 days           # internal testing happens on these; publish promotes them as-is
 
 .aws:
@@ -215,7 +226,7 @@ publish:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
       when: manual               # a person publishes after internal testing; nothing is rebuilt
   before_script:
-    - yum install -y -q jq
+    - yum install -y -q jq python3
   script:
     - desktop/scripts/publish-release.sh "${CI_COMMIT_TAG#v}" desktop/build/*.dmg
 
