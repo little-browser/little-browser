@@ -40,3 +40,4 @@ lb/peek-hooks.patch                  # Shift+click opens a link in Peek, a card 
 lb/little-window-toolbar.patch       # a little window's toolbar row has Copy URL and Open in <space>
 lb/little-window-shortcut.patch      # Cmd+Option+N opens the command bar for a new little window
 lb/little-window-link-menu.patch     # a link's context menu has Open Link in Little Window
+lb/updater.patch                     # macOS: start the updater (Sparkle) when the app is packaged with it

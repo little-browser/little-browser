@@ -20,6 +20,7 @@ build is in `../AGENTS.md`.
   | Whether the first-run search choice was offered (per profile) | profile prefs `lb.search_choice_shown` |
   | Whether the first-run password manager choice was offered (per profile) | profile prefs `lb.password_manager_choice_shown` |
   | When the ad blocker's filter lists were last downloaded (browser-wide) | Local State `lb.filter_lists_updated` |
+  | The last "Later" on the update prompt (per app, next to Sparkle's own settings) | macOS user defaults `LBUpdateLaterVersion`, `LBUpdateLaterTime` |
   | The downloaded filter rules (browser-wide), before Chromium indexes them | `<user data>/Filter Lists/<version>/` |
   | Sites where ads are allowed or blocked (per profile) | Chromium's "ads" content setting |
   | A window's current space | session window extra data `lb_space` |

@@ -34,6 +34,8 @@ source_set("model") {
     "browser/tabs/tab_to_show.cc",
     "browser/tabs/tab_to_show.h",
     "browser/ui/lb_command_ids.h",  # also in the sidebar's views target, which includes it
+    "browser/update/update_reminder.cc",
+    "browser/update/update_reminder.h",
   ]
   public_deps = [
     "//components/security_state/core",  # Peek: the site label's warning
@@ -54,6 +56,23 @@ source_set("model") {
   ]
 }
 
+if (is_mac) {
+  # The updater: loads Sparkle when the app is packaged with it (browser/update/updater_mac.h).
+  # chrome/browser's macOS code depends on it (patches/lb/updater.patch).
+  source_set("updater") {
+    sources = [
+      "browser/update/sparkle_api.h",
+      "browser/update/updater_mac.h",
+      "browser/update/updater_mac.mm",
+    ]
+    deps = [
+      ":model",
+      "//base",
+    ]
+    frameworks = [ "Foundation.framework" ]
+  }
+}
+
 # desktop/lb/AGENTS.md says how to build and run these.
 test("lb_unittests") {
   sources = [
@@ -72,6 +91,7 @@ test("lb_unittests") {
     "browser/tabs/pinned_close_unittest.cc",
     "browser/tabs/restore_order_unittest.cc",
     "browser/tabs/tab_to_show_unittest.cc",
+    "browser/update/update_reminder_unittest.cc",
   ]
   deps = [
     ":model",

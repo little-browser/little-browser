@@ -1,0 +1,38 @@
+# Little Browser: start the updater (desktop/lb/browser/update, Sparkle on macOS) after the first
+# profile loads. It does nothing unless the app was packaged with it (desktop/scripts/
+# package-macos.sh <version>). The quit that restarts into an update skips "Quit Little Browser?"
+# (confirm-every-quit.patch).
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1718,6 +1718,7 @@
+       ":app_controller_mac",
+       ":chrome_browser_application_mac",
+       ":chrome_browser_main_mac",
++      "//lb:updater",  # Little Browser: the updater (desktop/lb/browser/update)
+       ":fullscreen",
+       ":global_keyboard_shortcuts_mac",
+       ":shutdown_watchdog_mac",
+--- a/chrome/browser/chrome_browser_main_mac.mm
++++ b/chrome/browser/chrome_browser_main_mac.mm
+@@ -42,6 +42,7 @@
+ #include "components/version_info/channel.h"
+ #include "content/public/common/main_function_params.h"
+ #include "content/public/common/result_codes.h"
++#include "lb/browser/update/updater_mac.h"
+ #include "net/cert/internal/system_trust_store.h"
+ #include "ui/base/cocoa/permissions_utils.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -179,6 +180,13 @@
+ void ChromeBrowserMainPartsMac::PostProfileInit(Profile* profile,
+                                                 bool is_initial_profile) {
+   ChromeBrowserMainPartsPosix::PostProfileInit(profile, is_initial_profile);
++
++  // Little Browser: check for updates when the app is packaged with the updater. Its restart
++  // into the update is the user's choice, so that quit doesn't ask first.
++  if (is_initial_profile) {
++    lb::StartUpdater(base::BindRepeating(
++        [] { AppController.sharedController.lbQuitAlreadyDecided = YES; }));
++  }
+ }
+ 
+ void ChromeBrowserMainPartsMac::DidEndMainMessageLoop() {

@@ -31,6 +31,11 @@ lb/browser/adblock/
   ad_blocker_demo.*                 --lb-sidebar-demo=ad-blocker (below)
   ad_blocking_unittest.cc           Chromium's filter is on for every site
 lb/browser/demo/demo_report.*       PASS/FAIL logging, deadlines and clicks for the demo modes
+lb/browser/update/
+  update_reminder.*                 when a found update is offered again after "Later"
+  updater_mac.*                     macOS: loads Sparkle when the app is packaged with it, applies
+                                    "Later", lets the restart into an update skip the quit question
+  sparkle_api.h                     the part of Sparkle's API it calls (Sparkle isn't linked)
 lb/browser/extensions/
   web_store_unittest.cc             store addresses, update server, install API not substituted
   update_check_unittest.cc          update checks: extensions' go out bare, others stay blocked
