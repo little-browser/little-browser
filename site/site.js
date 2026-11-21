@@ -81,12 +81,16 @@
   //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "beta",
   //       "chromium": "157.0.8103.78", "files": [ { "platform": "macos", "arch": "arm64",
   //       "url": "https://downloads.littlebrowser.app/...dmg", "size": 123, "sha256": "..." } ] } ] }
-  // Newest first. Nothing here is sent anywhere: the system is guessed locally from the browser.
+  // Newest first. Next to it, stats.json (desktop/scripts/download_stats.py) counts each file's
+  // completed downloads and the browser's updates to it, keyed by the file's path:
+  //   { "counted_through": "2026-11-20", "downloads": { "<version>/<file>": 12 }, "updates": { ... } }
+  // Nothing here is sent anywhere: the system is guessed locally from the browser.
   const primary = document.querySelector('[data-dl-primary]');
   const meta = document.querySelector('[data-dl-meta]');
   const list = document.querySelector('[data-releases-list]');
   if (primary || list) {
     const RELEASES = 'https://downloads.littlebrowser.app/releases.json';
+    const STATS = 'https://downloads.littlebrowser.app/stats.json';
     const DOWNLOAD_ORIGIN = 'https://downloads.littlebrowser.app';
     const PLATFORMS = {
       macos: 'macOS', windows: 'Windows', linux: 'Linux', ios: 'iPhone and iPad', android: 'Android',
@@ -181,20 +185,39 @@
       return el('div', { className: 'sha-row' }, 'SHA-256 ', code, button);
     };
 
-    const load = async () => {
-      let src = RELEASES;
-      const override = new URLSearchParams(location.search).get('releases');
-      if (local && override) src = override; // preview against a sample file
+    // A JSON file from the download host, or a sample file next to the page in a local preview
+    // (?releases=… or ?stats=…). null if it can't be read.
+    const fetchJson = async (src, param) => {
+      const override = new URLSearchParams(location.search).get(param);
+      if (local && override) src = override;
       try {
         const r = await fetch(src, { cache: 'no-cache' });
-        if (!r.ok) return [];
-        const j = await r.json();
-        return Array.isArray(j.releases) ? j.releases : [];
-      } catch { return []; }
+        return r.ok ? await r.json() : null;
+      } catch { return null; }
+    };
+    const load = async () => {
+      const j = await fetchJson(RELEASES, 'releases');
+      return j && Array.isArray(j.releases) ? j.releases : [];
+    };
+    // "1,234 downloads · 56 updates" for a file, or '' before anything is counted.
+    const counts = (stats, f) => {
+      if (!stats) return '';
+      let key;
+      try { key = new URL(f.url, location.href).pathname.replace(/^\//, ''); } catch { return ''; }
+      const n = (table) => {
+        const v = stats[table] && stats[table][key];
+        return Number.isInteger(v) && v > 0 ? v : 0;
+      };
+      const plural = (v, word) => `${v.toLocaleString('en')} ${word}${v === 1 ? '' : 's'}`;
+      const downloads = n('downloads');
+      const updates = n('updates');
+      return [plural(downloads, 'download'), updates ? plural(updates, 'update') : ''].filter(Boolean).join(' · ');
     };
 
     (async () => {
-      const [{ os, arch }, releases] = await Promise.all([detect(), load()]);
+      const [{ os, arch }, releases, stats] = await Promise.all([
+        detect(), load(), list ? fetchJson(STATS, 'stats') : null,
+      ]);
       const rows = releases.filter((r) => r && r.version && Array.isArray(r.files) && r.files.length);
 
       // Platform cards: which ones have a build or a store page, and which one is yours.
@@ -222,6 +245,8 @@
             const a = el('a', { href, className: 'file' }, label(f));
             if (f.size) a.append(el('span', { className: 'dim' }, ` · ${size(f.size)}`));
             const item = el('div', {}, a);
+            const counted = counts(stats, f);
+            if (counted) item.append(el('div', { className: 'counts dim' }, counted));
             if (f.sha256) item.append(shaRow(String(f.sha256)));
             files.append(item);
           }

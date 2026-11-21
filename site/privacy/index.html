@@ -76,7 +76,8 @@
       </ul>
 
       <h2>App stores and downloads</h2>
-      <p>If you install Little Browser from an app store, the store's own privacy policy covers that. Downloads from downloads.littlebrowser.app are served by Amazon CloudFront, which sees your IP address to deliver the file; we keep no access logs.</p>
+      <p>If you install Little Browser from an app store, the store's own privacy policy covers that. Downloads from downloads.littlebrowser.app are served by Amazon CloudFront, which sees your IP address to deliver the file. To count how often each release is downloaded, CloudFront records only the time of each request, the file, whether it was delivered and how many bytes were sent: no IP address, browser details or identifier. We add these up into the totals shown on the download page and delete the records after a week.</p>
+      <p>On a Mac, the browser checks downloads.littlebrowser.app for a new version every four hours. The check sends only the browser's version and that it runs on macOS; no identifier or system details. Updates are downloaded from a folder of their own there, so the download counts can tell new downloads from updates.</p>
 
       <h2>This website</h2>
       <p>littlebrowser.app uses no cookies, analytics or tracking. It remembers your light or dark theme choice in your browser's local storage, which never leaves your device. The site is served by Amazon CloudFront, and we keep no access logs.</p>
