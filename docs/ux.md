@@ -6,11 +6,11 @@
 
 **Built so far (macOS desktop):** the sidebar layout on upstream's vertical tabs, the command bar,
 spaces and profiles (new-space dialog, switching by shortcut, swipe or footer, per-space tint, saved
-tabs per space), pinned tabs as a list, the first-run search-engine choice, the quit warning,
-and Chromium's own tab groups. Everything else here — auto-archive, group suggestions and
-auto-grouping, Peek, the little window, the distinct incognito look, top-mode additions, hiding the
-sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button and the whole mobile section — is
-specified but not built.
+tabs per space), pinned tabs as a list, the first-run search-engine and password-manager choices,
+the ad blocker, the quit warning, and Chromium's own tab groups. Everything else here —
+auto-archive, group suggestions and auto-grouping, Peek, the little window, the distinct incognito
+look, top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button
+and the whole mobile section — is specified but not built.
 
 ---
 
@@ -75,6 +75,11 @@ Sidebar zones, top to bottom:
   edge slides the sidebar in *over* the page, and it slides out when the pointer leaves.
 - **Sidebar width** is draggable (200–400 px).
 - Light/dark follows the OS; space colour is a subtle tint, never a saturated block.
+- **Ads** are blocked on every site by the built-in blocker. When a site doesn't work, or to
+  support it, the site-info panel (the icon left of the address) → "Cookies and site data" has an
+  **Ads** switch next to the third-party cookies one; the command bar has "Allow ads on this site".
+  That panel is the one place for both switches: there is no third-party cookies "eye" icon in the
+  address bar.
 
 ## 3. Desktop window — top mode
 
@@ -107,7 +112,8 @@ The centre of the browser. A floating palette in the middle of the window.
 
 - Results, in one list, ranked by fuzzy match: **open tabs** (switch, across all spaces) ·
   pinned · history · archived tabs · **commands** (“Toggle sidebar”, “New space”,
-  “Tabs on top”, “Incognito window”, “Copy URL”…) · URL / “Search with ‹engine›”.
+  “Tabs on top”, “Incognito window”, “Copy URL”, “Allow ads on this site” / “Block ads on this
+  site”…) · URL / “Search with ‹engine›”.
 - Enter takes the top result; ↑/↓ moves; Esc closes and returns focus to the page.
 - Opens in < 50 ms; it's a native/overlay view, not a page.
 - Search suggestions from the engine appear only if the user turns them on (privacy default).
@@ -153,7 +159,8 @@ The centre of the browser. A floating palette in the middle of the window.
 - **Today** tabs are everything else. **Auto-archive**: today tabs not used for a while are
   closed and moved to the archive (searchable in the command bar). This keeps the sidebar short and
   memory low. Choices: 12 h, **24 h (default)**, 7 days, 30 days, or Never. The first-run screen asks
-  for it right after the search engine choice, with 24 h suggested; Settings can change it later.
+  for it right after the search engine and password manager choices (section 12), with 24 h
+  suggested; Settings can change it later.
 - Drag to reorder pinned tabs, today tabs and groups. Dragging a tab across "+ New Tab" pins or
   unpins it, live, and it can go anywhere in the other area, a group included; the right-click
   menu pins and unpins too. Groups stay among the today tabs and can't be dragged into the pinned
@@ -320,7 +327,24 @@ sidebar layout** is used (section 2); narrower (Split View, Slide Over) uses the
 Animate only transform and opacity, so animations run on the compositor and never wait for page
 work.
 
-## 12. What we leave out of Arc
+## 12. First run
+
+Two questions, once per profile, one after the other in dialogs over the first window; a window
+opened meanwhile waits for them. "Not now" skips either one.
+
+1. **Search engine.** There's no default; the user picks one (design.md §5). Until they do, a
+   search from the command bar brings the choice back.
+2. **Password manager.** Little Browser has no password manager of its own (design.md §7.8), so
+   it offers one as an extension: 1Password, Bitwarden or Proton Pass, in alphabetical order, each
+   with one line about it. Picking one shows Chromium's install prompt with the extension's
+   permissions, and it installs from the Chrome Web Store. If the store can't be reached, a
+   message says so and the question comes back the next time a window opens. The question is
+   skipped if one of the three is already installed and isn't asked again; any extension can be
+   added from the store later.
+
+Auto-archive's question comes after these (section 6).
+
+## 13. What we leave out of Arc
 
 Boosts, Easels, Notes, Library media view, AI features, accounts, Air Traffic Control (rule-based link
 routing), right/bottom tabs. Candidate for later: link routing rules.

@@ -18,6 +18,10 @@ build is in `../AGENTS.md`.
   | Saved tabs of each space (with active tab, tab groups and split views) | Local State `lb.space_tabs`, keyed by space id; not observed, so saving doesn't redraw sidebars |
   | Last active space (per profile) | profile prefs `lb.active_space` |
   | Whether the first-run search choice was offered (per profile) | profile prefs `lb.search_choice_shown` |
+  | Whether the first-run password manager choice was offered (per profile) | profile prefs `lb.password_manager_choice_shown` |
+  | When the ad blocker's filter lists were last downloaded (browser-wide) | Local State `lb.filter_lists_updated` |
+  | The downloaded filter rules (browser-wide), before Chromium indexes them | `<user data>/Filter Lists/<version>/` |
+  | Sites where ads are allowed or blocked (per profile) | Chromium's "ads" content setting |
   | A window's current space | session window extra data `lb_space` |
 
   Register new prefs in `RegisterProfilePrefs` or `RegisterLocalStatePrefs`; they are wired in
@@ -40,10 +44,9 @@ build is in `../AGENTS.md`.
   in between.
 - **Dialogs.** Use `views::DialogDelegate` with `SetContentsView()`; `DialogDelegateView` is
   restricted to an allow-list of classes. A delegate passed to
-  `constrained_window::CreateBrowserModalDialogViews` is **not** owned by the widget, so the
-  dialog deletes itself in `OnWidgetDestroyed` (see `new_space_dialog.cc` and
-  `search_choice_dialog.cc`). When a third dialog needs this, extract the pattern into a shared
-  helper.
+  `constrained_window::CreateBrowserModalDialogViews` is **not** owned by the widget, so derive
+  from `BrowserModalDialog` (`browser/ui/views/browser_modal_dialog.h`): its `Show()` opens the
+  dialog over a browser window, and the dialog deletes itself once its widget is gone.
 - **Make visual changes checkable without input.** Add a `--lb-sidebar-demo=<mode>` and call
   `MaybeScheduleUiSnapshot()`, so a state can be reached and captured from the command line.
   Demos run once per launch.
@@ -53,7 +56,8 @@ build is in `../AGENTS.md`.
 `BUILD.gn` here has two targets:
 
 - **`//lb:model`**, a `source_set` for logic that needs no views or browser window
-  (`browser/spaces/`, `browser/command_bar/`, `browser/tabs/`). The sidebar's views target depends on it through
+  (`browser/spaces/`, `browser/command_bar/`, `browser/tabs/`, `browser/adblock/`,
+  `browser/password/`, `browser/search/`). The sidebar's views target depends on it through
   `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this file.
 - **`lb_unittests`**, a gtest binary built from `*_unittest.cc` files next to the code they
   test.

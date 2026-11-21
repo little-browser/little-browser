@@ -4,9 +4,12 @@ A minimal, private, fast browser — Chromium on macOS, Windows, Linux and Andro
 Sidebar-first UI inspired by Arc. Open source under [MPL-2.0](LICENSE).
 
 > **Status:** the macOS desktop build runs: sidebar with spaces, pinned tabs and groups, command bar,
-> first-run search-engine choice, Safe Browsing in standard mode. Windows, Linux, iOS and Android
-> don't exist yet. Sync, the native content blocker, Peek and the little window are designed but
-> not built. There are no public releases yet.
+> first-run search-engine and password-manager choices, Chrome Web Store extensions (MV3), the
+> built-in ad blocker (network filtering), Safe Browsing in standard mode. Windows, Linux, iOS and
+> Android don't exist yet. Sync, element hiding, Peek and the little window are designed but not
+> built. One alpha is out, for Macs with Apple silicon
+> ([downloads](https://littlebrowser.app/downloads)); it predates extensions, the password-manager
+> choice and the ad blocker.
 
 ## Documents
 
