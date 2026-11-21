@@ -12,9 +12,10 @@
   allowed in EU- and Japan-specific builds, and no major vendor has shipped Blink on iOS. So iOS is a
   native Swift app on `WKWebView`.
 - **Android:** a Chromium fork, built **after** desktop and iOS.
-- **Shared code:** a small **Rust core** (data model, sync, content-blocking engine, importers,
-  settings) bound to C++ (desktop), Swift (iOS) and Kotlin (Android). This gives us one sync engine and
-  one blocker across three very different shells.
+- **Shared code:** a small **Rust core** (data model, sync, importers, settings) bound to C++
+  (desktop), Swift (iOS) and Kotlin (Android). This gives us one sync engine across three very
+  different shells. Content blocking uses each engine's own blocker with the same filter lists:
+  Chromium's subresource filter on desktop and Android, WebKit content rules on iOS.
 - **Privacy:** block third-party cookies, a **built-in native ad/tracker blocker** (not an extension:
   Manifest V2 is now gone from Chrome, and extensions don't exist on mobile), tracking-parameter
   stripping, no telemetry, no Google services, HTTPS-First.
@@ -80,10 +81,10 @@ same UI concepts, the same Rust core and the same sync.
 │                     │ sync engine (CRDT+E2EE)│                        │
 │                     │ transports: P2P, BYO   │                        │
 │                     │  storage, file export  │                        │
-│                     │ content blocker        │                        │
-│                     │  (filter lists →       │                        │
-│                     │  network + cosmetic,   │                        │
-│                     │  → WKContentRuleList)  │                        │
+│                     │ filter lists →         │                        │
+│                     │  WKContentRuleList     │                        │
+│                     │  (iOS content          │                        │
+│                     │  blocker)              │                        │
 │                     │ importers (bookmarks   │                        │
 │                     │  HTML, Firefox, Safari,│                        │
 │                     │  Chrome profiles)      │                        │
@@ -137,8 +138,11 @@ stripping and cosmetic tweaks, `isInspectable` for Safari Web Inspector.
 
 - Exposed through **UniFFI** (Swift/Kotlin) and **cxx** (C++). This is the same pattern Mozilla uses
   for Firefox's shared components.
-- Content blocking: Brave's open-source **adblock-rust** engine (MPL-2.0) on desktop/Android; on
-  iOS the core converts lists into WebKit content-blocker JSON.
+- Content blocking: desktop (and Android) use Chromium's own **subresource filter**, fed the
+  filter lists the browser downloads and parses itself (`desktop/lb/browser/adblock`); it blocks
+  network requests, not page elements. On iOS the core will convert the same lists into WebKit
+  content-blocker JSON. Brave's **adblock-rust** (MPL-2.0) is the candidate for element hiding,
+  which Chromium's filter doesn't do.
 - Storage: SQLite per profile.
 - On desktop the core is not the source of truth for Chromium's own models (bookmarks, prefs). We
   bridge: Chromium `BookmarkModel` / prefs ⇄ core via observers, and the core does sync.
@@ -150,7 +154,7 @@ stripping and cosmetic tweaks, `isInspectable` for Safari Web Inspector.
 | Area | Default | Notes |
 |---|---|---|
 | Third-party cookies | **Blocked** | Plus Chromium's storage partitioning. Google abandoned its own plan to deprecate them, so this is on us. |
-| Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters, Peter Lowe's list (check each list's licence). Network + cosmetic filtering. Lists update from the maintainers' own servers, signed. |
+| Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters and Peter Lowe's list, downloaded from their maintainers over HTTPS every 4 days (they aren't signed). Desktop: Chromium's subresource filter blocks matching requests on every site; element hiding isn't built yet. Ads can be allowed per site: the site-info panel's "Cookies and site data" has an Ads switch, the command bar has "Allow ads on this site", and Settings → Site settings → Ads lists those sites. No per-site record of the blocking is kept. |
 | Tracking parameters | Stripped | `utm_*`, `fbclid`, `gclid`, `mc_eid`, … — rule list updatable. Bounce-tracking mitigations on. |
 | Fingerprinting | Reduce | Reduced user-agent (upstream), block known fingerprinting scripts via lists. Brave-style randomisation ("farbling") is a later, separate project. |
 | HTTPS | HTTPS-First mode | Warn before HTTP. |
@@ -197,9 +201,10 @@ magic. Targets must be measured, not promised.
 Legend: ✅ planned for the platform · 🟡 adapted · ⏳ later · ❌ not on this platform
 
 Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run search-engine
-choice, Chrome Web Store extensions (MV3), tab groups and split view (Chromium's own), Safe Browsing
-in standard mode, the quit warning, and everything Chromium already provides (incognito, DevTools,
-PiP, import). The rest of the table is specified but not built.
+and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering),
+tab groups and split view (Chromium's own), Safe Browsing in standard mode, the quit warning, and
+everything Chromium already provides (incognito, DevTools, PiP, import). The rest of the table is
+specified but not built.
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -283,7 +288,9 @@ PiP, import). The rest of the table is specified but not built.
 
 ### 7.8 Form autofill
 - Desktop: Chromium address autofill, **payment cards disabled**, **password manager disabled and
-  hidden** (pref off + UI removed, rather than deleting code — far cheaper to maintain).
+  hidden** (pref off + UI removed, rather than deleting code — far cheaper to maintain). Passwords
+  are an extension's job: on first run the user can pick 1Password, Bitwarden or Proton Pass, which
+  installs from the Chrome Web Store after Chromium's install prompt ([ux.md](ux.md) §12).
 - Android: Android Autofill framework (password managers plug in here) + Chromium addresses.
 - iOS: system AutoFill (contacts, passwords from third-party credential providers). Behaviour inside `WKWebView` must be verified.
 
@@ -447,10 +454,10 @@ carrier networks.
 |---|---|---|
 | Updates (desktop) | Static, signed update feeds + binaries on a CDN (Sparkle on macOS; equivalent on Windows; apt/rpm repos + Flatpak on Linux) | IP, version |
 | Mobile distribution | App Store, Google Play, F-Droid/APK | — (store's own data) |
-| Filter-list updates | Fetched directly from list maintainers, or from our signed mirror | IP |
+| Filter-list updates | Every 4 days, straight from the lists' maintainers: `easylist.to`, `ublockorigin.github.io`, `pgl.yoyo.org`; an hour later after a failed download | IP, version (the user agent); no cookies |
 | Widevine DRM component | Downloaded from Google, only after the user agrees on first use | IP, version |
 | Safe Browsing | Google's update API (hash prefixes only) | Hash prefixes, IP |
-| Extensions (desktop) | The Chrome Web Store: its pages, the extension download, update checks to `update.googleapis.com` every few hours while extensions are installed, and `chromewebstore.googleapis.com` for the details of an extension another program installed or one being repaired | IP, the update check's contents (§5): installed extensions' ids, versions, state and install dates, browser version, OS, language; the store page also sees which extensions are installed |
+| Extensions (desktop) | The Chrome Web Store: its pages, the extension download, update checks to `update.googleapis.com` every few hours while extensions are installed, and `chromewebstore.googleapis.com` for the details of an extension being installed from the first-run password manager choice, one another program installed, or one being repaired | IP, the update check's contents (§5): installed extensions' ids, versions, state and install dates, browser version, OS, language; the store page also sees which extensions are installed |
 | Crash reports | **Opt-in** only, self-hosted | Crash dump |
 | P2P relay for device-to-device sync — **ours by default** (2–3 regions), public/user relays as fallback | Forwards encrypted bytes, stores nothing, no request logs | IP, timing/size of encrypted traffic |
 
@@ -472,9 +479,9 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine choice, Safe Browsing (standard), branding, quit warning |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Safe Browsing (standard), branding, quit warning |
 | Windows, Linux desktop | Not built: the platform recipes aren't wired up |
-| Native blocker, tracking-parameter stripping, Peek, little window, import, auto-PiP, on-demand Widevine | Specified, not built |
+| Element hiding, tracking-parameter stripping, Peek, little window, import, auto-PiP, on-demand Widevine | Specified, not built |
 | `lb-core` | Data model and the sync `Transport` trait with an in-memory transport; no dependencies yet |
 | Sync, iOS, Android | Not started |
 

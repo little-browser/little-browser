@@ -185,8 +185,55 @@ Microsoft Bing, Qwant and Startpage, alphabetically, without suggestions; Google
 definition because ungoogled replaced the built-in one. After "Not now", a search from the command
 bar brings the choice back and runs once an engine is picked.
 
+## Password manager choice
+
+`password/password_manager_choice_dialog.*` runs once per profile, right after the search engine
+choice, unless one of the offered password managers is already installed. The list and that rule
+are in `//lb:model` (`browser/password/password_manager_choice.*`). Picking one runs Chromium's
+`WebstoreInstallWithPrompt`: it fetches the extension's details from the store, shows the install
+prompt and installs from the Chrome Web Store.
+
 Browser-modal dialogs don't own their `DialogDelegate` (only allow-listed classes may ask the
-widget to), so ours delete themselves when the widget is destroyed.
+widget to), so ours derive from `BrowserModalDialog` (`browser_modal_dialog.*`), which deletes the
+dialog when its widget is destroyed.
+
+## Ad blocker
+
+Chromium's **subresource filter** does the blocking: the engine Chrome uses against abusive ads,
+which ungoogled-chromium keeps. `patches/lb/ad-blocking.patch` turns it on for every site (a preset
+that outranks Chrome's own, which only act on sites Safe Browsing lists), and stops it from keeping
+a per-site record of where it ran and from showing Chrome's "intrusive ads blocked" notice.
+
+`lb/browser/adblock/ad_blocker.*` keeps the rules fresh. It starts with the browser (a line in
+`patches/lb/ad-blocking.patch`, next to Chromium's ruleset service), whatever windows open. Soon
+after startup and every six hours it checks when the filter lists were last downloaded (Local State
+`lb.filter_lists_updated`); after four days, or if the newest downloaded rules were never indexed
+(the browser quit or crashed while Chromium indexed them), it downloads them again, without
+cookies, along with the files a list includes (`!#include`, as uBlock filters does for its yearly
+lists). `filter_lists.*` (in `//lb:model`) turns the text into the subresource filter's unindexed
+format: it skips uBlock Origin's `!#if` blocks that don't apply to Chromium on the desktop, rewrites
+uBlock Origin's option names to the ones Chromium's filter-list parser knows (`xhr`, `frame`, `1p`,
+`3p`, `from=`, ...), honours `badfilter`, and keeps URL rules only. The file goes to
+`Filter Lists/<version>/` in the user data folder, and Chromium's ruleset service indexes it after
+startup and shares it with the page processes. A download that fails or takes more than five
+minutes keeps the current rules, and the lists are tried again an hour later; with no rules yet,
+the lists that did download are used meanwhile. Until the first download finishes after a new
+install, nothing is blocked; the lists and the rules are shared by all profiles.
+
+Ads are allowed per site with Chromium's "ads" content setting, which the subresource filter reads.
+The site-info panel's "Cookies and site data" view has an **Ads** switch under the third-party
+cookies one, on every web page (`adblock/site_ads_row.*`, placed by
+`patches/lb/ad-blocking-page-info.patch`); the command bar offers "Allow ads on this site" or "Block
+ads on this site" (`adblock/site_ads.*`). Both go through `SetAdsAllowedForTab`, which stores an
+exception only where it differs from what applies anyway (the Settings default, a wider site
+pattern, or, in a private window, the normal profile), and reload the page; that reload also
+applies a change to the cookie switch, so the panel doesn't ask for one. Chrome's third-party cookies "eye"
+icon, which repeats the cookie switch on most sites, is hidden
+(`patches/lb/no-cookie-controls-icon.patch`), so that panel is the one place for both. Settings → Privacy and security → Site settings → Additional
+content settings → **Ads** lists the sites and can turn the blocker off for all of them;
+`patches/lb/ad-blocking-settings.patch` gives that page our wording instead of Chrome's ("Intrusive
+ads", blocking only on sites known for misleading ads). Element hiding is
+not done: Chromium's filter indexes element-hiding rules but nothing in Blink applies them yet.
 
 ## Quit warning
 

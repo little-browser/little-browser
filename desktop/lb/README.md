@@ -14,6 +14,18 @@ lb/browser/command_bar/command_matching.*  command bar scoring and "is this an a
 lb/browser/tabs/pinned_close.*      what closing a tab does: close, sleep or only hide (unit tested)
 lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab goes to sleep
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
+lb/browser/password/password_manager_choice.*  first-run password managers, when to offer them, what follows an install
+lb/browser/search/search_choice.*   when the first-run search choice opens, or waits for the open one
+lb/browser/adblock/
+  filter_lists.*                    the ad blocker's filter lists, when to update, list text → ruleset
+                                    (uBlock Origin's !#if, !#include, option names and badfilter)
+  site_ads.*                        per-site ads: the command bar's entry, the switch's label, what to store
+  site_ads_row.*                    the Ads switch in the site-info panel's "Cookies and site data"
+  ad_blocker.*                      downloads the lists and hands the rules to Chromium's filter;
+                                    the per-site setting
+  ad_blocker_demo.*                 --lb-sidebar-demo=ad-blocker (below)
+  ad_blocking_unittest.cc           Chromium's filter is on for every site
+lb/browser/demo/demo_report.*       PASS/FAIL logging and deadlines for the demo modes
 lb/browser/extensions/
   web_store_unittest.cc             store addresses, update server, install API not substituted
   update_check_unittest.cc          update checks: extensions' go out bare, others stay blocked
@@ -28,15 +40,19 @@ lb/browser/ui/
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill)
   views/search/search_choice_dialog.*  first-run search engine choice
+  views/password/password_manager_choice_dialog.*  first-run password manager choice
+  views/browser_modal_dialog.*      base for our browser-modal dialogs (deletes itself when closed)
   views/frame/contents_card.h       the page as an inset rounded card next to the sidebar
 ```
 
 Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
 `command-hooks.patch`, `session-spaces.patch`, `restore-selected-first.patch`,
-`tab-metrics-detached-guard.patch` and `contents-card.patch`; vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
+`tab-metrics-detached-guard.patch`, `contents-card.patch`, `ad-blocking.patch`,
+`ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker);
+vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
-Not built yet: peek, the little window, the content blocker, tracking-parameter stripping, the
+Not built yet: peek, the little window, element hiding, tracking-parameter stripping, the
 Widevine consent prompt, and the link to `lb-core` (spaces are stored in C++ prefs).
 
 Unit tests (`*_unittest.cc` next to the code):
@@ -78,9 +94,22 @@ offered the update and carry no pings and no hardware fields), `=update-manifest
 store's update manifest for it and parses it as `ExtensionDownloader` does, `=mv2-off` loads an
 unpacked MV2 and MV3 extension (only MV3 may run), `=store-links`, on a profile with no
 extensions, checks the app menu's "Visit Chrome Web Store" and follows it and the store links
-on `chrome://extensions` (each must load a store page); the extension is uBlock Origin Lite
-unless `--lb-demo-extension=<id>`, and each logs `lb demo: <mode> PASS` or `FAIL` once, without
-`--vmodule`;
+on `chrome://extensions` (each must load a store page), `=password-manager`, on a fresh profile,
+opens a second window while the search choice is up, answers the search choice with "Not now",
+then picks Proton Pass in the password manager choice and accepts the install prompt (it must
+come after the search choice, never open at the same time, and install from the store),
+`=ad-blocker`, on a fresh profile (it counts the first-run questions as answered), waits for the
+filter lists, then on example.com an ad script must be blocked and a CDN script load, no per-site
+record may be kept and the console must show none of Chrome's abusive-ads messages; with a
+third-party frame trying to set a cookie the address bar must show no eye icon; in the site-info
+panel's "Cookies and site data", clicking the cookie switch and then the Ads switch must allow ads,
+let the ad script load and leave no "reload this page" prompt; the command bar's "Block ads on
+this site" must block it again, also with Settings set to "Sites can show ads"; and the site's
+Settings page and the Ads page must use our wording (with
+`--lb-ui-snapshot-dialog=<png> --lb-ui-snapshot-delay=0` it captures the site-info panel); the
+extension is uBlock Origin Lite unless
+`--lb-demo-extension=<id>`, and each logs
+`lb demo: <mode> PASS` or `FAIL` once, without `--vmodule`;
 `--lb-ui-snapshot-dialog=<png>` captures a dialog; `--lb-command-bar-text=<q>`
 prefills it; `--lb-ui-snapshot-command-bar=<png>` captures it; `--lb-ui-snapshot-delay=<seconds>`
 sets the wait before any capture, 4 by default). Add `--use-mock-keychain` to any

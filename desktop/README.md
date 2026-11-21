@@ -121,9 +121,11 @@ ungoogled-chromium removes every Google endpoint. We keep three on purpose:
    and extended reporting are hard-disabled (no pref, policy or sync can turn them on), real-time
    hash-prefix lookups are off (local hash-prefix database only), and Settings hides both options.
 
-   Settings shows only Standard / No protection. On a local build, a fresh profile left running
-   5½ minutes contacted exactly one host, `safebrowsing.googleapis.com/v4/threatListUpdates:fetch`,
-   and nothing else (no component updater, no real-time relay).
+   Settings shows only Standard / No protection. Its only traffic is
+   `safebrowsing.googleapis.com/v4/threatListUpdates:fetch` (no component updater, no real-time
+   relay). A fresh profile also downloads the ad blocker's filter lists from their maintainers a
+   few seconds after startup (`easylist.to`, `ublockorigin.github.io`, `pgl.yoyo.org`;
+   `docs/desktop-ui.md`).
 
    Limitations:
    - **No list data yet.** Google answers that request with `400` / "Permission denied" until an
