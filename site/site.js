@@ -32,7 +32,8 @@
     const spaces = [...mock.querySelectorAll('.m-spaces button')];
     const setSpace = (b) => {
       mock.style.setProperty('--ws-hue', b.dataset.h);
-      mock.querySelector('.m-ws-name').textContent = b.title;
+      mock.querySelector('.m-ws-icon').textContent = b.textContent.trim();
+      mock.querySelector('.m-ws-label').textContent = b.title;
       for (const s of spaces) s.setAttribute('aria-pressed', String(s === b));
     };
     spaces.forEach((b) => b.addEventListener('click', () => setSpace(b)));
