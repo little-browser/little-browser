@@ -1,7 +1,8 @@
 # core/ — lb-core (Rust)
 
-The shared library for every platform: data model and sync (the content blocker and
-importers are not built yet). Background: `docs/design.md` §4.4 and §8.
+The shared library for every platform: data model, sync, and the readers for importing from
+other browsers (the content blocker is not built yet). Background: `docs/design.md` §4.4, §7.6
+and §8.
 
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test   # what CI runs
@@ -21,8 +22,14 @@ scripts/coverage.sh       # CI gate: line coverage of at least 95% (LB_MIN_LINE_
   together.
 - **Sync.** `sync.rs` has the `Transport` trait plus an in-memory transport for tests. Real
   transports implement the trait; they don't change callers.
-- **Dependencies.** There are none, on purpose. The crates not built yet (uniffi, cxx,
-  adblock-rust, rusqlite, a CRDT library, iroh) each need a justification in `docs/design.md`
-  before they go into `Cargo.toml`.
-- **Bindings.** The desktop C++ code isn't linked to `lb-core`. Keep the public API small and
+- **Import.** `import/` mirrors `docs/ux.md` §13: it parses other browsers' files from their text
+  and their SQLite rows as plain structs, and decides what comes along and where it goes. It does
+  no file or SQLite access, so tests use inline strings; never put real browser data in a test.
+- **Dependencies.** Only `serde_json`, pinned to the version and features Chromium vendors,
+  because the desktop build compiles the core with Chromium's crates. Any other crate (uniffi,
+  adblock-rust, rusqlite, a CRDT library, iroh) needs a justification in `docs/design.md` before
+  it goes into `Cargo.toml`, and for desktop it must be one Chromium vendors.
+- **Bindings.** Desktop links lb-core through `desktop/lb/core_bridge` (a `cxx` bridge, built with
+  Chromium's toolchain, which also runs these tests as `lb_core_unittests`). A new `.rs` file
+  goes in the `lb_core` target's sources in `desktop/lb/BUILD.gn`. Keep the public API small and
   easy to bind: plain data types, no lifetimes in public signatures.

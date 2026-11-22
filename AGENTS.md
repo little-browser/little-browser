@@ -14,7 +14,7 @@ Windows, Linux, iOS and Android don't exist yet.
 |---|---|
 | `desktop/` | Chromium fork tooling: version pins, GN args, patch series, branding, scripts |
 | `desktop/lb/` | Our own C++ code, linked into the Chromium tree as `src/lb` |
-| `core/` | `lb-core`, the shared Rust library (data model, sync; later the blocker and importers) |
+| `core/` | `lb-core`, the shared Rust library (data model, sync, import readers; later the blocker) |
 | `docs/` | `design.md` (architecture, privacy, sync, release pipeline), `ux.md` (UX spec), `desktop-ui.md` (sidebar internals), `legal/` |
 | `branding/`, `site/` | Logo masters and icon export; the static website |
 | `ios/`, `android/` | Placeholders |

@@ -34,8 +34,10 @@ for bin in $(cargo test --no-run --quiet --message-format=json |
   set -- "$@" --object "$bin"
 done
 
+# Only lb-core's own lines count: dependencies' sources live under $CARGO_HOME/registry
+# (~/.cargo locally, /usr/local/cargo in CI's rust image) and the toolchain's under rustup.
 "$LB_LLVM_BIN/llvm-cov" report --instr-profile="$WORK/tests.profdata" "$@" \
-  --ignore-filename-regex='(/rustc/|\.cargo/registry|\.rustup/)' | tee "$WORK/report.txt"
+  --ignore-filename-regex='(/rustc/|cargo/registry/|rustup/)' | tee "$WORK/report.txt"
 
 # The TOTAL row's tenth column is line coverage, such as "98.35%".
 lines=$(awk '$1 == "TOTAL" { sub(/%/, "", $10); print $10 }' "$WORK/report.txt")
