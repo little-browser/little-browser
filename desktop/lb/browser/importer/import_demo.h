@@ -21,7 +21,7 @@ namespace lb {
 //                   store extension is offered; then
 //                   imports it again: nothing may be added twice.
 //   import-arc      imports its Arc: the empty "Personal" space is filled (Favourites first,
-//                   then the pinned tabs with the folder flattened, then today tabs), "Work"
+//                   then the pinned tabs with the folder a pinned group, then today tabs), "Work"
 //                   becomes a space in a new "Client" profile, and each Arc profile's bookmarks
 //                   go to its matching profile.
 //   import-dialog   checks the dialog lists Arc, "Chrome — Personal" and "Dia — Studio", then

@@ -156,6 +156,15 @@ mod ffi {
         title: String,
     }
 
+    /// A pinned Arc tab. `folder` numbers its space's top-level pinned folders (it becomes a
+    /// pinned group), -1 when it is in none; a folder's tabs are neighbours.
+    struct ArcPinnedTab {
+        url: String,
+        title: String,
+        folder: i32,
+        folder_name: String,
+    }
+
     /// An Arc space, Favourites already at the top of its profile's first space.
     /// `profile_dir` empty is Arc's default profile; `hue` is -1 when it has none.
     struct ArcSpace {
@@ -163,7 +172,7 @@ mod ffi {
         emoji: String,
         hue: i32,
         profile_dir: String,
-        pinned: Vec<Tab>,
+        pinned: Vec<ArcPinnedTab>,
         unpinned: Vec<Tab>,
     }
 
@@ -602,7 +611,20 @@ fn arc_sidebar(text: &str) -> ffi::ArcResult {
                     emoji: s.emoji.unwrap_or_default(),
                     hue: s.hue.unwrap_or(-1),
                     profile_dir: profile_dir(s.profile),
-                    pinned: tabs(s.pinned),
+                    pinned: s
+                        .pinned
+                        .into_iter()
+                        .map(|p| ffi::ArcPinnedTab {
+                            url: p.tab.url,
+                            title: p.tab.title,
+                            folder: p
+                                .folder
+                                .as_ref()
+                                .and_then(|f| i32::try_from(f.id).ok())
+                                .unwrap_or(-1),
+                            folder_name: p.folder.map(|f| f.name).unwrap_or_default(),
+                        })
+                        .collect(),
                     unpinned: tabs(s.unpinned),
                 })
                 .collect(),

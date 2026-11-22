@@ -214,7 +214,8 @@ TEST(CoreBridgeTest, ArcSidebar) {
       "spaces": ["s", {"id": "s", "title": "Home", "containerIDs": ["pinned", "p", "unpinned", "u"],
                        "profile": {"custom": {"_0": {"directoryBasename": "Profile 1"}}},
                        "customInfo": {"iconType": {"emoji_v2": "🏠"}}}],
-      "items": ["p", {"id": "p", "childrenIds": ["t"]},
+      "items": ["p", {"id": "p", "childrenIds": ["d"]},
+                "d", {"id": "d", "title": "Docs", "childrenIds": ["t"], "data": {"list": {}}},
                 "t", {"id": "t", "data": {"tab": {"savedURL": "https://a.example/",
                                                   "savedTitle": "A"}}},
                 "u", {"id": "u", "childrenIds": []},
@@ -230,7 +231,10 @@ TEST(CoreBridgeTest, ArcSidebar) {
   EXPECT_EQ(std::string(home.profile_dir), "Profile 1");
   ASSERT_EQ(home.pinned.size(), 2u);
   EXPECT_EQ(std::string(home.pinned[0].url), "https://fav.example/");
+  EXPECT_EQ(home.pinned[0].folder, -1);
   EXPECT_EQ(std::string(home.pinned[1].title), "A");
+  EXPECT_EQ(home.pinned[1].folder, 0);
+  EXPECT_EQ(std::string(home.pinned[1].folder_name), "Docs");
   EXPECT_TRUE(home.unpinned.empty());
 
   EXPECT_FALSE(std::string(core::arc_sidebar("[]").error).empty());

@@ -6,6 +6,7 @@
 #define LB_BROWSER_UI_TABS_PINNED_TAB_SLEEP_H_
 
 #include <cstdint>
+#include <vector>
 
 class TabStripModel;
 
@@ -28,9 +29,19 @@ bool SleepInsteadOfClose(const TabStripModel& model,
                          const tabs::TabInterface& tab,
                          uint32_t close_types);
 
+// Puts pinned `tabs` of `model` to sleep together, as closing each of them by hand would (a page
+// that may hold unsaved input is only hidden), for a pinned group's Close (docs/ux.md §6.1). A
+// split view among them comes apart first, as a sleeping tab can't be shown in one. The tab shown
+// instead of the shown one is never one of them.
+void SleepPinnedTabs(TabStripModel& model, const std::vector<tabs::TabInterface*>& tabs);
+
 // Whether `tab`'s page isn't loaded: put to sleep (discarded), or not loaded yet since a restart
 // or a space switch. A sleeping pinned tab's row is faded with a "−" button (TabView).
 bool IsAsleep(const tabs::TabInterface& tab);
+
+// Whether a close only hid `tab`, as its page may hold unsaved input, or let the page ask before
+// it is left: its next close really closes it.
+bool IsHiddenAfterClose(const tabs::TabInterface& tab);
 
 }  // namespace lb
 

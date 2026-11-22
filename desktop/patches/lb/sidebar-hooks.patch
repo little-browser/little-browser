@@ -1,11 +1,11 @@
 # Little Browser: host our sidebar (desktop/lb/browser/ui/views/sidebar) in Chromium's vertical tab
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
-# snapshot tool, pinned tab sleep, extensions demo, first-run dialogs, ad blocker, Peek, little
-# window, import) with the region view's target.
+# snapshot tool, pinned tab sleep and pinned groups, extensions demo, first-run dialogs, ad blocker,
+# Peek, little window, import) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,63 @@
+@@ -537,7 +537,69 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -64,13 +64,19 @@
 +    "//lb/browser/ui/views/password/password_manager_choice_dialog.h",
 +    "//lb/browser/ui/views/search/search_choice_dialog.cc",
 +    "//lb/browser/ui/views/search/search_choice_dialog.h",
++    "//lb/browser/ui/tabs/pinned_group_tracker.cc",
++    "//lb/browser/ui/tabs/pinned_group_tracker.h",
 +    "//lb/browser/ui/tabs/pinned_tab_sleep.cc",
 +    "//lb/browser/ui/tabs/pinned_tab_sleep.h",
++    "//lb/browser/ui/views/sidebar/pinned_group_layout.cc",
++    "//lb/browser/ui/views/sidebar/pinned_group_layout.h",
++    "//lb/browser/ui/views/sidebar/pinned_groups_demo.cc",
++    "//lb/browser/ui/views/sidebar/pinned_groups_demo.h",
 +  ]
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +613,20 @@
+@@ -557,6 +619,20 @@
      "//ui/views",
    ]
    deps = [

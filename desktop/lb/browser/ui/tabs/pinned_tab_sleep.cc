@@ -25,12 +25,14 @@
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "components/performance_manager/public/performance_manager.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/invalidate_type.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/tabs/pinned_close.h"
 #include "lb/browser/tabs/tab_to_show.h"
+#include "lb/browser/ui/tabs/pinned_group_tracker.h"
 #include "url/gurl.h"
 
 namespace lb {
@@ -67,8 +69,9 @@ int TabToShowInstead(const TabStripModel& model, const tabs::TabInterface* tab) 
     tabs.push_back(other);
     others.push_back({.asleep = IsAsleep(*other),
                       .last_focused = unit ? unit->GetLastFocusedTime() : base::Time(),
-                      .in_collapsed_group = other->GetGroup().has_value() &&
-                                            model.IsGroupCollapsed(*other->GetGroup())});
+                      .in_collapsed_group = (other->GetGroup().has_value() &&
+                                             model.IsGroupCollapsed(*other->GetGroup())) ||
+                                            IsInCollapsedPinnedGroup(other)});
   }
   const std::optional<size_t> chosen = ChooseTabToShow(others);
   return chosen ? model.GetIndexOfTab(tabs[*chosen]) : -1;
@@ -147,9 +150,17 @@ bool IsAsleep(const tabs::TabInterface& tab) {
   return contents->WasDiscarded() || contents->GetController().NeedsReload();
 }
 
-bool SleepInsteadOfClose(const TabStripModel& model,
-                         const tabs::TabInterface& tab,
-                         uint32_t close_types) {
+bool IsHiddenAfterClose(const tabs::TabInterface& tab) {
+  return HiddenNotUnloaded().contains(tab.GetHandle());
+}
+
+namespace {
+
+// What closing `tab` with `close_types` does (DecidePinnedClose), reading the page's state only
+// when it matters.
+PinnedCloseOutcome CloseOutcome(const TabStripModel& model,
+                                const tabs::TabInterface& tab,
+                                uint32_t close_types) {
   content::WebContents* contents = tab.GetContents();
   PinnedCloseState state{
       .user_gesture = (close_types & TabCloseTypes::CLOSE_USER_GESTURE) != 0,
@@ -168,7 +179,50 @@ bool SleepInsteadOfClose(const TabStripModel& model,
         performance_manager::PerformanceManager::GetPrimaryPageNodeForWebContents(contents);
     state.had_user_edits = page && (page->HadUserEdits() || page->HadFormInteraction());
   }
-  switch (const PinnedCloseOutcome outcome = DecidePinnedClose(state)) {
+  return DecidePinnedClose(state);
+}
+
+}  // namespace
+
+void SleepPinnedTabs(TabStripModel& model, const std::vector<tabs::TabInterface*>& tabs) {
+  std::set<split_tabs::SplitTabId> splits;
+  for (const tabs::TabInterface* tab : tabs) {
+    if (const std::optional<split_tabs::SplitTabId> split = tab ? tab->GetSplit() : std::nullopt) {
+      splits.insert(*split);
+    }
+  }
+  for (const split_tabs::SplitTabId& split : splits) {
+    if (model.ContainsSplit(split)) {
+      model.RemoveSplit(split);
+    }
+  }
+  // Every one of them is pending before any sleeps, so none is shown instead of another.
+  std::vector<tabs::TabHandle> to_sleep;
+  for (tabs::TabInterface* tab : tabs) {
+    if (!tab || model.GetIndexOfTab(tab) == TabStripModel::kNoTab) {
+      continue;
+    }
+    const PinnedCloseOutcome outcome = CloseOutcome(model, *tab, TabCloseTypes::CLOSE_USER_GESTURE);
+    if (outcome == PinnedCloseOutcome::kSleep || outcome == PinnedCloseOutcome::kHide) {
+      PendingSleep().emplace(tab->GetHandle(), outcome);
+      // The shown one first: the others are still pending when it picks the tab to show.
+      if (model.GetActiveTab() == tab) {
+        to_sleep.insert(to_sleep.begin(), tab->GetHandle());
+      } else {
+        to_sleep.push_back(tab->GetHandle());
+      }
+    }
+  }
+  for (const tabs::TabHandle& handle : to_sleep) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+                                                             base::BindOnce(&Sleep, handle));
+  }
+}
+
+bool SleepInsteadOfClose(const TabStripModel& model,
+                         const tabs::TabInterface& tab,
+                         uint32_t close_types) {
+  switch (const PinnedCloseOutcome outcome = CloseOutcome(model, tab, close_types)) {
     case PinnedCloseOutcome::kClose:
       return false;
     case PinnedCloseOutcome::kCloseAskingFirst:

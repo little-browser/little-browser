@@ -27,6 +27,7 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "lb/browser/command_bar/command_matching.h"
 #include "lb/browser/spaces/space_model.h"
+#include "lb/browser/ui/tabs/pinned_group_tracker.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "url/gurl.h"
 
@@ -89,12 +90,18 @@ class SidebarController : public TabStripModelObserver {
     virtual void OnSidebarModelChanged() = 0;
     // After a space switch; `direction` is +1 (to a later space) or -1.
     virtual void OnSpaceSwitched(int direction) {}
+    // After any change to the window's pinned groups, or to which tabs are in them.
+    virtual void OnPinnedGroupsChanged() {}
   };
 
   // The controller of a window, or null (pop-ups, apps). Normal windows have one even with tabs
   // on top, when the sidebar is hidden; the command bar and shortcuts work the same there
   // (docs/ux.md §3).
   static SidebarController* FromBrowser(BrowserWindowInterface* browser);
+  // The controller of the window whose tab strip is `model`, or null.
+  static SidebarController* FromTabStripModel(const TabStripModel* model);
+  // Every window's controller.
+  static std::vector<SidebarController*> All();
 
   explicit SidebarController(BrowserWindowInterface* browser);
   SidebarController(const SidebarController&) = delete;
@@ -106,6 +113,8 @@ class SidebarController : public TabStripModelObserver {
   base::WeakPtr<SidebarController> GetWeakPtr();
 
   BrowserWindowInterface* browser() { return browser_; }
+  // The window's pinned groups (docs/ux.md §6.1).
+  PinnedGroupTracker& pinned_groups() { return *pinned_groups_; }
 
   // Creates a tab group holding a blank placeholder tab (see `group_placeholders_`).
   void NewTabGroup();
@@ -173,6 +182,9 @@ class SidebarController : public TabStripModelObserver {
   void OnTabGroupAdded(const tab_groups::TabGroupId& group) override;
   // A group closed with its Close is gone: its saved copy in Chromium's saved tab groups too.
   void OnTabGroupWillBeRemoved(const tab_groups::TabGroupId& group) override;
+  // A pin or unpin that leaves the tab where it is (no move is reported): it leaves its pinned
+  // group, or takes the group of where it is.
+  void OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) override;
   // Before the window empties its strip: a closing window saves its tabs, active one included,
   // with the space; closing every tab leaves the space empty.
   void WillCloseAllTabs(TabStripModel* tab_strip_model) override;
@@ -257,8 +269,12 @@ class SidebarController : public TabStripModelObserver {
   base::RepeatingCallback<void(CommandBarMode)> show_command_bar_;
 
   raw_ptr<BrowserWindowInterface> browser_;
+  std::unique_ptr<PinnedGroupTracker> pinned_groups_;
   const bool is_private_;
   bool restored_ = false;
+  // ParkTabs is detaching a space's tabs: they stay in this window, parked, with their pinned
+  // groups (other tabs leaving for another window leave their groups).
+  bool parking_ = false;
   // The window was opened for a chosen space (not one picked by ChooseInitialSpace).
   bool explicit_space_ = false;
   // Tabs LoadSavedTabs opened, with their saved URL: a crash restore that lands in this window

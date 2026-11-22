@@ -4,7 +4,7 @@
 
 //! Where imported spaces and profiles go (docs/ux.md §13, "Where things go").
 
-use super::arc::{ArcProfile, ArcSidebar, ArcSpace};
+use super::arc::{ArcPinnedTab, ArcProfile, ArcSidebar, ArcSpace};
 
 /// Names compare ignoring case, for any script ("Ärzte" and "ärzte" are the same name).
 fn same_name(a: &str, b: &str) -> bool {
@@ -129,9 +129,10 @@ pub fn arc_spaces(sidebar: ArcSidebar) -> Vec<ArcSpace> {
     for (profile, tabs) in sidebar.favourites {
         match spaces.iter_mut().find(|s| s.profile == profile) {
             Some(space) => {
-                let mut pinned: Vec<_> = tabs
+                let mut pinned: Vec<ArcPinnedTab> = tabs
                     .into_iter()
-                    .filter(|t| !space.pinned.iter().any(|p| p.url == t.url))
+                    .filter(|t| !space.pinned.iter().any(|p| p.tab.url == t.url))
+                    .map(ArcPinnedTab::from)
                     .collect();
                 pinned.append(&mut space.pinned);
                 space.pinned = pinned;
@@ -141,7 +142,7 @@ pub fn arc_spaces(sidebar: ArcSidebar) -> Vec<ArcSpace> {
                 emoji: None,
                 hue: None,
                 profile,
-                pinned: tabs,
+                pinned: tabs.into_iter().map(ArcPinnedTab::from).collect(),
                 unpinned: Vec::new(),
             }),
         }
@@ -152,6 +153,7 @@ pub fn arc_spaces(sidebar: ArcSidebar) -> Vec<ArcSpace> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::import::arc::ArcFolder;
     use crate::import::ImportedTab;
 
     fn existing(name: &str, profile: &str, is_empty: bool) -> ExistingSpace {
@@ -245,7 +247,11 @@ mod tests {
         }
     }
 
-    fn arc_space(name: &str, profile: ArcProfile, pinned: Vec<ImportedTab>) -> ArcSpace {
+    fn loose(tabs: Vec<ImportedTab>) -> Vec<ArcPinnedTab> {
+        tabs.into_iter().map(ArcPinnedTab::from).collect()
+    }
+
+    fn arc_space(name: &str, profile: ArcProfile, pinned: Vec<ArcPinnedTab>) -> ArcSpace {
         ArcSpace {
             name: name.into(),
             emoji: None,
@@ -260,10 +266,18 @@ mod tests {
     fn favourites_go_to_the_top_of_their_profiles_first_space() {
         let work = ArcProfile::Dir("Profile 1".into());
         let side = ArcProfile::Dir("Profile 2".into());
+        // A Favourite already pinned there, in a folder, stays in its folder.
+        let in_folder = ArcPinnedTab {
+            tab: tab("https://a/"),
+            folder: Some(ArcFolder {
+                id: 0,
+                name: "F".into(),
+            }),
+        };
         let sidebar = ArcSidebar {
             spaces: vec![
-                arc_space("Home", ArcProfile::Default, vec![tab("https://a/")]),
-                arc_space("Work", work.clone(), vec![tab("https://w/")]),
+                arc_space("Home", ArcProfile::Default, vec![in_folder.clone()]),
+                arc_space("Work", work.clone(), loose(vec![tab("https://w/")])),
                 arc_space("Home 2", ArcProfile::Default, vec![]),
             ],
             favourites: vec![
@@ -276,9 +290,12 @@ mod tests {
         };
         let spaces = arc_spaces(sidebar);
         assert_eq!(spaces.len(), 4);
-        assert_eq!(spaces[0].pinned, [tab("https://fav/"), tab("https://a/")]);
+        assert_eq!(
+            spaces[0].pinned,
+            [ArcPinnedTab::from(tab("https://fav/")), in_folder]
+        );
         assert_eq!(spaces[0].unpinned, [tab("https://today/")]);
-        assert_eq!(spaces[1].pinned, [tab("https://w/")]);
+        assert_eq!(spaces[1].pinned, loose(vec![tab("https://w/")]));
         assert!(spaces[2].pinned.is_empty());
         assert_eq!(
             spaces[3],
@@ -287,7 +304,7 @@ mod tests {
                 emoji: None,
                 hue: None,
                 profile: side,
-                pinned: vec![tab("https://side/")],
+                pinned: loose(vec![tab("https://side/")]),
                 unpinned: vec![],
             }
         );

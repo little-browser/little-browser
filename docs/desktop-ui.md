@@ -16,6 +16,7 @@ custom window frame, so the 4-weekly Chromium rebase touches as little as possib
 | Footer: space switcher and the "+" menu (new space; new tab, split view, tab group), below the strip | `lb/browser/ui/views/sidebar/sidebar_footer_view.*` |
 | "+ New Tab" between pinned and today's tabs, replacing Chromium's new-tab button | `lb/browser/ui/views/sidebar/new_tab_row_view.*`, in a slot added by `patches/lb/new-tab-row.patch` |
 | Pinned tabs as list rows | `patches/lb/pinned-list.patch` (`tab_view.cc`, `tab_view_vertical_layout.cc`, `pinned_tab_container_view.cc`) |
+| Pinned groups: header rows, indents, colour lines, session data, Add to New Group, Pin Group | `lb/browser/ui/tabs/pinned_group_tracker.*`, `lb/browser/ui/views/sidebar/pinned_group_layout.*`, `patches/lb/pinned-groups.patch` |
 | The page as an inset card with rounded corners | `lb/browser/ui/views/frame/contents_card.h`, `patches/lb/contents-card.patch` |
 | Command bar | `lb/browser/ui/views/command_bar/`, `patches/lb/command-hooks.patch` |
 | Spaces, saved tabs | `lb/browser/ui/views/sidebar/sidebar_controller.*`, `lb/browser/spaces/` |
@@ -63,11 +64,62 @@ active tab shows a page and isn't split already.
 `patches/lb/pinned-list.patch` an expanded strip draws them as rows, one per line with icon and
 title, like the other tabs, and a close button; only the collapsed strip keeps icon tiles.
 
+**Pinned groups.** Chromium's tab model can't group pinned tabs (its pinned collection holds only
+tabs and split views), so a group among the pinned tabs (ux.md §6.1) is ours, over Chromium's pinned
+tabs: to Chromium and extensions they stay pinned tabs in no group, so everything pinned tabs do
+(sleeping, restoring, the collapsed strip's icon tiles, tabs on top) keeps working.
+`PinnedGroupTracker`, one per window and owned by `SidebarController`, keeps each group's name,
+colour and collapsed state and which tabs are in it, also while their space is parked; another
+window that takes a parked space takes its tabs' groups too, and a tab that goes to another window
+leaves its group. After every tab strip change, and after a pin or unpin that leaves the tab where
+it is (`OnTabPinnedStateChanged`), the tracker keeps each group one unbroken run: a tab that moved
+or was inserted takes the group of where it landed, judged by neighbours that didn't move with it
+(`lb::GroupAfterMove`: between two tabs of a group it joins, next to its own group it stays,
+elsewhere it leaves), then `lb::NormalizePinnedGroups` repairs the rest. It moves tabs as units, a
+split view whole (`MoveSplitTo`), so no move takes a split apart. In the expanded vertical strip
+`patches/lb/pinned-groups.patch` has `PinnedTabContainerView` ask `lb::PinnedGroupLayout` (a
+property of the container) for each child's row: a header view above a group's first tab, an indent
+for its tabs, hidden tabs in a collapsed group (all but the active one, `lb::PinnedRows`), and a
+colour line in the indent, where tab rows, which have their own layers, can't paint over it. The
+layout reads a child's tabs from its nodes, never from the tab collection, which Chromium may be
+changing as it lays the container out. Header views are added outside layouts, one per group, and
+removed when the group goes. A header's click collapses and expands, a double click renames inline,
+and its menu (`lb::PinnedGroupMenu`) has Rename, Colour, Unpin Group (the tabs become a Chromium
+group with the same name, colour and collapsed state, expanded when it holds the shown tab), Ungroup
+and Close: `lb::DecidePinnedGroupClose` picks the awake tabs, which `lb::SleepPinnedTabs` puts to
+sleep together (a split comes apart first, and the shown tab sleeps first so none of the group is
+shown instead), or Remove once they all sleep. A tab in a collapsed pinned group counts as collapsed
+for Chromium too (`TabStripModel::IsTabCollapsed`), so Ctrl+Tab and the choice of the next tab skip
+it. The same patch makes the tab menu's Add to New Group and Tab > Group Tab make a pinned group of
+pinned tabs where pinned groups show (`lb::AddToNewPinnedGroup`, placed by
+`lb::NewPinnedGroupPosition`, its name being edited; `lb::TogglePinnedGroup` also takes tabs out),
+and adds Pin Group to a today group's menu. Each member's group is written to Chromium's session as
+tab extra data (`lb_pinned_group`, also when Chromium rebuilds the session file and in tab restore's
+record of a closed tab or window), and `lb::OnTabRestored`, called from `chrome::AddRestoredTab`,
+gives a restored tab its group back; saved space tabs carry it in the same `group` record today
+groups use, on pinned tabs. During a drag the pinned container tells `PinnedGroupLayout` where each
+dragged row is drawn (a transform moves it, not its bounds) and where its place is, and the row
+joins or leaves a group as `lb::DraggedTabInPinnedGroup` decides, with Chromium's thresholds for
+today groups and its own place counted in its group, while the drag lasts. While a drag runs the
+tracker remembers each tab's group before its first change, and a cancelled drag (Esc) gives those
+back once Chromium has put the tabs back (`lb::OnTabDragEnded`, from
+`TabDragController::EndDragImpl`). Dragging a pinned group's header is our own drag. The pinned area
+clips what is drawn outside it, so an image of the group, its header and tabs painted as Chromium
+paints drag images, follows the pointer in a small window of its own over the browser window while
+the group's tabs fold away under the header; a line, in a small window of its own too, shows where
+it would land. Every tab counts for that place, one hidden in a collapsed group at its group's
+header, so a drop never lands inside a group (`lb::GroupDropIndex`, `lb::GroupDropLineY`). On
+release `lb::DecideGroupDrop` says what happens: above the middle of "+ New Tab" the group moves
+among the pinned tabs, below it it becomes a today group among the today tabs. A drag of today
+groups dropped above that middle pins them, any other dragged tabs with them
+(`lb::OnTabGroupDropped`).
+
 **Sleeping pinned tabs.** Every tab close passes through `lb::SleepInsteadOfClose`
 (`lb/browser/ui/tabs/pinned_tab_sleep.*`, hooked into `TabStripModel::CloseTabs` by
 `patches/lb/pinned-tab-sleep.patch`). A pinned tab the user closes is kept, and right after the
 close returns another tab is shown (the one focused last, preferring tabs outside collapsed groups
-and awake tabs and leaving out tabs closed together with it, or a new tab; `lb::ChooseTabToShow`) and the pinned tab's page is unloaded with Chromium's
+and awake tabs and leaving out tabs closed together with it, or a new tab; `lb::ChooseTabToShow`;
+a collapsed pinned group counts as a collapsed group) and the pinned tab's page is unloaded with Chromium's
 own discard (`TabLifecycleUnitExternal::DiscardTab`, the call `chrome.tabs.discard` makes, which
 has no eligibility policy), marked `NeedsReload()` so it loads again whenever it is shown. A tab
 muted on its own stays muted. A page with a beforeunload handler that the user has typed into
@@ -95,8 +147,12 @@ skipped: `lb::HandleCommand` closes the selected pinned tabs itself.
 **Dragging** is Chromium's own, with two changes. `patches/lb/drag-pins.patch` lets a tab cross
 between the pinned and the today area the way it crosses into a group. The pointer picks the area
 (above the middle of the "+ New Tab" row is pinned), and entering the other area pins or unpins the
-dragged tabs, split views whole; the drag then places them as within any area. A drag that includes
-a tab group stays among the today tabs, since Chromium's model has no pinned groups. Upstream
+dragged tabs, split views whole; the drag then places them as within any area. Pinned tabs, a list
+here, are dragged up and down only (`pinned-list.patch`). A drag that includes a tab group stays
+among the today tabs, since Chromium's model has no pinned groups; dropped above the middle of
+"+ New Tab", the group then becomes a pinned group where it was dropped (`lb::OnTabGroupDropped`,
+from `TabDragController::EndDragImpl` in `pinned-groups.patch`). While it is held there, a line
+shows that place (`lb::OnTabGroupDragged`, from `TabDragController::ContinueDragging`). Upstream
 rebuilds a tab's view when its pin state changes, which would free the views the drag holds, so a
 dragged tab keeps its view; Esc restores the original pin state. `patches/lb/no-tab-detach.patch`
 makes a dragged tab never detach into a new window.

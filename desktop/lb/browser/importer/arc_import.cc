@@ -24,11 +24,11 @@
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/common/chrome_constants.h"
+#include "lb/browser/importer/arc_tabs.h"
 #include "lb/browser/importer/import_text.h"
 #include "lb/browser/spaces/space_model.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "lb/core_bridge/lib.rs.h"
-#include "url/gurl.h"
 
 namespace lb {
 
@@ -231,27 +231,22 @@ class ArcImport {
       rust::Vec<core::SpaceTarget> targets = core::place_spaces(existing, to_place, "Arc");
       for (size_t i = 0; i < placed.size(); ++i) {
         const core::ArcSpace& arc = *placed[i];
-        std::vector<SavedTab> tabs;
-        for (bool pinned : {true, false}) {
-          for (const core::Tab& t : pinned ? arc.pinned : arc.unpinned) {
-            SavedTab tab;
-            tab.url = GURL(std::string(t.url));
-            tab.title = base::UTF8ToUTF16(std::string(t.title));
-            tab.pinned = pinned;
-            if (tab.url.is_valid()) {
-              tabs.push_back(std::move(tab));
-            }
-          }
-        }
-        result_.counts.tabs += tabs.size();
         ++result_.counts.spaces;
         if (targets[i].fill_index >= 0) {
-          SidebarController::AddImportedTabs(spaces[targets[i].fill_index].first.id, tabs);
+          const Space& filled = spaces[targets[i].fill_index].first;
+          const std::vector<SavedTab> tabs =
+              ArcSpaceTabs(arc, static_cast<int>(TabGroupColorForHue(filled.hue)));
+          result_.counts.tabs += tabs.size();
+          SidebarController::AddImportedTabs(filled.id, tabs);
           continue;
         }
-        // Arc's colour becomes the nearest of ours (docs/ux.md §13).
+        // Arc's colour becomes the nearest of ours (docs/ux.md §13); its folders' groups start in
+        // the group colour nearest to it, as a new group does.
         const int hue =
             arc.hue >= 0 ? kSpaceColours[NearestSpaceColour(arc.hue)].hue : NextSpaceHue(all);
+        const std::vector<SavedTab> tabs =
+            ArcSpaceTabs(arc, static_cast<int>(TabGroupColorForHue(hue)));
+        result_.counts.tabs += tabs.size();
         Space space{base::Uuid::GenerateRandomV4().AsLowercaseString(),
                     std::string(targets[i].new_name),
                     arc.emoji.empty() ? std::string(NextSpaceIcon(all)) : std::string(arc.emoji),

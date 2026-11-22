@@ -9,6 +9,8 @@
 //! `containerIDs` pairs `"pinned"` and `"unpinned"` with the item holding that part of it; items
 //! nest through `childrenIds`. A tab item's `data.tab` has `savedURL` and `savedTitle`, and its own
 //! `title` when the user renamed it; folders (`data.list`) and other containers hold children.
+//! Pinned folders become pinned groups (docs/ux.md §13): a folder inside a folder adds its tabs
+//! to the outermost one.
 
 use super::{is_web_url, parse_json, ImportError, ImportedTab};
 use serde_json::{Map, Value};
@@ -22,6 +24,27 @@ pub enum ArcProfile {
     Dir(String),
 }
 
+/// A top-level pinned folder of a space.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArcFolder {
+    /// Numbers the space's folders, from 0 in Arc's order: two folders may share a name.
+    pub id: usize,
+    pub name: String,
+}
+
+/// A pinned tab and the top-level folder it is in, if any.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArcPinnedTab {
+    pub tab: ImportedTab,
+    pub folder: Option<ArcFolder>,
+}
+
+impl From<ImportedTab> for ArcPinnedTab {
+    fn from(tab: ImportedTab) -> Self {
+        ArcPinnedTab { tab, folder: None }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArcSpace {
     /// Its name; may be empty.
@@ -30,8 +53,8 @@ pub struct ArcSpace {
     /// Hue 0–359 of its theme colour; `None` for a grey or missing one.
     pub hue: Option<i32>,
     pub profile: ArcProfile,
-    /// Pinned tabs in order, folders flattened in place.
-    pub pinned: Vec<ImportedTab>,
+    /// Pinned tabs in order, each with its top-level folder; a folder's tabs are neighbours.
+    pub pinned: Vec<ArcPinnedTab>,
     /// Unpinned (today) tabs in order.
     pub unpinned: Vec<ImportedTab>,
 }
@@ -56,12 +79,21 @@ pub fn arc_sidebar(text: &str) -> Result<ArcSidebar, ImportError> {
     let items: HashMap<&str, &Map<String, Value>> = objects(container.get("items"))
         .filter_map(|item| Some((item.get("id")?.as_str()?, item)))
         .collect();
-    let tabs_under = |id: Option<&str>| {
-        let mut tabs = Vec::new();
+    let pinned_under = |id: Option<&str>| {
+        let mut walk = Walk {
+            items: &items,
+            tabs: Vec::new(),
+            visited: HashSet::new(),
+            folders: 0,
+        };
         if let Some(item) = id.and_then(|id| items.get(id)) {
-            collect_tabs(item, &items, &mut tabs, &mut HashSet::new());
+            walk.collect(item, None);
         }
-        tabs
+        walk.tabs
+    };
+    // Outside the pinned area folders don't come along, only their tabs.
+    let tabs_under = |id: Option<&str>| -> Vec<ImportedTab> {
+        pinned_under(id).into_iter().map(|p| p.tab).collect()
     };
 
     let spaces = objects(container.get("spaces"))
@@ -87,7 +119,7 @@ pub fn arc_sidebar(text: &str) -> Result<ArcSidebar, ImportError> {
                     .and_then(|c| c.pointer("/windowTheme/primaryColorPalette/midTone"))
                     .and_then(hue),
                 profile: profile(space.get("profile")),
-                pinned: tabs_under(part("pinned")),
+                pinned: pinned_under(part("pinned")),
                 unpinned: tabs_under(part("unpinned")),
             }
         })
@@ -116,39 +148,66 @@ fn objects(list: Option<&Value>) -> impl Iterator<Item = &Map<String, Value>> {
         .filter_map(Value::as_object)
 }
 
-/// Adds the tabs under `item` to `tabs`, in order. Each item is visited once, so a loop in the
-/// file ends.
-fn collect_tabs(
-    item: &Map<String, Value>,
-    items: &HashMap<&str, &Map<String, Value>>,
-    tabs: &mut Vec<ImportedTab>,
-    visited: &mut HashSet<String>,
-) {
-    if let Some(id) = item.get("id").and_then(Value::as_str) {
-        if !visited.insert(id.to_owned()) {
+/// Collects the tabs under an item, in order, with their top-level folders.
+struct Walk<'a> {
+    items: &'a HashMap<&'a str, &'a Map<String, Value>>,
+    tabs: Vec<ArcPinnedTab>,
+    /// Each item is visited once, so a loop in the file ends.
+    visited: HashSet<String>,
+    /// Top-level folders numbered so far.
+    folders: usize,
+}
+
+impl Walk<'_> {
+    /// Adds the tabs under `item`; `folder` is the top-level folder it is in.
+    fn collect(&mut self, item: &Map<String, Value>, folder: Option<&ArcFolder>) {
+        if let Some(id) = item.get("id").and_then(Value::as_str) {
+            if !self.visited.insert(id.to_owned()) {
+                return;
+            }
+        }
+        if let Some(tab) = item.get("data").and_then(|d| d.get("tab")) {
+            let url = tab
+                .get("savedURL")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if is_web_url(url) {
+                let own_title = item.get("title").and_then(Value::as_str).map(str::trim);
+                let saved_title = tab.get("savedTitle").and_then(Value::as_str);
+                let title = own_title.filter(|t| !t.is_empty()).or(saved_title);
+                self.tabs.push(ArcPinnedTab {
+                    tab: ImportedTab {
+                        url: url.to_owned(),
+                        title: title.unwrap_or_default().to_owned(),
+                    },
+                    folder: folder.cloned(),
+                });
+            }
             return;
         }
-    }
-    if let Some(tab) = item.get("data").and_then(|d| d.get("tab")) {
-        let url = tab
-            .get("savedURL")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        if is_web_url(url) {
-            let own_title = item.get("title").and_then(Value::as_str).map(str::trim);
-            let saved_title = tab.get("savedTitle").and_then(Value::as_str);
-            let title = own_title.filter(|t| !t.is_empty()).or(saved_title);
-            tabs.push(ImportedTab {
-                url: url.to_owned(),
-                title: title.unwrap_or_default().to_owned(),
-            });
-        }
-        return;
-    }
-    let children = item.get("childrenIds").and_then(Value::as_array);
-    for child in children.into_iter().flatten().filter_map(Value::as_str) {
-        if let Some(child) = items.get(child) {
-            collect_tabs(child, items, tabs, visited);
+        let is_folder = item.get("data").is_some_and(|d| d.get("list").is_some());
+        let own;
+        let folder = match folder {
+            None if is_folder => {
+                own = ArcFolder {
+                    id: self.folders,
+                    name: item
+                        .get("title")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_owned(),
+                };
+                self.folders += 1;
+                Some(&own)
+            }
+            folder => folder,
+        };
+        let children = item.get("childrenIds").and_then(Value::as_array);
+        for child in children.into_iter().flatten().filter_map(Value::as_str) {
+            if let Some(child) = self.items.get(child) {
+                self.collect(child, folder);
+            }
         }
     }
 }
@@ -220,7 +279,25 @@ mod tests {
     }
 
     fn folder_item(id: &str, children: &[&str]) -> Value {
-        json!({"id": id, "title": "Folder", "childrenIds": children, "data": {"list": {}}})
+        named_folder(id, "Folder", children)
+    }
+
+    fn named_folder(id: &str, title: &str, children: &[&str]) -> Value {
+        json!({"id": id, "title": title, "childrenIds": children, "data": {"list": {}}})
+    }
+
+    fn loose(url: &str, title: &str) -> ArcPinnedTab {
+        tab(url, title).into()
+    }
+
+    fn in_folder(url: &str, title: &str, id: usize, name: &str) -> ArcPinnedTab {
+        ArcPinnedTab {
+            tab: tab(url, title),
+            folder: Some(ArcFolder {
+                id,
+                name: name.into(),
+            }),
+        }
     }
 
     /// A sidebar file with the given spaces, items and Favourites lists, each alternating ids
@@ -297,9 +374,9 @@ mod tests {
                     hue: Some(223),
                     profile: ArcProfile::Default,
                     pinned: vec![
-                        tab("https://mail.example/", "Mail"),
-                        tab("https://cal.example/", "Calendar"),
-                        tab("https://deep.example/", "Deep"),
+                        loose("https://mail.example/", "Mail"),
+                        in_folder("https://cal.example/", "Calendar", 0, "Folder"),
+                        in_folder("https://deep.example/", "Deep", 0, "Folder"),
                     ],
                     unpinned: vec![tab("https://news.example/", "News")],
                 },
@@ -385,7 +462,51 @@ mod tests {
             json!([]),
         );
         let got = arc_sidebar(&text).unwrap();
-        assert_eq!(got.spaces[0].pinned, [tab("https://t.example/", "T")]);
+        assert_eq!(
+            got.spaces[0].pinned,
+            [in_folder("https://t.example/", "T", 0, "Folder")]
+        );
+    }
+
+    #[test]
+    fn pinned_folders_keep_their_place_and_name() {
+        let text = sidebar(
+            vec![space("s", "Home", "p", "u", json!({}))],
+            vec![
+                container_item("p", &["f1", "t1", "empty", "f2", "split"]),
+                named_folder("f1", " Docs ", &["t2", "inner"]),
+                named_folder("inner", "Inner", &["t3"]),
+                tab_item("t1", "https://loose.example/", "Loose", None),
+                named_folder("empty", "Empty", &["settings"]),
+                tab_item("settings", "arc://settings", "Settings", None),
+                named_folder("f2", " Docs ", &["t4"]),
+                container_item("split", &["t5"]),
+                tab_item("t2", "https://a.example/", "A", None),
+                tab_item("t3", "https://b.example/", "B", None),
+                tab_item("t4", "https://c.example/", "C", None),
+                tab_item("t5", "https://d.example/", "D", None),
+                container_item("u", &["uf"]),
+                named_folder("uf", "Today folder", &["t6"]),
+                tab_item("t6", "https://today.example/", "Today", None),
+            ],
+            json!([]),
+        );
+        let got = arc_sidebar(&text).unwrap();
+        assert_eq!(
+            got.spaces[0].pinned,
+            [
+                in_folder("https://a.example/", "A", 0, "Docs"),
+                in_folder("https://b.example/", "B", 0, "Docs"),
+                loose("https://loose.example/", "Loose"),
+                // The empty folder takes number 1 and brings no tabs.
+                in_folder("https://c.example/", "C", 2, "Docs"),
+                loose("https://d.example/", "D"),
+            ]
+        );
+        assert_eq!(
+            got.spaces[0].unpinned,
+            [tab("https://today.example/", "Today")]
+        );
     }
 
     #[test]

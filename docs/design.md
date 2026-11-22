@@ -284,7 +284,9 @@ provides (incognito, DevTools, PiP). The rest of the table is specified but not 
 
 ### 7.5 Pinned tabs and tab groups
 - Per space, shown as list rows (icon and title) under the space name; groups (Arc-style folders)
-  are Chromium's own tab groups, among the today tabs (Chromium can't group pinned tabs).
+  among the today tabs are Chromium's own tab groups. Chromium can't group pinned tabs, so groups
+  among the pinned tabs (pinned groups, ux.md §6.1) are our own, over Chromium's pinned tabs: the
+  tabs stay pinned for Chromium and extensions, and the sidebar draws the group.
 - Pinned tabs and groups are saved with the space (Local State, section 8 for sync).
 
 ### 7.6 Import
@@ -297,8 +299,8 @@ provides (incognito, DevTools, PiP). The rest of the table is specified but not 
   browser's data with its key from the macOS keychain, and macOS asks first.
 - **lb-core reads and decides.** Its `import` module parses Chrome-family `Local State`
   (profiles), `Bookmarks` and `Preferences` (extensions), and Arc's `StorableSidebar.json` (spaces,
-  pinned and unpinned tabs, Favourites); it takes the rows of `History`, `Web Data` (search
-  shortcuts, addresses) and `Cookies` as plain structs. Out comes an import plan in our own terms:
+  pinned tabs with their folders, unpinned tabs, Favourites); it takes the rows of `History`,
+  `Web Data` (search shortcuts, addresses) and `Cookies` as plain structs. Out comes an import plan in our own terms:
   spaces and profiles, tabs, a bookmark merge against the existing tree, history pages, search
   shortcuts, addresses, extension ids, cookies. The table of browsers and where each keeps its data
   is in lb-core too.

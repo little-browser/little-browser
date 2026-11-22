@@ -25,6 +25,7 @@ build is in `../AGENTS.md`.
   | The downloaded filter rules (browser-wide), before Chromium indexes them | `<user data>/Filter Lists/<version>/` |
   | Sites where ads are allowed or blocked (per profile) | Chromium's "ads" content setting |
   | A window's current space | session window extra data `lb_space` |
+  | A pinned tab's pinned group (name, colour, collapsed) | session tab extra data `lb_pinned_group`, and the saved tabs' `group` record |
 
   Register new prefs in `RegisterProfilePrefs` or `RegisterLocalStatePrefs`; they are wired in
   by `patches/lb/sidebar-prefs.patch`.

@@ -19,6 +19,8 @@ lb/browser/importer/                import from other browsers (docs/desktop-ui.
   imported_bookmarks.*              Chromium importers' bookmarks as lb-core's list (unit tested)
   chromium_import.*                 imports a Chrome-family profile into a profile and space
   arc_import.*                      imports Arc: profiles, spaces, tabs, then each profile's data
+  arc_tabs.*                        an Arc space's saved tabs, its pinned folders as pinned groups
+                                    (unit tested)
   other_import.*                    Firefox, Safari, bookmarks files, Safari's export, through
                                     Chromium's importers with our bookmark merge
   import_sources.*                  finds the browsers on the Mac, the default one first
@@ -32,6 +34,8 @@ lb/browser/spaces/swipe_tracker.*   two-finger swipe → one space switch per ge
 lb/browser/command_bar/command_matching.*  command bar scoring and "is this an address?"
 lb/browser/tabs/pinned_close.*      what closing a tab does: close, sleep or only hide (unit tested)
 lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab goes to sleep
+lb/browser/tabs/pinned_groups.*     pinned groups' rules: unbroken runs, a moved tab's group, rows,
+                                    the group menu, session data (unit tested)
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
 lb/browser/password/password_manager_choice.*  first-run password managers, when to offer them, what follows an install
 lb/browser/search/search_choice.*   when the first-run search choice opens, or waits for the open one
@@ -62,10 +66,13 @@ lb/browser/extensions/
 lb/browser/ui/
   lb_ui_snapshot.*                  --lb-ui-snapshot=<png>: save the window's UI and quit (dev tool)
   tabs/pinned_tab_sleep.*           closing a pinned tab puts it to sleep instead
+  tabs/pinned_group_tracker.*       a window's pinned groups: members, commands, session data
   views/sidebar/sidebar_controller.*   spaces (Local State), space switching, saved tabs
   views/sidebar/sidebar_header_view.*  address pill, space name
   views/sidebar/sidebar_footer_view.*  space switcher (switch; right-click rename/icon/colour/delete) and the "+" menu
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
+  views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
+  views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart) (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog and the first-run import offer
@@ -83,7 +90,8 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
 `command-hooks.patch`, `session-spaces.patch`, `restore-selected-first.patch`,
 `tab-metrics-detached-guard.patch`, `contents-card.patch`, `ad-blocking.patch`,
-`ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker), `peek-hooks.patch`
+`ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker),
+`pinned-groups.patch` (pinned groups), `peek-hooks.patch`
 (Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch` and
 `little-window-link-menu.patch` (the little window);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
@@ -117,7 +125,16 @@ closes the sleeping tab (it must go), `=pinned-wake` then
 shows it again (it must load), `=pinned-close-all` pins every tab, closes them all at once and then closes one twice in a row
 (all must sleep, with a new tab shown), `=pinned-unloaded` pins a tab that hasn't loaded yet (it must look
 asleep), `=pinned-restart`, run again on the profile `=pinned-close-all` left, checks that a
-restart wakes none of the sleeping pinned tabs; `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
+restart wakes none of the sleeping pinned tabs, `=pinned-groups`, on a fresh profile, makes a
+pinned group with the tab menu, renames, collapses, moves tabs in and out of it, closes and removes
+it, unpins it and pins it back with the group menu's Pin Group, checks it is saved and survives a
+space switch, then drags with the mouse (a tab onto its header and out again, once cancelled with
+Esc, its header below "+ New Tab" with an image of the group following the pointer and a line
+where it lands, the today group's header back above with a line where it would be pinned), checks
+a collapsed pinned group's tabs count as collapsed, and quits, `=pinned-groups-drops` drags a
+pinned group holding a split view between today tabs below a collapsed today group and back, and
+closes it (the split must stay whole, no group may be split, every tab must sleep) (`--lb-ui-snapshot-pinned-drag=<png>` stops mid-drag and captures that image), and `=pinned-groups-restart`, run again on that profile, checks the
+restored window has it back (both log `lb demo: <mode> PASS` or `FAIL`); `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
 audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `--vmodule=sidebar_controller=1,pinned_tab_sleep=1`, with each pinned row's button;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and

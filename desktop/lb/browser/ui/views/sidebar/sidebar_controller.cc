@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/auto_reset.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
@@ -50,8 +51,6 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
 #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
-#include "chrome/browser/ui/views/tabs/common/tab_drag_handler.h"
-#include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
@@ -94,6 +93,7 @@
 #include "lb/browser/ui/views/peek/peek.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
+#include "lb/browser/ui/views/sidebar/pinned_groups_demo.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/base_window.h"
 #include "ui/base/models/list_selection_model.h"
@@ -102,7 +102,6 @@
 #include "ui/events/event_utils.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/accessibility/view_accessibility.h"
-#include "ui/views/view_tracker.h"
 #include "ui/views/view_utils.h"
 #include "url/url_constants.h"
 
@@ -112,92 +111,14 @@ namespace {
 
 // Demo check (--lb-sidebar-demo=pinned-*): logs each pinned row's close button, which reads
 // "Remove pinned tab" ("−") while the tab sleeps and "Close" ("✕") while it is awake.
-void CollectTabViews(views::View* view, std::vector<TabView*>& out) {
-  if (auto* tab_view = views::AsViewClass<TabView>(view)) {
-    out.push_back(tab_view);
-    return;
-  }
-  for (views::View* child : view->children()) {
-    CollectTabViews(child, out);
-  }
-}
-
 void LogPinnedRows(BrowserWindowInterface* browser) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
-  if (!browser_view) {
-    return;
-  }
-  std::vector<TabView*> rows;
-  CollectTabViews(browser_view, rows);
-  for (TabView* row : rows) {
+  for (TabView* row : FindViewsForDemo<TabView>(WindowViewForDemo(browser))) {
     const tabs::TabInterface* tab = row->collection_node() ? row->GetTabInterface() : nullptr;
     if (tab && tab->IsPinned()) {
       VLOG(1) << "pinned row: " << tab->GetContents()->GetTitle() << " button="
               << row->close_button_for_testing()->GetViewAccessibility().GetCachedName();
     }
   }
-}
-
-TabView* FindTabView(BrowserWindowInterface* browser, const tabs::TabInterface* tab) {
-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
-  if (!browser_view || !tab) {
-    return nullptr;
-  }
-  std::vector<TabView*> rows;
-  CollectTabViews(browser_view, rows);
-  for (TabView* row : rows) {
-    if (row->collection_node() && row->GetTabInterface() == tab) {
-      return row;
-    }
-  }
-  return nullptr;
-}
-
-// Demo check (--lb-sidebar-demo=drag-pins): drags `tab`'s row the way the mouse does, through
-// the screen y coordinates `screen_ys` at the row's middle x, all within one task (so fast, as a
-// quick real drag), then drops it (`drop`) or cancels it as Esc does.
-void SimulateTabDrag(BrowserWindowInterface* browser,
-                     tabs::TabInterface* tab,
-                     const std::vector<int>& screen_ys,
-                     bool drop) {
-  TabView* row = FindTabView(browser, tab);
-  if (!row) {
-    VLOG(1) << "drag-pins: no row";
-    return;
-  }
-  views::ViewTracker tracker(row);
-  const gfx::Point start = row->GetLocalBounds().CenterPoint();
-  const int screen_x = row->GetBoundsInScreen().CenterPoint().x();
-  ui::MouseEvent press(ui::EventType::kMousePressed, start, start, ui::EventTimeForNow(),
-                       ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
-  static_cast<views::View*>(row)->OnMousePressed(press);
-  for (int y : screen_ys) {
-    if (!tracker.view()) {
-      VLOG(1) << "drag-pins: row destroyed mid-drag";
-      return;
-    }
-    gfx::Point point(screen_x, y);
-    views::View::ConvertPointFromScreen(row, &point);
-    ui::MouseEvent drag(ui::EventType::kMouseDragged, point, point, ui::EventTimeForNow(),
-                        ui::EF_LEFT_MOUSE_BUTTON, 0);
-    static_cast<views::View*>(row)->OnMouseDragged(drag);
-  }
-  if (!tracker.view()) {
-    VLOG(1) << "drag-pins: row destroyed mid-drag";
-    return;
-  }
-  const_cast<TabStripCollectionController*>(row->collection_node()->GetController())
-      ->GetDragHandler()
-      .EndDrag(drop ? EndDragReason::kComplete : EndDragReason::kCancel);
-}
-
-// Screen y coordinates from `from` to `to` in a few steps, like a quick mouse move.
-std::vector<int> DragPath(int from, int to) {
-  std::vector<int> ys;
-  for (int step = 1; step <= 6; ++step) {
-    ys.push_back(from + (to - from) * step / 6);
-  }
-  return ys;
 }
 
 void LogTabs(BrowserWindowInterface* browser, const char* step) {
@@ -421,6 +342,15 @@ std::vector<tabs::TabInterface*> SidebarController::ParkedSpace::Tabs() const {
 SidebarController::SidebarController(BrowserWindowInterface* browser)
     : browser_(browser), is_private_(browser->GetProfile()->IsOffTheRecord()) {
   Registry()[browser_] = this;
+  pinned_groups_ = std::make_unique<PinnedGroupTracker>(
+      browser_, base::BindRepeating(
+                    [](SidebarController* self) {
+                      self->ScheduleSave();
+                      for (Observer& observer : self->observers_) {
+                        observer.OnPinnedGroupsChanged();
+                      }
+                    },
+                    base::Unretained(this)));
   // Private windows have no spaces to save, but New Tab Group placeholders work there too.
   browser_->GetTabStripModel()->AddObserver(this);
   if (is_private_) {
@@ -502,6 +432,25 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
 
 SidebarController::~SidebarController() {
   Registry().erase(browser_);
+}
+
+// static
+SidebarController* SidebarController::FromTabStripModel(const TabStripModel* model) {
+  for (const auto& [browser, controller] : Registry()) {
+    if (browser->GetTabStripModel() == model) {
+      return controller;
+    }
+  }
+  return nullptr;
+}
+
+// static
+std::vector<SidebarController*> SidebarController::All() {
+  std::vector<SidebarController*> all;
+  for (const auto& [browser, controller] : Registry()) {
+    all.push_back(controller);
+  }
+  return all;
 }
 
 // static
@@ -736,6 +685,10 @@ SidebarController::ParkedSpace SidebarController::TakeParkedSpace(const std::str
     if (auto it = controller->detached_.find(space_id); it != controller->detached_.end()) {
       ParkedSpace parked = std::move(it->second);
       controller->detached_.erase(it);
+      // The tabs' pinned groups go with them to this window.
+      if (controller != this) {
+        pinned_groups_->Adopt(controller->pinned_groups_->Release(parked.Tabs()));
+      }
       return parked;
     }
   }
@@ -748,6 +701,28 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
                                                const TabStripModelChange& change,
                                                const TabStripSelectionChange& selection) {
   ScheduleSave();
+  // Keeps pinned groups unbroken; it changes no tabs, so it can run inside the notification.
+  std::vector<tabs::TabInterface*> moved;
+  if (change.type() == TabStripModelChange::kMoved) {
+    moved.push_back(change.GetMove()->tab);
+  } else if (change.type() == TabStripModelChange::kInserted) {
+    for (const auto& inserted : change.GetInsert()->contents) {
+      moved.push_back(inserted.tab);
+    }
+  }
+  std::vector<tabs::TabInterface*> closed;
+  std::vector<tabs::TabInterface*> left;
+  if (change.type() == TabStripModelChange::kRemoved) {
+    for (const auto& removed : change.GetRemove()->contents) {
+      if (removed.remove_reason == TabRemovedReason::kDeleted ||
+          removed.remove_reason == TabRemovedReason::kDeletedAndExpandSidePanel) {
+        closed.push_back(removed.tab);
+      } else if (!parking_) {
+        left.push_back(removed.tab);  // to another window
+      }
+    }
+  }
+  pinned_groups_->Update(moved, closed, left);
   if (!group_placeholders_.empty() && !placeholder_check_pending_) {
     // Not inside the notification: closing a tab here would change the strip being notified.
     // One check for a burst of changes (a space switch moves every tab).
@@ -760,6 +735,11 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
 
 void SidebarController::OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) {
   ScheduleSave();
+}
+
+void SidebarController::OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) {
+  ScheduleSave();
+  pinned_groups_->Update({tab});
 }
 
 void SidebarController::OnTabGroupAdded(const tab_groups::TabGroupId& group) {
@@ -880,6 +860,12 @@ void SidebarController::SaveTabs(bool closing) {
         }
       }
       tab.group_saved_guid = it->second;
+    } else if (const PinnedGroup* pinned_group = pinned_groups_->GroupOf(strip_tab)) {
+      // A pinned group is saved the same way, on pinned tabs.
+      tab.group_id = pinned_group->id;
+      tab.group_title = pinned_group->title;
+      tab.group_color = pinned_group->color;
+      tab.group_collapsed = pinned_group->collapsed;
     }
     if (const std::optional<split_tabs::SplitTabId> split = strip_tab->GetSplit()) {
       tab.split_id = split->ToString();
@@ -979,7 +965,7 @@ std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(const std::vect
       const tab_groups::TabGroupId id = tab_groups::TabGroupId::GenerateNew();
       bool used = false;
       for (size_t i : run) {
-        if (!saved[i].pinned) {  // pinned tabs can't be grouped
+        if (!saved[i].pinned) {  // Chromium can't group pinned tabs: pinned groups come below
           group_of[i] = id;
           used = true;
         }
@@ -1024,6 +1010,21 @@ std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(const std::vect
     to_save.emplace_back(id, saved[first].group_saved_guid);
   }
   TabGroupSaver::Start(browser_->GetProfile(), std::move(to_save));
+  // Pinned groups: runs of pinned tabs with a group, each with a fresh id.
+  for (const std::vector<size_t>& run : SavedTabGroups(saved)) {
+    std::vector<tabs::TabInterface*> members;
+    for (size_t i : run) {
+      if (saved[i].pinned && added[i]) {
+        members.push_back(added[i]);
+      }
+    }
+    if (!members.empty()) {
+      const SavedTab& first = saved[run.front()];
+      pinned_groups_->Create(members, PinnedGroup{.title = first.group_title,
+                                                  .color = first.group_color,
+                                                  .collapsed = first.group_collapsed});
+    }
+  }
   // Split views too (after the groups: a split can sit inside a group).
   for (const std::vector<size_t>& split : SavedTabSplits(saved)) {
     std::vector<int> indices;
@@ -1098,8 +1099,11 @@ void SidebarController::ParkTabs(const std::string& space_id,
   if (active && std::ranges::find(tabs, active) != tabs.end()) {
     store.active = active->GetHandle();
   }
-  for (auto& item : model->DetachTabsAndCollectionsForInsertion(indices)) {
-    store.items.push_back(std::move(item));
+  {
+    base::AutoReset<bool> parking(&parking_, true);
+    for (auto& item : model->DetachTabsAndCollectionsForInsertion(indices)) {
+      store.items.push_back(std::move(item));
+    }
   }
   // Inactive spaces sleep: frozen pages run no scripts or timers, so nothing in them can reach
   // code that expects the tab to be in a window.
@@ -1816,6 +1820,9 @@ void SidebarController::SeedDemoData() {
             if (MaybeRunImportDemo(self->browser(), demo)) {
               return;  // Modes: lb/browser/importer/import_demo.h.
             }
+            if (MaybeRunPinnedGroupsDemo(self->browser(), demo)) {
+              return;  // Modes: lb/browser/ui/views/sidebar/pinned_groups_demo.h.
+            }
             self->SwitchTo(1);
             if (demo == "command-bar") {
               chrome::ExecuteCommand(self->browser(), IDC_NEW_TAB);
@@ -2030,7 +2037,7 @@ void SidebarController::SeedDemoData() {
                 BrowserWindowInterface* browser = self->browser();
                 TabStripModel* model = browser->GetTabStripModel();
                 auto center_y = [&](int index) {
-                  TabView* row = FindTabView(browser, model->GetTabAtIndex(index));
+                  TabView* row = FindTabViewForDemo(browser, model->GetTabAtIndex(index));
                   return row ? row->GetBoundsInScreen().CenterPoint().y() : 0;
                 };
                 const int first_unpinned = model->IndexOfFirstNonPinnedTab();
@@ -2038,49 +2045,55 @@ void SidebarController::SeedDemoData() {
                 switch (which) {
                   case 0: {  // An unpinned tab up onto the first pinned row.
                     LogTabs(browser, "start");
-                    SimulateTabDrag(browser, model->GetTabAtIndex(first_unpinned),
-                                    DragPath(center_y(first_unpinned), center_y(0)), true);
+                    SimulateTabDragForDemo(browser, model->GetTabAtIndex(first_unpinned),
+                                           DragPathForDemo(center_y(first_unpinned), center_y(0)),
+                                           true);
                     LogTabs(browser, "unpinned->pinned");
                     break;
                   }
                   case 1: {  // The last pinned tab down onto the last tab (in the group).
-                    SimulateTabDrag(browser, model->GetTabAtIndex(first_unpinned - 1),
-                                    DragPath(center_y(first_unpinned - 1), center_y(last)), true);
+                    SimulateTabDragForDemo(
+                        browser, model->GetTabAtIndex(first_unpinned - 1),
+                        DragPathForDemo(center_y(first_unpinned - 1), center_y(last)), true);
                     LogTabs(browser, "pinned->group");
                     break;
                   }
                   case 2: {  // A grouped tab up onto the first pinned row.
-                    SimulateTabDrag(browser, model->GetTabAtIndex(last),
-                                    DragPath(center_y(last), center_y(0)), true);
+                    SimulateTabDragForDemo(browser, model->GetTabAtIndex(last),
+                                           DragPathForDemo(center_y(last), center_y(0)), true);
                     LogTabs(browser, "group->pinned");
                     break;
                   }
                   case 3: {  // A pinned tab down to the bottom, then Esc.
-                    SimulateTabDrag(browser, model->GetTabAtIndex(0),
-                                    DragPath(center_y(0), center_y(last) + 40), false);
+                    SimulateTabDragForDemo(browser, model->GetTabAtIndex(0),
+                                           DragPathForDemo(center_y(0), center_y(last) + 40),
+                                           false);
                     LogTabs(browser, "pinned->down, cancelled");
                     break;
                   }
                   case 4: {  // The first pinned tab down to the bottom.
-                    SimulateTabDrag(browser, model->GetTabAtIndex(0),
-                                    DragPath(center_y(0), center_y(last) + 40), true);
+                    SimulateTabDragForDemo(browser, model->GetTabAtIndex(0),
+                                           DragPathForDemo(center_y(0), center_y(last) + 40), true);
                     LogTabs(browser, "pinned->bottom");
                     break;
                   }
                   case 5: {  // One jump: an unpinned tab straight onto the first pinned row.
-                    SimulateTabDrag(browser, model->GetTabAtIndex(last), {center_y(0)}, true);
+                    SimulateTabDragForDemo(browser, model->GetTabAtIndex(last), {center_y(0)},
+                                           true);
                     LogTabs(browser, "jump unpinned->pinned");
                     break;
                   }
                   case 6: {  // One jump: a pinned tab straight onto the last row.
-                    SimulateTabDrag(browser, model->GetTabAtIndex(0), {center_y(last)}, true);
+                    SimulateTabDragForDemo(browser, model->GetTabAtIndex(0), {center_y(last)},
+                                           true);
                     LogTabs(browser, "jump pinned->last");
                     break;
                   }
                   case 7: {  // One jump: a grouped tab straight onto the first pinned row.
                     for (int i = last; i >= 0; --i) {
                       if (model->GetTabAtIndex(i)->GetGroup()) {
-                        SimulateTabDrag(browser, model->GetTabAtIndex(i), {center_y(0)}, true);
+                        SimulateTabDragForDemo(browser, model->GetTabAtIndex(i), {center_y(0)},
+                                               true);
                         break;
                       }
                     }

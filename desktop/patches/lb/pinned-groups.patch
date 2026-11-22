@@ -1,0 +1,321 @@
+# Little Browser: tab groups among the pinned tabs (docs/ux.md §6.1). Chromium can't group pinned
+# tabs, so desktop/lb keeps pinned groups itself, over Chromium's pinned tabs
+# (lb/browser/ui/tabs/pinned_group_tracker.h). This hooks them in:
+# - the vertical strip's pinned container lays out each group's header row, indents its tabs,
+#   hides a collapsed group's tabs and draws its colour line (lb::PinnedGroupLayout), and tells it
+#   where a dragged tab is drawn and where its place is, which decide the pinned group it is in;
+# - a tab in a collapsed pinned group counts as collapsed (TabStripModel::IsTabCollapsed), as for
+#   Ctrl+Tab;
+# - a pinned group tab's group is saved as tab extra data, also when Chromium rebuilds its session
+#   file and in tab restore's record of a closed tab or window, and a restored tab gets it back;
+# - the tab menu's Add to New Group and Tab > Group Tab make a pinned group of pinned tabs (Group
+#   Tab also takes them out again), and a today group's menu has Pin Group;
+# - today groups dragged by their header over the pinned area show a line where they would be
+#   pinned (lb::OnTabGroupDragged), and dropped above the middle of "+ New Tab" they become pinned
+#   groups there, with any other dragged tabs (lb::OnTabGroupDropped); a cancelled drag gives its
+#   tabs back their pinned groups (lb::OnTabDragEnded).
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/sessions/session_service_base.h"
+ 
++#include "lb/browser/ui/tabs/pinned_group_tracker.h"
+ #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+ 
+ #include <stddef.h>
+@@ -677,6 +678,12 @@
+         sessions::CreatePinnedStateCommand(session_id, true));
+   }
+ 
++  // Little Browser: a pinned tab's pinned group (desktop/lb), as tab extra data.
++  if (const std::string lb_group = lb::GetPinnedGroupSessionData(tab); !lb_group.empty()) {
++    command_storage_manager()->AppendRebuildCommand(sessions::CreateAddTabExtraDataCommand(
++        session_id, lb::kPinnedGroupSessionKey, lb_group));
++  }
++
+   // Record the association between the sessionStorage namespace and the tab.
+   content::SessionStorageNamespaceHandle* session_storage_namespace =
+       tab->GetController().GetDefaultSessionStorageNamespace();
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -59,6 +59,7 @@
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/session_storage_namespace_handle.h"
+ #include "content/public/browser/web_contents.h"
++#include "lb/browser/ui/tabs/pinned_group_tracker.h"
+ #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+ #include "ui/base/mojom/window_show_state.mojom.h"
+ #include "ui/base/window_open_disposition.h"
+@@ -201,6 +202,12 @@
+ 
+   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
+                               &extra_data);
++  // Little Browser: a pinned tab's pinned group (desktop/lb), so reopening it brings it back.
++  if (std::string lb_group =
++          lb::GetPinnedGroupSessionData(tab_strip_model_->GetWebContentsAt(index));
++      !lb_group.empty()) {
++    extra_data[lb::kPinnedGroupSessionKey] = std::move(lb_group);
++  }
+ 
+   return extra_data;
+ }
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -39,6 +39,8 @@
+ #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
+ #include "ui/gfx/geometry/size.h"
+ #include "ui/gfx/range/range.h"
++
++#include "lb/browser/ui/tabs/pinned_group_tracker.h"  // Little Browser
+ 
+ using content::NavigationEntry;
+ using content::RestoreType;
+@@ -287,9 +289,12 @@
+       last_active_time_ticks, last_active_time, session_storage_namespace,
+       user_agent_override, extra_data, initially_hidden, from_session_restore);
+ 
+-  return AddRestoredTabImpl(std::move(web_contents), browser, tab_index, group,
+-                            select, pin, from_session_restore,
+-                            is_active_browser);
++  WebContents* const added = AddRestoredTabImpl(
++      std::move(web_contents), browser, tab_index, group, select, pin,
++      from_session_restore, is_active_browser);
++  // Little Browser: a pinned tab gets its pinned group back (desktop/lb).
++  lb::OnTabRestored(browser, added, extra_data);
++  return added;
+ }
+ 
+ WebContents* ReplaceRestoredTab(
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -118,6 +118,7 @@
+ #include "ui/base/models/list_selection_model.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/gfx/range/range.h"
++#include "lb/browser/ui/tabs/pinned_group_tracker.h"  // Little Browser
+ #include "lb/browser/ui/tabs/pinned_tab_sleep.h"  // Little Browser
+ 
+ using base::UserMetricsAction;
+@@ -1438,6 +1439,11 @@
+ }
+ 
+ bool TabStripModel::IsTabCollapsed(int index) const {
++  // Little Browser: a tab in a collapsed pinned group (desktop/lb) is collapsed too, so Ctrl+Tab
++  // and the choice of the next tab skip it as they do a collapsed group's tabs.
++  if (ContainsIndex(index) && lb::IsInCollapsedPinnedGroup(GetTabAtIndex(index))) {
++    return true;
++  }
+   std::optional<tab_groups::TabGroupId> group = GetTabGroupForTab(index);
+   return group.has_value() && IsGroupCollapsed(group.value());
+ }
+@@ -2966,6 +2972,10 @@
+       }
+ 
+       std::vector<int> indices = GetIndicesForCommand(context_index);
++      // Little Browser: pinned tabs make or leave a pinned group instead (desktop/lb).
++      if (lb::TogglePinnedGroup(GetTabsAtIndices(indices))) {
++        break;
++      }
+       if (WillContextMenuGroup(context_index)) {
+         std::optional<tab_groups::TabGroupId> new_group_id =
+             AddToNewGroup(indices);
+@@ -3243,6 +3253,12 @@
+   std::vector<int> indices_to_add = GetIndicesForCommand(context_index);
+   CHECK(!indices_to_add.empty());
+ 
++  // Little Browser: pinned tabs make a pinned group instead, as Chromium can't group pinned tabs
++  // (lb/browser/ui/tabs/pinned_group_tracker.h).
++  if (lb::AddToNewPinnedGroup(GetTabsAtIndices(indices_to_add))) {
++    return;
++  }
++
+   std::vector<tabs::TabInterface*> tabs_to_add =
+       GetTabsAtIndices(indices_to_add);
+ 
+--- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+@@ -15,6 +15,7 @@
+ #include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+ #include "content/public/browser/navigation_controller.h"
++#include "lb/browser/ui/views/sidebar/pinned_group_layout.h"  // Little Browser
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/gfx/geometry/rect.h"
+ #include "ui/views/controls/scroll_view.h"
+@@ -386,6 +387,15 @@
+     return layouts;
+   }
+ 
++  // Little Browser: pinned groups' headers, indents and collapsed tabs (docs/ux.md §6.1), in the
++  // expanded strip; the collapsed strip shows every pinned tab as an icon tile.
++  lb::PinnedGroupLayout* const lb_groups =
++      lb::PinnedGroupLayout::For(const_cast<PinnedTabContainerView&>(*this), collection_node_);
++  if (lb_groups) {
++    lb_groups->Prepare(*collection_node_, GetTabStripCollapseState() ==
++                                              tabs::VerticalTabStripCollapseState::kExpanded);
++  }
++
+   // Child width will be uniform and match the largest child's width.
+   bool contains_split = false;
+   for (const auto& i : collection_node_->children()) {
+@@ -421,20 +431,43 @@
+   }
+ 
+   int row_index = 0;
++  size_t lb_child_index = 0;  // Little Browser
+   for (auto* child : children) {
++    // Little Browser: a group's header row above its first tab; a collapsed group hides its tabs
++    // (but the active one), and a group's tabs are indented.
++    const lb::PinnedGroupLayout::Row lb_row =
++        lb_groups ? lb_groups->RowFor(lb_child_index++) : lb::PinnedGroupLayout::Row();
++    if (lb_row.header) {
++      const int header_height = lb::PinnedGroupLayout::HeaderHeight();
++      layouts.child_layouts.emplace_back(lb_row.header.get(), true,
++                                         gfx::Rect(0, y, child_width, header_height));
++      total_height = std::max(total_height, y + header_height);
++      y = total_height + kTabPadding;
++    }
++
+     gfx::Rect bounds =
+         gfx::Rect(child->GetPreferredSize(views::SizeBounds(child_width, {})));
+-    bounds.set_width(child_width);
++    bounds.set_width(child_width - lb_row.indent);
+ 
+     auto drag_data = GetVisualDataForDraggedView(*child);
+-    const bool should_show_child = !(drag_data && drag_data->should_hide);
++    const bool should_show_child =
++        !(drag_data && drag_data->should_hide) && (lb_row.shown || drag_data);
+     if (!should_show_child) {
+       layouts.child_layouts.emplace_back(child, false, gfx::Rect());
+       continue;
+     }
+ 
+     bounds.set_y(drag_data ? drag_data->offset.y() : y);
+-    bounds.set_x(drag_data ? drag_data->offset.x() : x);
++    bounds.set_x(drag_data ? drag_data->offset.x() : x + lb_row.indent);
++    // Little Browser: where a dragged tab is drawn (moved there by a transform, not its bounds)
++    // and its place in the list decide its pinned group, while the drag lasts (not as it settles
++    // after a cancel), in the layout of the container as it is (not a size query for another
++    // width, whose rows sit elsewhere).
++    if (lb_groups && drag_data && IsDragging() && size_bounds.width().is_bounded() &&
++        size_bounds.width().value() == width()) {
++      lb_groups->SetDragged(lb_child_index - 1, GetDraggingViewsBounds(),
++                            gfx::Rect(x + lb_row.indent, y, bounds.width(), bounds.height()));
++    }
+ 
+     if (row_index != 0) {
+       bounds.set_x(bounds.x() + kTabPadding);
+@@ -466,6 +499,10 @@
+   // otherwise snap to target.
+   layouts.host_size =
+       gfx::Size(size_bounds.width().value_or(total_width), total_height);
++  // Little Browser: the groups' colour lines; unused headers hide.
++  if (lb_groups) {
++    lb_groups->Finish(layouts);
++  }
+   return layouts;
+ }
+ 
+--- a/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
++++ b/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
+ 
++#include "lb/browser/ui/views/sidebar/pinned_group_layout.h"  // Little Browser
++
+ #include <algorithm>
+ #include <memory>
+ #include <optional>
+@@ -120,6 +122,20 @@
+ static TabDragController* g_tab_drag_controller = nullptr;
+ 
+ namespace {
++
++// Little Browser: every tab a drag carries, for desktop/lb's pinned groups.
++std::vector<tabs::TabHandle> LbDraggedTabs(const DragSessionData& data) {
++  std::vector<tabs::TabHandle> tabs;
++  for (const TabDragData& tab_data : data.tab_drag_data_) {
++    if (tab_data.contents) {
++      if (tabs::TabInterface* tab =
++              tabs::TabInterface::MaybeGetFromContents(tab_data.contents)) {
++        tabs.push_back(tab->GetHandle());
++      }
++    }
++  }
++  return tabs;
++}
+ 
+ // A dragged window is forced to be a bit smaller than maximized bounds during a
+ // drag. This prevents the dragged browser widget from getting maximized at
+@@ -1070,6 +1086,12 @@
+ 
+   DCHECK(attached_context_);
+ 
++  // Little Browser: groups dragged over the pinned area show where they would be pinned.
++  if (!drag_data_.dragging_groups.empty()) {
++    lb::OnTabGroupDragged(attached_context_->GetTabStripModel(),
++                          LbDraggedTabs(drag_data_), point_in_screen);
++  }
++
+   TabDragContext* target_context = source_context_;
+   if (detach_behavior_ == DetachBehavior::kDetachable) {
+     auto [alive, context, drop_target] = GetDragTargetForPoint(point_in_screen);
+@@ -2095,6 +2117,8 @@
+   base::WeakPtr<TabDragController> ref(weak_factory_.GetWeakPtr());
+   DragState previous_state = current_state_;
+   current_state_ = DragState::kStopped;
++  // Little Browser: a cancelled drag gives its tabs back their pinned groups (desktop/lb).
++  lb::OnTabDragEnded(type != EndDragType::kNormal);
+   attached_context_tabs_closed_tracker_.reset();
+ 
+   bring_to_front_timer_.Stop();
+@@ -2144,7 +2168,16 @@
+             return;
+           }
+         }
++        // Little Browser: today groups dropped over the pinned area become pinned groups
++        // (desktop/lb). Read first: completing the drag can destroy `this`.
++        const std::set<tab_groups::TabGroupId> lb_groups = drag_data_.dragging_groups;
++        const std::vector<tabs::TabHandle> lb_tabs = LbDraggedTabs(drag_data_);
++        TabStripModel* const lb_model = attached_context_->GetTabStripModel();
++        const gfx::Point lb_point = last_point_in_screen_;
+         CompleteDrag();
++        if (!lb_groups.empty()) {
++          lb::OnTabGroupDropped(lb_model, lb_groups, lb_tabs, lb_point);
++        }
+       }
+     }
+   } else if (drag_data_.tab_drag_data_.size() > 1) {
+--- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
++++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
+@@ -76,6 +76,7 @@
+ #include "components/strings/grit/components_strings.h"
+ #include "components/tab_groups/tab_group_color.h"
+ #include "components/tab_groups/tab_group_id.h"
++#include "lb/browser/ui/tabs/pinned_group_tracker.h"  // Little Browser
+ #include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/tabs/public/tab_group.h"
+ #include "components/vector_icons/vector_icons.h"
+@@ -660,6 +661,20 @@
+       simple_menu_items_.push_back(AddChildView(BuildAskGeminiButton()));
+     }
+     AddChildView(BuildSeparator());
++    // Little Browser: a today group can become a pinned group (desktop/lb, docs/ux.md §6.1).
++    simple_menu_items_.push_back(AddChildView(CreateMenuItem(
++        /*button_id=*/0, u"Pin Group",
++        base::BindRepeating(
++            [](TabGroupEditorBubbleView* view) {
++              base::WeakPtr<views::Widget> widget = view->GetWidget()->GetWeakPtr();
++              lb::PinTabGroup(view->browser_, view->group_);
++              if (widget) {
++                widget->Close();
++              }
++            },
++            base::Unretained(this)),
++        ui::ImageModel::FromVectorIcon(kKeepIcon, ui::kColorMenuIcon,
++                                       kDefaultIconSize))));
+     simple_menu_items_.push_back(AddChildView(BuildUngroupButton()));
+     simple_menu_items_.push_back(AddChildView(BuildCloseGroupButton()));
+   } else {

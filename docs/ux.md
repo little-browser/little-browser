@@ -7,11 +7,11 @@
 **Built so far (macOS desktop):** the sidebar layout on upstream's vertical tabs, the command bar,
 spaces and profiles (new-space dialog, switching by shortcut, swipe or footer, per-space tint, saved
 tabs per space), pinned tabs as a list, the first-run search-engine and password-manager choices,
-the ad blocker, Peek, the little window, the quit warning, Chromium's own tab groups, bookmarks in
-the command bar, and import from other browsers with its first-run offer (section 13). Everything
-else here — auto-archive, group suggestions and auto-grouping, the distinct incognito look,
-top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button and
-the whole mobile section — is specified but not built.
+the ad blocker, Peek, the little window, the quit warning, Chromium's own tab groups and pinned
+groups, bookmarks in the command bar, and import from other browsers with its first-run offer
+(section 13). Everything else here — auto-archive, group suggestions and auto-grouping, the distinct
+incognito look, top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the ⌥⌘G shortcut
+for groups, the footer's Downloads button and the whole mobile section — is specified but not built.
 
 ---
 
@@ -65,7 +65,7 @@ Sidebar zones, top to bottom:
 | Title row | Window controls, the sidebar toggle, the command bar button | Drag area for the window |
 | Address pill | Domain only (`github.com`); the full URL as its tooltip | Click or Cmd+L → command bar with the full URL selected |
 | Space header | Icon + name of the current space; a profile badge (🔒 and the profile's name) if it isn't the default profile | Space colour tints the sidebar |
-| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles. Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
+| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
 | Divider + New tab | "+ New Tab" row, opens the command bar (Cmd+T) | The divider shows only when the space has pinned tabs |
 | Today tabs | Unpinned tabs, newest first | Optional auto-archive (section 6) |
 | Footer | Space switcher (each space's icon, the current one highlighted), **＋** in the bottom-right corner; a Downloads button on the left (not built yet) | ＋ opens a menu: New space, then, set apart, the tab actions: New tab, New split view (only while a page is open), New tab group |
@@ -165,8 +165,8 @@ The centre of the browser. A floating palette in the middle of the window.
   suggested; Settings can change it later.
 - Drag to reorder pinned tabs, today tabs and groups. Dragging a tab across "+ New Tab" pins or
   unpins it, live, and it can go anywhere in the other area, a group included; the right-click
-  menu pins and unpins too. Groups stay among the today tabs and can't be dragged into the pinned
-  area. Dragging never opens a new window: a tab dragged past the sidebar stays in its window, and
+  menu pins and unpins too. A tab group dragged across "+ New Tab" is pinned or unpinned whole.
+  Dragging never opens a new window: a tab dragged past the sidebar stays in its window, and
   one dragged onto another window's sidebar moves into that window. A tab dragged out of a group
   leaves it; dropped between two groups, or between a
   group's tabs, it lands there (joining the group only when dropped inside it).
@@ -177,8 +177,8 @@ The centre of the browser. A floating palette in the middle of the window.
 
 ### 6.1 Tab groups
 
-Named, collapsible runs of tabs — Arc-style folders — among today's tabs (pinned tabs can't be
-grouped).
+Named, collapsible runs of tabs — Arc-style folders — among today's tabs or among the pinned tabs
+(see *Pinned groups* below).
 
 ```
 │ ⌄ 📁 Civic Pipelines        │      top mode:
@@ -225,16 +225,39 @@ grouped).
   1 minute.
 - **Archive**: a group is archived **as a unit**, once none of its tabs has been used for the
   auto-archive time; the command bar finds it by name and restores the whole named group.
-- Moving a tab to another space, or pinning it alone takes it out of its
-  group.
-- **Phones**: groups sync. In the all-tabs view each group is a collapsible section (name,
-  count) among today's cards; a tab's hold menu has *Add to New Group*, *Add to Group ▸* and
-  *Remove from Group*. No suggestions or drag-to-group on phones; the "opened one after another"
-  rule applies there too.
+- Moving a tab to another space, or pinning or unpinning it alone, takes it out of its group.
+- **Phones**: groups sync, pinned groups too. In the all-tabs view each group is a collapsible
+  section (name, count) among today's cards, and a pinned group is one among the pinned rows; a
+  tab's hold menu has *Add to New Group*, *Add to Group ▸* and *Remove from Group*. No
+  suggestions or drag-to-group on phones; the "opened one after another" rule applies there too.
+
+**Pinned groups** — a group in the pinned area. Its tabs are pinned tabs: they stay, closing one
+puts it to sleep, and they are never archived. It looks and works like any group: name, colour,
+collapsing, renaming and Ungroup are the same.
+- **Making one**: the same ways as a today group, with pinned tabs (select them, then ⌥⌘G,
+  right-click → *Add to New Group* or Tab → *Group Tab*); it goes where the first of them is, but
+  never inside another group. Or pin a whole today group (drag it across "+ New Tab", or its menu's
+  *Pin Group*). *Unpin Group*, or dragging it back across, makes it a today group again with the
+  same name, colour and collapsed state (expanded if it holds the shown tab). A tab dragged into a
+  pinned group from the today tabs is pinned on the way.
+- **Dragging** a group by its header lifts it: its tabs fold away under the header, a picture of
+  the group follows the pointer, and a line shows where it will land, never inside another group.
+  A today group held above "+ New Tab" shows the same line. Esc puts a dragged tab back in the group
+  it was in.
+- **Close group** puts every tab in it to sleep, as closing a pinned tab does (a split view in it
+  comes apart, as a sleeping tab can't be shown in one); the group keeps its place, name and
+  colour. Once all its tabs are asleep the menu offers **Remove group** instead, which removes the
+  group with its tabs.
+- One-click suggestions and both automatic rules group only today tabs.
+- With tabs on top, and in the collapsed strip, a pinned group's tabs show as ordinary pinned
+  icons, in order, and grouping pinned tabs there makes a today group, as Chromium does.
+- Extensions see a pinned group's tabs as pinned tabs in no group (`chrome.tabGroups` lists only
+  today groups).
 
 **Real browser** — built on **Chromium's own tab groups** (`TabGroupModel` / saved tab groups), so
 extensions (`chrome.tabGroups`), session restore and sync of open tabs keep working; our sidebar and
-suggestion logic sit on top. A new group starts in the Chromium group colour nearest its space's colour (a Blue space makes
+suggestion logic sit on top. Pinned groups are our own, on top of Chromium's pinned tabs, because
+Chromium can't group pinned tabs. A new group starts in the Chromium group colour nearest its space's colour (a Blue space makes
 blue groups, Teal makes cyan); the group menu changes it.
 
 ## 7. Peek (link preview)
@@ -447,8 +470,10 @@ try again.
 **Where things go**
 
 - **Arc.** Each Arc space becomes a space with its name, its emoji (a space with a symbol icon gets
-  the next of our icons, as a new space does) and the nearest of our colours. Its pinned tabs become pinned tabs in the same order. Its
-  pinned folders, nested ones too, are flattened in place and the folder names are dropped. Its
+  the next of our icons, as a new space does) and the nearest of our colours. Its pinned tabs become pinned tabs in the same order, and its
+  pinned folders become pinned groups in place, with their names, starting in the group colour
+  nearest the space's colour. A folder inside a folder adds its tabs to the outer folder's group,
+  in place, and its own name is dropped; a folder with no web pages is left out. Its
   unpinned tabs become today tabs, and its Favourites become pinned tabs at the top of the first
   space of their profile. Arc's default profile maps to the default profile; each other Arc
   profile becomes a profile with the same name, or uses one that already has it (if the default

@@ -1,11 +1,12 @@
 # Little Browser: in the vertical strip a tab can be dragged between the pinned and the unpinned
 # area, live, the way it moves into and out of a tab group. The pointer picks the area (above the
 # middle of the "+ New Tab" row is pinned), and entering the other area pins or unpins the dragged
-# tabs; split views move whole. A drag that includes a tab group stays among the unpinned tabs,
-# since pinned tabs can't be grouped. Upstream rebuilds a tab's view when its pin state changes,
-# which would free the views the drag holds, so a dragged tab keeps its view instead. Cancelling
-# the drag restores the original pin state; tabs dragged on into another window keep the state they
-# have when they leave.
+# tabs; split views move whole. A drag that includes a tab group stays among the unpinned tabs while
+# it lasts, since Chromium can't group pinned tabs; dropped above the row, desktop/lb makes it a
+# pinned group (pinned-groups.patch). Upstream rebuilds a tab's view when its pin state changes,
+# which would free the views the drag holds, so a dragged tab keeps its view instead. Cancelling the
+# drag restores the original pin state; tabs dragged on into another window keep the state they have
+# when they leave.
 --- a/chrome/browser/ui/tabs/tab_strip_model.h
 +++ b/chrome/browser/ui/tabs/tab_strip_model.h
 @@ -512,6 +512,12 @@
@@ -30,7 +31,7 @@
 +  // Little Browser: in the vertical strip the pointer picks the area. Above the middle of the
 +  // "+ New Tab" row is the pinned area, so a tab dragged across the row is pinned or unpinned on
 +  // the way (see TabDragHandlerImpl::HandleDraggedTabsIntoNode). A drag that includes a tab group
-+  // stays among the unpinned tabs, since pinned tabs can't be grouped.
++  // stays among the unpinned tabs while dragged: Chromium can't group pinned tabs.
 +  if (orientation_ == TabStripOrientation::kVertical && tab_strip_view_ &&
 +      !drag_handler_->IsDraggingGroups()) {
 +    const views::View* const row = tab_strip_view_->lb_new_tab_row();

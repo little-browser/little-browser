@@ -277,10 +277,12 @@ bool HasAnaLee(Profile* profile) {
   return found == 1;
 }
 
-// The window's tabs as "url" (pinned ones "P url", grouped ones "url [group title]").
+// The window's tabs as "url" (pinned ones "P url", grouped ones "url [group title]", ones in a
+// pinned group "P url {group title}").
 std::vector<std::string> TabsOf(BrowserWindowInterface* browser) {
   std::vector<std::string> tabs;
   TabStripModel* model = browser->GetTabStripModel();
+  SidebarController* controller = SidebarController::FromBrowser(browser);
   for (int i = 0; i < model->count(); ++i) {
     content::WebContents* contents = model->GetWebContentsAt(i);
     std::string entry = (model->IsTabPinned(i) ? "P " : "") + contents->GetVisibleURL().spec();
@@ -288,6 +290,10 @@ std::vector<std::string> TabsOf(BrowserWindowInterface* browser) {
       if (TabGroup* g = model->group_model()->GetTabGroup(*group)) {
         entry += " [" + base::UTF16ToUTF8(g->visual_data()->title()) + "]";
       }
+    }
+    if (const PinnedGroup* pinned_group =
+            controller ? controller->pinned_groups().GroupOf(model->GetTabAtIndex(i)) : nullptr) {
+      entry += " {" + base::UTF16ToUTF8(pinned_group->title) + "}";
     }
     tabs.push_back(entry);
   }
@@ -442,13 +448,14 @@ void ArcImported(std::unique_ptr<Run> run, ImportResult result) {
               "import: " + Counts(result));
 
   // Personal was empty, so it was filled, in this window: Favourites, the pinned tabs (the
-  // folder flattened), then the today tab.
+  // "Reading" folder a pinned group in place), then the today tab.
   std::vector<std::string> tabs = TabsOf(browser);
   std::erase_if(tabs,
                 [](const std::string& t) { return t.find(".example/") == std::string::npos; });
   run->Expect(
       tabs == std::vector<std::string>{"P https://calendar.example/", "P https://mail.example/",
-                                       "P https://blog.example/", "P https://news.example/",
+                                       "P https://blog.example/ {Reading}",
+                                       "P https://news.example/ {Reading}",
                                        "https://recipe.example/"},
       "Personal's tabs: " + base::JoinString(tabs, ", "));
 

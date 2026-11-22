@@ -1,8 +1,31 @@
 # Little Browser: pinned tabs in the vertical strip are list rows (icon, title) like the other tabs,
 # one per row, with a close button (which puts a pinned tab to sleep, lb/browser/ui/tabs). Only
-# while the strip is collapsed do they stay outlined icon tiles.
+# while the strip is collapsed do they stay outlined icon tiles. As a list, they are dragged up
+# and down only, collapsed or not.
 --- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
 +++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+@@ -37,7 +37,7 @@
+           collection_node && collection_node->orientation() ==
+                                  TabStripOrientation::kHorizontal
+               ? DragAxes::kHorizontalOnly
+-              : DragAxes::kBoth,
++              : DragAxes::kVerticalOnly,  // Little Browser: a list, one per row
+           collection_node && collection_node->orientation() ==
+                                  TabStripOrientation::kHorizontal
+               ? DragLayout::kHorizontal
+@@ -297,9 +297,9 @@
+     tabs::VerticalTabStripCollapseState state) {
+   // Collapsed state only exists for the vertical orientation.
+   CHECK_EQ(orientation_, TabStripOrientation::kVertical);
+-  set_drag_axes(state == tabs::VerticalTabStripCollapseState::kCollapsed
+-                    ? DragAxes::kVerticalOnly
+-                    : DragAxes::kBoth);
++  // Little Browser: pinned tabs are a list, one per row, so they are dragged up and down only.
++  (void)state;
++  set_drag_axes(DragAxes::kVerticalOnly);
+ }
+ 
+ views::ScrollView* PinnedTabContainerView::GetScrollViewForContainer() const {
 @@ -410,14 +410,9 @@
  
      // When we are in collapsed state, only one child should be shown per row.
@@ -92,4 +115,28 @@
 +    if (TabView().pinned_ && TabView().collapsed_) {
        return false;
      }
+ 
+--- a/chrome/browser/ui/views/tabs/common/tab_collection_node_browsertest.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_collection_node_browsertest.cc
+@@ -709,7 +709,10 @@
+       pinned_collection_node()->view());
+   ASSERT_NE(pinned_view, nullptr);
+ 
+-  EXPECT_EQ(pinned_view->drag_axes(), DraggedTabsContainer::DragAxes::kBoth);
++  // Little Browser: pinned tabs are a list, one per row, dragged up and down only, collapsed or
++  // not.
++  EXPECT_EQ(pinned_view->drag_axes(),
++            DraggedTabsContainer::DragAxes::kVerticalOnly);
+ 
+   tabs::VerticalTabStripStateController::From(browser())->RequestCollapse(true);
+   ASSERT_TRUE(base::test::RunUntil([&]() {
+@@ -720,7 +723,8 @@
+   tabs::VerticalTabStripStateController::From(browser())->RequestCollapse(
+       false);
+   ASSERT_TRUE(base::test::RunUntil([&]() {
+-    return pinned_view->drag_axes() == DraggedTabsContainer::DragAxes::kBoth;
++    return pinned_view->drag_axes() ==
++           DraggedTabsContainer::DragAxes::kVerticalOnly;
+   }));
+ }
  
