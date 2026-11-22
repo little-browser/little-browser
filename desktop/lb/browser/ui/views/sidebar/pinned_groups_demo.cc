@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_group_header_view.h"
@@ -44,9 +45,11 @@
 #include "lb/browser/ui/views/sidebar/pinned_group_layout.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "ui/base/models/list_selection_model.h"
+#include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
+#include "ui/views/background.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/view_utils.h"
@@ -689,6 +692,23 @@ void AddDropSteps(Run& run) {
 
 // --- pinned-groups-restart --------------------------------------------------------------------
 
+// The group's header is filled with the group's strip colour, as Chromium's group headers are.
+void CheckHeaderFill(Run& run, const PinnedGroup& group) {
+  PinnedGroupHeaderView* header = HeaderOf(run.browser.get(), group.id);
+  const ui::ColorProvider* colors = header ? header->GetColorProvider() : nullptr;
+  const views::Background* fill = header ? header->GetBackground() : nullptr;
+  bool in_group_colour = false;
+  if (colors && fill) {
+    const SkColor painted = fill->color().ResolveToSkColor(colors);
+    const auto color = static_cast<tab_groups::TabGroupColorId>(group.color);
+    for (bool active : {true, false}) {
+      in_group_colour =
+          in_group_colour || painted == colors->GetColor(GetTabGroupTabStripColorId(color, active));
+    }
+  }
+  run.Expect(in_group_colour, "the header isn't filled with its group's colour");
+}
+
 void AddRestartSteps(Run& run) {
   run.steps.push_back(base::BindOnce([](Run& run) {
     run.Expect(run.Pinned() == "Work stuff:[D A]", "after a restart: " + run.Pinned());
@@ -696,6 +716,9 @@ void AddRestartSteps(Run& run) {
         run.model()->count() ? run.groups().GroupOf(run.model()->GetTabAtIndex(0)) : nullptr;
     run.Expect(group && group->color == kGroupColor, "the colour didn't come back");
     run.Expect(group && Shows(HeaderOf(run.browser.get(), group->id)), "no header after restart");
+    if (group) {
+      CheckHeaderFill(run, *group);
+    }
   }));
 }
 

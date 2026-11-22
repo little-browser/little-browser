@@ -182,6 +182,21 @@ PinnedCloseOutcome CloseOutcome(const TabStripModel& model,
   return DecidePinnedClose(state);
 }
 
+// Closes a pinned tab whose page may hold unsaved input, after Chromium asks the page, as
+// closing it by hand does: HiddenNotUnloaded makes lb::SleepInsteadOfClose let the close through.
+void CloseAskingFirst(tabs::TabInterface::Handle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  if (!tab || !tab->GetBrowserWindowInterface()) {
+    return;
+  }
+  TabStripModel* model = tab->GetBrowserWindowInterface()->GetTabStripModel();
+  const int index = model ? model->GetIndexOfTab(tab) : TabStripModel::kNoTab;
+  if (index == TabStripModel::kNoTab || model->closing_all()) {
+    return;
+  }
+  model->CloseWebContentsAt(index, TabCloseTypes::CLOSE_USER_GESTURE);
+}
+
 }  // namespace
 
 void SleepPinnedTabs(TabStripModel& model, const std::vector<tabs::TabInterface*>& tabs) {
@@ -198,6 +213,7 @@ void SleepPinnedTabs(TabStripModel& model, const std::vector<tabs::TabInterface*
   }
   // Every one of them is pending before any sleeps, so none is shown instead of another.
   std::vector<tabs::TabHandle> to_sleep;
+  std::vector<tabs::TabHandle> to_close;
   for (tabs::TabInterface* tab : tabs) {
     if (!tab || model.GetIndexOfTab(tab) == TabStripModel::kNoTab) {
       continue;
@@ -211,11 +227,19 @@ void SleepPinnedTabs(TabStripModel& model, const std::vector<tabs::TabInterface*
       } else {
         to_sleep.push_back(tab->GetHandle());
       }
+    } else if (outcome == PinnedCloseOutcome::kCloseAskingFirst) {
+      // Not shown with unsaved input: it can't sleep or hide, so it closes once its page agrees.
+      HiddenNotUnloaded().insert(tab->GetHandle());
+      to_close.push_back(tab->GetHandle());
     }
   }
   for (const tabs::TabHandle& handle : to_sleep) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
                                                              base::BindOnce(&Sleep, handle));
+  }
+  for (const tabs::TabHandle& handle : to_close) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&CloseAskingFirst, handle));
   }
 }
 

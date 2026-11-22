@@ -44,6 +44,14 @@ std::string GroupAfterMove(const std::string& own,
                            const std::string& after,
                            bool own_has_other_items);
 
+// The group of a pinned tab that a tab restore (Reopen Closed Tab) brings back (docs/ux.md §6.1):
+// `saved`, the group it had when it closed (empty: none), unless it came back between two items
+// of another group (`before` and `after`, as for lb::GroupAfterMove): then it is in that group,
+// as an inserted tab is, so no group is split.
+std::string RestoredTabGroup(const std::string& saved,
+                             const std::string& before,
+                             const std::string& after);
+
 // A vertical span in the sidebar, top inclusive, bottom exclusive.
 struct Span {
   int top = 0;
@@ -61,6 +69,27 @@ bool DraggedTabInPinnedGroup(Span dragged,
                              int header_height,
                              bool collapsed,
                              bool was_in);
+
+// A pinned group shown in the sidebar while a tab is dragged, as lb::DraggedPinnedGroup weighs it.
+struct DraggedOverGroup {
+  std::string id;
+  Span span;  // from its header's top to its last tab's bottom (lb::DraggedTabInPinnedGroup)
+  bool collapsed = false;
+};
+
+// Which pinned group a dragged tab is in (docs/ux.md §6.1), or empty for none. `now` is the group
+// it is in at the moment, `home` the group it was in when the drag started, and `home_whole` says
+// the dragged tabs were all of `home`'s tabs: such a group goes along with them. So a tab in its
+// whole home group stays in it. Otherwise the group it is in keeps it while
+// lb::DraggedTabInPinnedGroup says so; else the highest other group it overlaps enough takes it;
+// else it is in its whole home group again, or in none. (Passing between two tabs of a group puts
+// it in that group, lb::GroupAfterMove; leaving it, a tab of a whole group goes back home.)
+std::string DraggedPinnedGroup(Span dragged,
+                               std::vector<DraggedOverGroup> groups,
+                               int header_height,
+                               const std::string& now,
+                               const std::string& home,
+                               bool home_whole);
 
 // Where a whole group dropped in an area of the sidebar goes (docs/ux.md §6.1), as the number of
 // the area's other tabs before it. `tab_middles` are the middles of those tabs' rows, top to

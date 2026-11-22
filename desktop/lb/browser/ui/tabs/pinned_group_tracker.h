@@ -70,6 +70,9 @@ class PinnedGroupTracker {
   // The same for a tab being dragged: the group it had before the drag is remembered, and comes
   // back if the drag is cancelled.
   void SetDraggedGroupOf(tabs::TabInterface* tab, const std::string& id);
+  // The id of the group `tab` was in when the tab drag under way started (empty: none), as
+  // lb::DraggedPinnedGroup needs it.
+  std::string DragStartGroupOf(const tabs::TabInterface* tab) const;
   // A tab drag ended: cancelled (Esc), the tabs it moved in or out of groups get back the groups
   // they had before it.
   void EndTabDrag(bool cancelled);
@@ -138,10 +141,16 @@ class PinnedGroupTracker {
   bool updating_ = false;
 };
 
+// `tab`, or both tabs of its split view in strip order: what moves, pins or unpins together.
+std::vector<tabs::TabInterface*> TabOrSplitOf(const TabStripModel& model, tabs::TabInterface* tab);
+// Whether pinned groups show in `browser`'s window: the vertical strip, expanded. With tabs on top
+// or the strip collapsed, a pinned group's tabs show as ordinary pinned tabs.
+bool PinnedGroupsShown(BrowserWindowInterface* browser);
 // The tracker of `tab`'s window, or null.
 PinnedGroupTracker* PinnedGroupTrackerFor(const tabs::TabInterface* tab);
-// Whether `tab` is in a collapsed pinned group (patches/lb/pinned-groups.patch: Chromium counts
-// it as in a collapsed group, as for Ctrl+Tab).
+// Whether `tab` is in a collapsed pinned group where pinned groups show, the expanded vertical
+// strip (patches/lb/pinned-groups.patch: Chromium counts it as in a collapsed group, as for
+// Ctrl+Tab). Elsewhere its tab shows as an ordinary pinned tab, so it isn't.
 bool IsInCollapsedPinnedGroup(const tabs::TabInterface* tab);
 
 // Add to New Group (the tab menu) with only pinned tabs (patches/lb/pinned-groups.patch): makes
@@ -155,7 +164,8 @@ bool AddToNewPinnedGroup(const std::vector<tabs::TabInterface*>& tabs);
 bool TogglePinnedGroup(const std::vector<tabs::TabInterface*>& tabs);
 
 // The today group menu's Pin Group (patches/lb/pinned-groups.patch): `group` becomes a pinned
-// group (PinnedGroupTracker::PinTabGroup).
+// group (PinnedGroupTracker::PinTabGroup). Only where pinned groups show; elsewhere it does
+// nothing.
 void PinTabGroup(BrowserWindowInterface* browser, const tab_groups::TabGroupId& group);
 
 // Session hooks (patches/lb/pinned-groups.patch): what to save for a tab, in the session file and

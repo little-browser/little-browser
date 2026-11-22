@@ -11,9 +11,11 @@
 #include <string>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "lb/browser/tabs/pinned_groups.h"
@@ -24,6 +26,7 @@
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/view.h"
+#include "ui/views/view_observer.h"
 
 class TabCollectionNode;
 class TabStripModel;
@@ -65,10 +68,13 @@ class PinnedGroupHeaderView : public views::View,
 
   // views::View:
   bool OnMousePressed(const ui::MouseEvent& event) override;
+  bool OnKeyPressed(const ui::KeyEvent& event) override;
   bool OnMouseDragged(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;
   void OnMouseCaptureLost() override;
   void OnThemeChanged() override;
+  void AddedToWidget() override;
+  void RemovedFromWidget() override;
 
   // views::ContextMenuController:
   void ShowContextMenuForViewImpl(views::View* source,
@@ -88,11 +94,11 @@ class PinnedGroupHeaderView : public views::View,
   base::WeakPtr<SidebarController> controller_;
   const std::string group_id_;
   PinnedGroup group_;
-  raw_ptr<views::ImageView> chevron_ = nullptr;
-  raw_ptr<views::View> dot_ = nullptr;
   raw_ptr<views::Label> title_ = nullptr;
   raw_ptr<views::Textfield> rename_ = nullptr;
   raw_ptr<views::Label> count_ = nullptr;
+  raw_ptr<views::ImageView> chevron_ = nullptr;
+  base::CallbackListSubscription paint_as_active_subscription_;
   std::unique_ptr<ui::SimpleMenuModel> color_menu_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
@@ -111,7 +117,7 @@ class PinnedGroupHeaderView : public views::View,
 // Pinned groups in the vertical strip's pinned container (patches/lb/pinned-groups.patch): their
 // headers and colour lines, and which tabs a collapsed group hides. It lives on the container (a
 // view property) and lays the container out again whenever the window's pinned groups change.
-class PinnedGroupLayout : public SidebarController::Observer {
+class PinnedGroupLayout : public SidebarController::Observer, public views::ViewObserver {
  public:
   // One child of the container: a header above it, whether it shows, and how far it is indented.
   struct Row {
@@ -152,6 +158,10 @@ class PinnedGroupLayout : public SidebarController::Observer {
   void OnSidebarModelChanged() override {}
   void OnPinnedGroupsChanged() override;
 
+  // views::ViewObserver: the container's children go before the layout does, so the pointers to
+  // them are dropped first.
+  void OnViewHierarchyWillBeDeleted(views::View* view) override;
+
  private:
   // Gives every pinned group of the window a header and a line view, and removes the views of
   // groups that are gone. Views can't be added during a layout, so a layout schedules it.
@@ -181,6 +191,7 @@ class PinnedGroupLayout : public SidebarController::Observer {
   // The group dragged by its header, whose tabs fold away until the drop.
   std::string dragging_group_;
   bool sync_pending_ = false;
+  base::ScopedObservation<views::View, views::ViewObserver> container_observation_{this};
   base::WeakPtrFactory<PinnedGroupLayout> weak_factory_{this};
 };
 

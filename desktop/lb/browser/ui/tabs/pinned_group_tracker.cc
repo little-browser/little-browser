@@ -46,17 +46,7 @@ std::vector<std::vector<tabs::TabInterface*>> UnitsOf(const TabStripModel& model
     if (split && !units.empty() && units.back().front()->GetSplit() == split) {
       continue;  // already taken with the first tab of its split
     }
-    if (!split) {
-      units.push_back({tab});
-      continue;
-    }
-    std::vector<tabs::TabInterface*> unit;
-    for (int i = 0; i < model.count(); ++i) {
-      if (model.GetTabAtIndex(i)->GetSplit() == split) {
-        unit.push_back(model.GetTabAtIndex(i));
-      }
-    }
-    units.push_back(std::move(unit));
+    units.push_back(TabOrSplitOf(model, tab));
   }
   return units;
 }
@@ -104,15 +94,28 @@ void MoveUnitsTo(TabStripModel* model,
   std::ranges::for_each(up, move);
 }
 
-// Whether pinned groups show in `browser`'s window: the vertical strip, expanded.
+}  // namespace
+
+std::vector<tabs::TabInterface*> TabOrSplitOf(const TabStripModel& model, tabs::TabInterface* tab) {
+  const std::optional<split_tabs::SplitTabId> split = tab->GetSplit();
+  if (!split) {
+    return {tab};
+  }
+  std::vector<tabs::TabInterface*> unit;
+  for (int i = 0; i < model.count(); ++i) {
+    if (model.GetTabAtIndex(i)->GetSplit() == split) {
+      unit.push_back(model.GetTabAtIndex(i));
+    }
+  }
+  return unit;
+}
+
 bool PinnedGroupsShown(BrowserWindowInterface* browser) {
   const tabs::VerticalTabStripStateController* state =
       browser ? tabs::VerticalTabStripStateController::From(browser) : nullptr;
   return state && state->ShouldDisplayVerticalTabs() &&
          state->GetCollapseState() == tabs::VerticalTabStripCollapseState::kExpanded;
 }
-
-}  // namespace
 
 PinnedGroupTracker::PinnedGroupTracker(BrowserWindowInterface* browser,
                                        base::RepeatingClosure on_changed)
@@ -292,6 +295,17 @@ void PinnedGroupTracker::SetDraggedGroupOf(tabs::TabInterface* tab, const std::s
   if (TabDragController::IsActive()) {
     SetGroupOf(tab, id);
   }
+}
+
+std::string PinnedGroupTracker::DragStartGroupOf(const tabs::TabInterface* tab) const {
+  if (!tab) {
+    return std::string();
+  }
+  if (const auto origin = drag_origins_.find(tab->GetHandle()); origin != drag_origins_.end()) {
+    return origin->second;
+  }
+  const auto it = group_of_.find(tab->GetHandle());
+  return it == group_of_.end() ? std::string() : it->second;
 }
 
 void PinnedGroupTracker::EndTabDrag(bool cancelled) {
@@ -636,10 +650,27 @@ void PinnedGroupTracker::OnTabRestored(tabs::TabInterface* tab,
   if (!group || !tab->IsPinned()) {
     return;
   }
-  // The first tab of a group to come back brings its title, colour and collapsed state.
-  VLOG(1) << "pinned group: session restore brought a tab back into \"" << group->title << "\"";
-  const std::string id = group->id;
-  groups_.try_emplace(id, std::move(*group));
+  // Where it came back: the groups of the items next to it (lb::RestoredTabGroup).
+  std::string before;
+  std::string after;
+  const std::vector<std::vector<tabs::TabInterface*>> items = PinnedItems();
+  const auto group_of_item = [&](size_t i) {
+    const auto it = group_of_.find(items[i].front()->GetHandle());
+    return it != group_of_.end() && groups_.contains(it->second) ? it->second : std::string();
+  };
+  for (size_t i = 0; i < items.size(); ++i) {
+    if (std::ranges::contains(items[i], tab)) {
+      before = i > 0 ? group_of_item(i - 1) : std::string();
+      after = i + 1 < items.size() ? group_of_item(i + 1) : std::string();
+      break;
+    }
+  }
+  const std::string id = RestoredTabGroup(group->id, before, after);
+  if (id == group->id) {
+    // The first tab of a group to come back brings its title, colour and collapsed state.
+    VLOG(1) << "pinned group: session restore brought a tab back into \"" << group->title << "\"";
+    groups_.try_emplace(id, std::move(*group));
+  }
   group_of_[tab->GetHandle()] = id;
   Update();
   on_changed_.Run();
@@ -706,6 +737,12 @@ PinnedGroupTracker* PinnedGroupTrackerFor(const tabs::TabInterface* tab) {
 }
 
 bool IsInCollapsedPinnedGroup(const tabs::TabInterface* tab) {
+  // With tabs on top or the strip collapsed, a pinned group's tabs show as ordinary pinned tabs.
+  BrowserWindowInterface* browser =
+      tab ? const_cast<tabs::TabInterface*>(tab)->GetBrowserWindowInterface() : nullptr;
+  if (!PinnedGroupsShown(browser)) {
+    return false;
+  }
   const PinnedGroupTracker* tracker = PinnedGroupTrackerFor(tab);
   const PinnedGroup* group = tracker ? tracker->GroupOf(tab) : nullptr;
   return group && group->collapsed;
@@ -756,7 +793,9 @@ bool TogglePinnedGroup(const std::vector<tabs::TabInterface*>& tabs) {
 }
 
 void PinTabGroup(BrowserWindowInterface* browser, const tab_groups::TabGroupId& group) {
-  if (SidebarController* controller = browser ? SidebarController::FromBrowser(browser) : nullptr) {
+  SidebarController* controller = browser ? SidebarController::FromBrowser(browser) : nullptr;
+  // With tabs on top or in the collapsed strip no pinned group would show.
+  if (controller && PinnedGroupsShown(browser)) {
     controller->pinned_groups().PinTabGroup(group);
   }
 }

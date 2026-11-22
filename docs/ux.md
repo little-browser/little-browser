@@ -243,7 +243,8 @@ collapsing, renaming and Ungroup are the same.
 - **Dragging** a group by its header lifts it: its tabs fold away under the header, a picture of
   the group follows the pointer, and a line shows where it will land, never inside another group.
   A today group held above "+ New Tab" shows the same line. Esc puts a dragged tab back in the group
-  it was in.
+  it was in. A group's only tab, dragged, takes the group along; dropped inside another group it
+  joins that one.
 - **Close group** puts every tab in it to sleep, as closing a pinned tab does (a split view in it
   comes apart, as a sleeping tab can't be shown in one); the group keeps its place, name and
   colour. Once all its tabs are asleep the menu offers **Remove group** instead, which removes the

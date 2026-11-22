@@ -30,7 +30,8 @@ bool SleepInsteadOfClose(const TabStripModel& model,
                          uint32_t close_types);
 
 // Puts pinned `tabs` of `model` to sleep together, as closing each of them by hand would (a page
-// that may hold unsaved input is only hidden), for a pinned group's Close (docs/ux.md §6.1). A
+// that may hold unsaved input is only hidden, or, if it isn't shown, closed once the page agrees),
+// for a pinned group's Close (docs/ux.md §6.1). A
 // split view among them comes apart first, as a sleeping tab can't be shown in one. The tab shown
 // instead of the shown one is never one of them.
 void SleepPinnedTabs(TabStripModel& model, const std::vector<tabs::TabInterface*>& tabs);

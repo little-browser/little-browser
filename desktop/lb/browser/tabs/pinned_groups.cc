@@ -94,6 +94,15 @@ std::string GroupAfterMove(const std::string& own,
   return std::string();
 }
 
+std::string RestoredTabGroup(const std::string& saved,
+                             const std::string& before,
+                             const std::string& after) {
+  if (!before.empty() && before == after && before != saved) {
+    return before;
+  }
+  return saved;
+}
+
 bool DraggedTabInPinnedGroup(Span dragged,
                              Span group,
                              int header_height,
@@ -105,6 +114,34 @@ bool DraggedTabInPinnedGroup(Span dragged,
     return overlap > 0 && overlap * 10 >= height * 10 - header_height;
   }
   return !collapsed && overlap > 0 && overlap * 10 >= header_height * 4;
+}
+
+std::string DraggedPinnedGroup(Span dragged,
+                               std::vector<DraggedOverGroup> groups,
+                               int header_height,
+                               const std::string& now,
+                               const std::string& home,
+                               bool home_whole) {
+  const bool whole = home_whole && !home.empty();
+  if (!now.empty()) {
+    if (whole && now == home) {
+      return now;
+    }
+    const auto own = std::ranges::find(groups, now, &DraggedOverGroup::id);
+    if (own != groups.end() &&
+        DraggedTabInPinnedGroup(dragged, own->span, header_height, own->collapsed, true)) {
+      return now;
+    }
+  }
+  // Top to bottom, so the same place always gives the same group.
+  std::ranges::stable_sort(groups, {}, [](const DraggedOverGroup& g) { return g.span.top; });
+  for (const DraggedOverGroup& group : groups) {
+    if (group.id != now &&
+        DraggedTabInPinnedGroup(dragged, group.span, header_height, group.collapsed, false)) {
+      return group.id;
+    }
+  }
+  return whole ? home : std::string();
 }
 
 size_t GroupDropIndex(const std::vector<int>& tab_middles,

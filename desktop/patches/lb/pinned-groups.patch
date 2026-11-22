@@ -298,24 +298,27 @@
  #include "components/tab_groups/tab_group_visual_data.h"
  #include "components/tabs/public/tab_group.h"
  #include "components/vector_icons/vector_icons.h"
-@@ -660,6 +661,20 @@
+@@ -660,6 +661,23 @@
        simple_menu_items_.push_back(AddChildView(BuildAskGeminiButton()));
      }
      AddChildView(BuildSeparator());
-+    // Little Browser: a today group can become a pinned group (desktop/lb, docs/ux.md §6.1).
-+    simple_menu_items_.push_back(AddChildView(CreateMenuItem(
-+        /*button_id=*/0, u"Pin Group",
-+        base::BindRepeating(
-+            [](TabGroupEditorBubbleView* view) {
-+              base::WeakPtr<views::Widget> widget = view->GetWidget()->GetWeakPtr();
-+              lb::PinTabGroup(view->browser_, view->group_);
-+              if (widget) {
-+                widget->Close();
-+              }
-+            },
-+            base::Unretained(this)),
-+        ui::ImageModel::FromVectorIcon(kKeepIcon, ui::kColorMenuIcon,
-+                                       kDefaultIconSize))));
++    // Little Browser: a today group can become a pinned group (desktop/lb, docs/ux.md §6.1),
++    // where pinned groups show.
++    if (lb::PinnedGroupsShown(browser_)) {
++      simple_menu_items_.push_back(AddChildView(CreateMenuItem(
++          /*button_id=*/0, u"Pin Group",
++          base::BindRepeating(
++              [](TabGroupEditorBubbleView* view) {
++                base::WeakPtr<views::Widget> widget = view->GetWidget()->GetWeakPtr();
++                lb::PinTabGroup(view->browser_, view->group_);
++                if (widget) {
++                  widget->Close();
++                }
++              },
++              base::Unretained(this)),
++          ui::ImageModel::FromVectorIcon(kKeepIcon, ui::kColorMenuIcon,
++                                         kDefaultIconSize))));
++    }
      simple_menu_items_.push_back(AddChildView(BuildUngroupButton()));
      simple_menu_items_.push_back(AddChildView(BuildCloseGroupButton()));
    } else {

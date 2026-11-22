@@ -21,6 +21,7 @@
 #include "chrome/browser/ui/views/tabs/common/split_tab_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
 #include "chrome/browser/ui/views/tabs/common/tab_group_header_view.h"
+#include "chrome/browser/ui/views/tabs/common/tab_group_style.h"
 #include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "components/split_tabs/split_tab_id.h"
@@ -28,6 +29,7 @@
 #include "components/tabs/public/tab_collection.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
+#include "components/vector_icons/vector_icons.h"
 #include "lb/browser/ui/tabs/pinned_group_tracker.h"
 #include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -41,6 +43,7 @@
 #include "ui/events/event.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -69,11 +72,9 @@ DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(PinnedGroupLayout, kPinnedGroupLayoutKey)
 
 namespace {
 
-// Geometry. The chevron sits where the tabs' favicons are. A group's tabs are indented, and its
-// line runs in the gap that leaves: tab rows paint over anything under them (they have layers).
-constexpr int kHeaderLeft = 10;
+// Geometry. A group's tabs are indented, and its line runs in the gap that leaves: tab rows paint
+// over anything under them (they have layers).
 constexpr int kChevronSize = 16;
-constexpr int kDotSize = 8;
 constexpr int kGap = 6;
 constexpr int kIndent = 12;
 constexpr int kLineWidth = 2;
@@ -91,37 +92,15 @@ constexpr char16_t kUnnamed[] = u"Unnamed group";
 // Menu command ids: one per lb::PinnedGroupCommand, then one per colour.
 constexpr int kColorCommandBase = 100;
 
-ui::ColorId GroupColorId(int color) {
+// The group's colour in the strip, as Chromium's group headers and lines use it; paler while the
+// window isn't active.
+ui::ColorId GroupColorId(int color, bool active_frame = true) {
   // The uint32_t constructor of TabGroupVisualData maps unknown colours to grey; so does this.
   const auto& labels = tab_groups::GetTabGroupColorLabelMap();
   const auto id = static_cast<tab_groups::TabGroupColorId>(color);
   return GetTabGroupTabStripColorId(labels.contains(id) ? id : tab_groups::TabGroupColorId::kGrey,
-                                    /*active_frame=*/true);
+                                    active_frame);
 }
-
-// A filled circle in the group's colour.
-class ColorDot : public views::View {
-  METADATA_HEADER(ColorDot, views::View)
-
- public:
-  ColorDot() { SetPreferredSize(gfx::Size(kDotSize, kDotSize)); }
-  void SetColor(ui::ColorId color) {
-    color_ = color;
-    SchedulePaint();
-  }
-  void OnPaint(gfx::Canvas* canvas) override {
-    cc::PaintFlags flags;
-    flags.setAntiAlias(true);
-    flags.setColor(GetColorProvider()->GetColor(color_));
-    canvas->DrawCircle(gfx::RectF(GetContentsBounds()).CenterPoint(), kDotSize / 2.f, flags);
-  }
-
- private:
-  ui::ColorId color_ = ui::kColorSysOnSurfaceSubtle;
-};
-
-BEGIN_METADATA(ColorDot)
-END_METADATA
 
 // The rename field: leaving it keeps the name.
 class RenameField : public views::Textfield {
@@ -217,14 +196,14 @@ const tabs::TabInterface* FirstTab(const TabCollectionNode& node) {
 
 PinnedGroupHeaderView::PinnedGroupHeaderView(SidebarController* controller, std::string group_id)
     : controller_(controller->GetWeakPtr()), group_id_(std::move(group_id)) {
+  // Chromium's vertical group header: a pill in the group's colour, the name, then (collapsed)
+  // the count and the chevron at the end.
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
-      views::BoxLayout::Orientation::kHorizontal, gfx::Insets::TLBR(0, kHeaderLeft, 0, 10), kGap));
+      views::BoxLayout::Orientation::kHorizontal,
+      TabGroupStyle::GetInsetsForHeaderChip(TabStripOrientation::kVertical), kGap));
   layout->set_cross_axis_alignment(views::BoxLayout::CrossAxisAlignment::kCenter);
-  chevron_ = AddChildView(std::make_unique<views::ImageView>());
-  chevron_->SetCanProcessEventsWithinSubtree(false);
-  dot_ = AddChildView(std::make_unique<ColorDot>());
-  dot_->SetCanProcessEventsWithinSubtree(false);
   title_ = AddChildView(std::make_unique<views::Label>());
+  title_->SetAutoColorReadabilityEnabled(false);
   title_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   title_->SetElideBehavior(gfx::ELIDE_TAIL);
   title_->SetCanProcessEventsWithinSubtree(false);
@@ -235,10 +214,15 @@ PinnedGroupHeaderView::PinnedGroupHeaderView(SidebarController* controller, std:
   rename_->SetVisible(false);
   layout->SetFlexForView(rename_, 1);
   count_ = AddChildView(std::make_unique<views::Label>());
-  count_->SetEnabledColor(ui::kColorSysOnSurfaceSubtle);
+  count_->SetAutoColorReadabilityEnabled(false);
   count_->SetCanProcessEventsWithinSubtree(false);
+  chevron_ = AddChildView(std::make_unique<views::ImageView>());
+  chevron_->SetCanProcessEventsWithinSubtree(false);
   set_context_menu_controller(this);
   GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
+  // As Chromium's group header: reachable by keyboard and VoiceOver, Space or Return collapses and
+  // expands, and the context menu key opens its menu.
+  SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
 }
 
 PinnedGroupHeaderView::~PinnedGroupHeaderView() {
@@ -266,15 +250,36 @@ void PinnedGroupHeaderView::Update(const PinnedGroup& group, size_t tab_count) {
 }
 
 void PinnedGroupHeaderView::UpdateColors() {
+  const ui::ColorProvider* colors = GetColorProvider();
+  if (!colors) {
+    return;
+  }
+  const bool frame_active = GetWidget() && GetWidget()->ShouldPaintAsActive();
+  const SkColor background = colors->GetColor(GroupColorId(group_.color, frame_active));
+  const SkColor foreground = color_utils::GetColorWithMaxContrast(background);
+  SetBackground(views::CreateRoundedRectBackground(
+      background, TabGroupStyle::GetChipCornerRadius(TabStripOrientation::kVertical)));
+  title_->SetEnabledColor(foreground);
+  count_->SetEnabledColor(foreground);
   chevron_->SetImage(ui::ImageModel::FromVectorIcon(
-      group_.collapsed ? kKeyboardArrowRightIcon : kKeyboardArrowDownIcon,
-      ui::kColorSysOnSurfaceSubtle, kChevronSize));
-  static_cast<ColorDot*>(dot_.get())->SetColor(GroupColorId(group_.color));
+      group_.collapsed ? kKeyboardArrowDownIcon : vector_icons::kKeyboardArrowUpIcon, foreground,
+      kChevronSize));
 }
 
 void PinnedGroupHeaderView::OnThemeChanged() {
   views::View::OnThemeChanged();
   UpdateColors();
+}
+
+void PinnedGroupHeaderView::AddedToWidget() {
+  // Paler while the window isn't active, as Chromium's group headers are.
+  paint_as_active_subscription_ = GetWidget()->RegisterPaintAsActiveChangedCallback(
+      base::BindRepeating(&PinnedGroupHeaderView::UpdateColors, base::Unretained(this)));
+  UpdateColors();
+}
+
+void PinnedGroupHeaderView::RemovedFromWidget() {
+  paint_as_active_subscription_ = {};
 }
 
 void PinnedGroupHeaderView::StartRename() {
@@ -429,6 +434,15 @@ void PinnedGroupHeaderView::OnMouseReleased(const ui::MouseEvent& event) {
   groups.SetCollapsed(group_id_, !group_.collapsed);
 }
 
+bool PinnedGroupHeaderView::OnKeyPressed(const ui::KeyEvent& event) {
+  if (!controller_ || rename_->GetVisible() ||
+      (event.key_code() != ui::VKEY_SPACE && event.key_code() != ui::VKEY_RETURN)) {
+    return false;
+  }
+  controller_->pinned_groups().SetCollapsed(group_id_, !group_.collapsed);
+  return true;
+}
+
 void PinnedGroupHeaderView::ShowContextMenuForViewImpl(views::View* source,
                                                        const gfx::Point& point,
                                                        ui::mojom::MenuSourceType source_type) {
@@ -526,6 +540,7 @@ PinnedGroupLayout* PinnedGroupLayout::For(views::View& container, const TabColle
 PinnedGroupLayout::PinnedGroupLayout(views::View& container, SidebarController* controller)
     : container_(container), controller_(controller->GetWeakPtr()) {
   controller->AddObserver(this);
+  container_observation_.Observe(&container);
   // Made during a layout, which mustn't add views: they come right after.
   ScheduleSync();
 }
@@ -555,10 +570,18 @@ void PinnedGroupLayout::Sync() {
     if (dragging_group_ == it->first) {
       dragging_group_.clear();
     }
-    container_->RemoveChildViewT(it->second.get());
-    container_->RemoveChildViewT(lines_[it->first].get());
+    // Drop every pointer to the group's views before they are deleted.
+    PinnedGroupHeaderView* header = it->second.get();
+    views::View* line = lines_[it->first].get();
+    for (Row& row : rows_) {
+      if (row.header == header) {
+        row.header = nullptr;
+      }
+    }
     lines_.erase(it->first);
     it = headers_.erase(it);
+    container_->RemoveChildViewT(header);
+    container_->RemoveChildViewT(line);
   }
   for (const std::string& id : ids) {
     if (!headers_.contains(id)) {
@@ -583,6 +606,13 @@ PinnedGroupLayout::~PinnedGroupLayout() {
   if (controller_) {
     controller_->RemoveObserver(this);
   }
+}
+
+void PinnedGroupLayout::OnViewHierarchyWillBeDeleted(views::View* view) {
+  rows_.clear();
+  headers_.clear();
+  lines_.clear();
+  container_observation_.Reset();
 }
 
 // static
@@ -743,37 +773,43 @@ void PinnedGroupLayout::DecideDraggedGroups(
   }
   // Each shown group runs from its header's top to its last tab's bottom, the dragged tabs left
   // out, but for its own group a dragged tab's place counts.
-  std::map<std::string, Span> groups;
+  const PinnedGroupTracker& tracker = controller_->pinned_groups();
+  std::vector<DraggedOverGroup> groups;
   for (const auto& [id, header] : headers_) {
     const views::ChildLayout* header_layout = layout.GetLayoutFor(header.get());
-    if (!header_layout || !header_layout->visible) {
+    const PinnedGroup* group = tracker.Find(id);
+    if (!header_layout || !header_layout->visible || !group) {
       continue;
     }
     Span span{header_layout->bounds.y(), header_layout->bounds.bottom()};
     if (const auto tabs = tab_spans.find(id); tabs != tab_spans.end()) {
       span.bottom = std::max(span.bottom, tabs->second.bottom());
     }
-    groups[id] = span;
+    groups.push_back({id, span, group->collapsed});
   }
-  const PinnedGroupTracker& tracker = controller_->pinned_groups();
+  // Groups with a tab that isn't dragged: the others go along with their dragged tabs.
+  std::set<std::string> with_others;
+  for (size_t i = 0; i < child_groups_.size(); ++i) {
+    if (!dragged_.contains(i) && !child_groups_[i].empty()) {
+      with_others.insert(child_groups_[i]);
+    }
+  }
   for (const auto& [index, dragged] : dragged_) {
     if (index >= child_groups_.size()) {
       continue;
     }
     const std::string& now = child_groups_[index];
-    std::string in;
-    for (auto [id, span] : groups) {
-      const PinnedGroup* group = tracker.Find(id);
-      if (id == now) {
-        span.top = std::min(span.top, dragged.slot.y());
-        span.bottom = std::max(span.bottom, dragged.slot.bottom());
-      }
-      if (group && DraggedTabInPinnedGroup({dragged.drawn.y(), dragged.drawn.bottom()}, span,
-                                           HeaderHeight(), group->collapsed, id == now)) {
-        in = id;
-        break;
+    std::vector<DraggedOverGroup> spans = groups;
+    for (DraggedOverGroup& group : spans) {
+      if (group.id == now) {
+        group.span.top = std::min(group.span.top, dragged.slot.y());
+        group.span.bottom = std::max(group.span.bottom, dragged.slot.bottom());
       }
     }
+    const std::string home = tracker.DragStartGroupOf(child_tabs_[index].Get());
+    const std::string in =
+        DraggedPinnedGroup({dragged.drawn.y(), dragged.drawn.bottom()}, std::move(spans),
+                           HeaderHeight(), now, home, !with_others.contains(home));
     if (in != now) {
       // Not during the layout: the change lays the container out again.
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
@@ -1009,15 +1045,7 @@ void PinDropped(base::WeakPtr<SidebarController> controller,
       continue;
     }
     // A loose tab, with the other tab of its split view.
-    std::vector<tabs::TabInterface*> unit = {tab};
-    if (const std::optional<split_tabs::SplitTabId> split = tab->GetSplit()) {
-      unit.clear();
-      for (int i = 0; i < model->count(); ++i) {
-        if (model->GetTabAtIndex(i)->GetSplit() == split) {
-          unit.push_back(model->GetTabAtIndex(i));
-        }
-      }
-    }
+    const std::vector<tabs::TabInterface*> unit = TabOrSplitOf(*model, tab);
     done.insert(unit.begin(), unit.end());
     tracker.PinTabs(unit, before);
     before += unit.size();

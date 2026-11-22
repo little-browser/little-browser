@@ -72,7 +72,7 @@ lb/browser/ui/
   views/sidebar/sidebar_footer_view.*  space switcher (switch; right-click rename/icon/colour/delete) and the "+" menu
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
-  views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart) (below)
+  views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog and the first-run import offer
@@ -131,10 +131,12 @@ it, unpins it and pins it back with the group menu's Pin Group, checks it is sav
 space switch, then drags with the mouse (a tab onto its header and out again, once cancelled with
 Esc, its header below "+ New Tab" with an image of the group following the pointer and a line
 where it lands, the today group's header back above with a line where it would be pinned), checks
-a collapsed pinned group's tabs count as collapsed, and quits, `=pinned-groups-drops` drags a
-pinned group holding a split view between today tabs below a collapsed today group and back, and
-closes it (the split must stay whole, no group may be split, every tab must sleep) (`--lb-ui-snapshot-pinned-drag=<png>` stops mid-drag and captures that image), and `=pinned-groups-restart`, run again on that profile, checks the
-restored window has it back (both log `lb demo: <mode> PASS` or `FAIL`); `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
+a collapsed pinned group's tabs count as collapsed, and quits (`--lb-ui-snapshot-pinned-drag=<png>`
+stops it mid-drag and captures that image); `=pinned-groups-restart`, run again on the profile
+`=pinned-groups` left, checks the restored window has it back, its header filled with the group's
+colour; `=pinned-groups-drops` drags a pinned group holding a split view between today tabs below
+a collapsed today group and back, and closes it (the split must stay whole, no group may be split,
+every tab must sleep); the three log `lb demo: <mode> PASS` or `FAIL`; `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
 audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `--vmodule=sidebar_controller=1,pinned_tab_sleep=1`, with each pinned row's button;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and

@@ -83,7 +83,9 @@ for its tabs, hidden tabs in a collapsed group (all but the active one, `lb::Pin
 colour line in the indent, where tab rows, which have their own layers, can't paint over it. The
 layout reads a child's tabs from its nodes, never from the tab collection, which Chromium may be
 changing as it lays the container out. Header views are added outside layouts, one per group, and
-removed when the group goes. A header's click collapses and expands, a double click renames inline,
+removed when the group goes; each looks like Chromium's vertical group header (a pill in the group's
+strip colour, paler in an inactive window, with the name, the count while collapsed and the chevron
+in its most readable colour). A header's click collapses and expands, a double click renames inline,
 and its menu (`lb::PinnedGroupMenu`) has Rename, Colour, Unpin Group (the tabs become a Chromium
 group with the same name, colour and collapsed state, expanded when it holds the shown tab), Ungroup
 and Close: `lb::DecidePinnedGroupClose` picks the awake tabs, which `lb::SleepPinnedTabs` puts to
@@ -100,7 +102,8 @@ gives a restored tab its group back; saved space tabs carry it in the same `grou
 groups use, on pinned tabs. During a drag the pinned container tells `PinnedGroupLayout` where each
 dragged row is drawn (a transform moves it, not its bounds) and where its place is, and the row
 joins or leaves a group as `lb::DraggedTabInPinnedGroup` decides, with Chromium's thresholds for
-today groups and its own place counted in its group, while the drag lasts. While a drag runs the
+today groups and its own place counted in its group, while the drag lasts; tabs that are all of
+their group's tabs keep it, as `lb::GroupAfterMove` does when they are dropped. While a drag runs the
 tracker remembers each tab's group before its first change, and a cancelled drag (Esc) gives those
 back once Chromium has put the tabs back (`lb::OnTabDragEnded`, from
 `TabDragController::EndDragImpl`). Dragging a pinned group's header is our own drag. The pinned area

@@ -4,6 +4,10 @@
 
 #include "lb/browser/tabs/pinned_groups.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -123,6 +127,64 @@ TEST(PinnedGroupsTest, AGroupsLastTabDraggedInPlaceStaysIn) {
   EXPECT_TRUE(DraggedTabInPinnedGroup(DraggedAt(162), kGroup, kHeader, false, true));
   // A one-tab group: header 100-130, its tab 134-164.
   EXPECT_TRUE(DraggedTabInPinnedGroup(DraggedAt(134), {100, 164}, kHeader, false, true));
+}
+
+DraggedOverGroup Over(const char* id, Span span, bool collapsed = false) {
+  return DraggedOverGroup{id, span, collapsed};
+}
+
+TEST(PinnedGroupsTest, AGroupsOnlyTabTakesItsGroupAlongWhileDragged) {
+  // A one-tab group a: header 100-130, its tab 134-164; group b below it, 300-390.
+  const std::vector<DraggedOverGroup> groups = {Over("a", {100, 164}), Over("b", {300, 390})};
+  // Dragged 12 down, a tab of a bigger group would leave; the only tab keeps its group.
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(146), groups, kHeader, "a", "a", false), "");
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(146), groups, kHeader, "a", "a", true), "a");
+  // Far away, and even over another group, it stays in its own.
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(600), groups, kHeader, "a", "a", true), "a");
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(320), groups, kHeader, "a", "a", true), "a");
+}
+
+TEST(PinnedGroupsTest, ADraggedTabJoinsTheHighestGroupItOverlaps) {
+  // Two groups overlapping the same place: the upper one takes the tab, whatever their ids.
+  const Span drag = DraggedAt(150);
+  for (const auto& [upper, lower] : {std::pair{"a", "b"}, std::pair{"b", "a"}}) {
+    const std::vector<DraggedOverGroup> groups = {Over(lower, {160, 250}), Over(upper, {100, 175})};
+    EXPECT_EQ(DraggedPinnedGroup(drag, groups, kHeader, "", "", false), upper);
+  }
+  // A collapsed group takes no dragged tab; nothing near: in none.
+  EXPECT_EQ(DraggedPinnedGroup(drag, {Over("a", {100, 190}, true)}, kHeader, "", "", false), "");
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(600), {Over("a", {100, 190})}, kHeader, "", "", false),
+            "");
+}
+
+TEST(PinnedGroupsTest, ATabStaysInTheGroupItIsInBeforeJoiningAnother) {
+  // In b (300-390) and still well inside it, though group a above overlaps it too.
+  const std::vector<DraggedOverGroup> groups = {Over("a", {100, 320}), Over("b", {300, 390})};
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(305), groups, kHeader, "b", "b", false), "b");
+}
+
+TEST(PinnedGroupsTest, AWholeGroupsTabGoesBackHomeOnLeavingAGroupItPassedThrough) {
+  // The only tab of a passed between two of b's tabs, so it is in b now (lb::GroupAfterMove).
+  const std::vector<DraggedOverGroup> groups = {Over("b", {300, 390})};
+  // While it stays in b, it is in b: dropped there it joins b.
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(340), groups, kHeader, "b", "a", true), "b");
+  // Out of b again it is back in a, which went along; a tab of a bigger group is in none.
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(600), groups, kHeader, "b", "a", true), "a");
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(600), groups, kHeader, "b", "a", false), "");
+  // A tab in no group when the drag started has no home to go back to.
+  EXPECT_EQ(DraggedPinnedGroup(DraggedAt(600), groups, kHeader, "b", "", true), "");
+}
+
+TEST(PinnedGroupsTest, ARestoredTabGetsItsGroupBackUnlessThatSplitsAnother) {
+  EXPECT_EQ(RestoredTabGroup("y", "", ""), "y");
+  EXPECT_EQ(RestoredTabGroup("y", "y", ""), "y");
+  EXPECT_EQ(RestoredTabGroup("y", "x", ""), "y");  // after a group: no split
+  EXPECT_EQ(RestoredTabGroup("y", "x", "z"), "y");
+  EXPECT_EQ(RestoredTabGroup("y", "y", "y"), "y");
+  // Back between two tabs of x: in x, which stays one run.
+  EXPECT_EQ(RestoredTabGroup("y", "x", "x"), "x");
+  EXPECT_EQ(RestoredTabGroup("", "x", "x"), "x");
+  EXPECT_EQ(RestoredTabGroup("", "", ""), "");
 }
 
 TEST(PinnedGroupsTest, ADroppedGroupGoesBeforeTheFirstTabBelowIt) {
