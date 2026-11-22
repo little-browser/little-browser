@@ -62,7 +62,7 @@ Sidebar zones, top to bottom:
 
 | Zone | Content | Notes |
 |---|---|---|
-| Title row | Window controls, the sidebar toggle, the command bar button | Drag area for the window |
+| Title row | Window controls, the sidebar toggle, the command bar button, Tab Search | Drag area for the window. Tab Search is always there: no Pin/Unpin in its menu or the window's, and no switch for it in Settings |
 | Address pill | Domain only (`github.com`); the full URL as its tooltip | Click or Cmd+L → command bar with the full URL selected |
 | Space header | Icon + name of the current space; a profile badge (🔒 and the profile's name) if it isn't the default profile | Space colour tints the sidebar |
 | Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |

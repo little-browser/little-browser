@@ -73,6 +73,7 @@ lb/browser/ui/
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
   views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
+  views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog and the first-run import offer
@@ -139,6 +140,9 @@ a collapsed today group and back, and closes it (the split must stay whole, no g
 every tab must sleep); the three log `lb demo: <mode> PASS` or `FAIL`; `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
 audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `--vmodule=sidebar_controller=1,pinned_tab_sleep=1`, with each pinned row's button;
+`=tab-search` saves Tab Search as unpinned, opens a second window (it must clear that and show the
+button), runs the pin toggle (it must stay pinned), checks the window menu has no toggle and
+right-clicks the button (no menu may open);
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and
 out of a tab group, as single jumps and with Esc, logging the tabs after each drag;
 `=web-store` opens an extension's Chrome Web Store page, presses "Add to …" and accepts the

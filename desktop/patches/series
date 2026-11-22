@@ -43,3 +43,4 @@ lb/little-window-link-menu.patch     # a link's context menu has Open Link in Li
 lb/updater.patch                     # macOS: start the updater (Sparkle) when the app is packaged with it
 lb/import-settings-row.patch         # Settings' import route opens our import dialog
 lb/pinned-groups.patch             # tab groups among the pinned tabs (ours: Chromium cannot group pinned tabs)
+lb/tab-search-always.patch           # tab search can't be unpinned: no Pin/Unpin in its menus or Settings

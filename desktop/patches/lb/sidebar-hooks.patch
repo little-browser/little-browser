@@ -5,7 +5,7 @@
 # Peek, little window, import) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,69 @@
+@@ -537,7 +537,71 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -72,11 +72,13 @@
 +    "//lb/browser/ui/views/sidebar/pinned_group_layout.h",
 +    "//lb/browser/ui/views/sidebar/pinned_groups_demo.cc",
 +    "//lb/browser/ui/views/sidebar/pinned_groups_demo.h",
++    "//lb/browser/ui/views/sidebar/tab_search_demo.cc",
++    "//lb/browser/ui/views/sidebar/tab_search_demo.h",
 +  ]
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +619,20 @@
+@@ -557,6 +621,20 @@
      "//ui/views",
    ]
    deps = [

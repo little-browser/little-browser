@@ -55,6 +55,7 @@
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
 #include "chrome/common/chrome_constants.h"
+#include "chrome/common/pref_names.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -94,6 +95,7 @@
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "lb/browser/ui/views/sidebar/pinned_groups_demo.h"
+#include "lb/browser/ui/views/sidebar/tab_search_demo.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/base_window.h"
 #include "ui/base/models/list_selection_model.h"
@@ -359,6 +361,9 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
 
   EnsureSpaceForProfile();
   prefs()->ClearPref(kObsoleteFavouritesPref);
+  // Tab search is always in the strip (patches/lb/tab-search-always.patch): a stored "unpinned"
+  // value, as an older profile may have, is cleared so its button shows.
+  prefs()->ClearPref(prefs::kTabSearchPinnedToTabstrip);
   // A window opened for a space the user picked (another profile's space, SwitchToOtherProfile).
   if (auto it = PendingByProfile().find(GetProfileBaseName()); it != PendingByProfile().end()) {
     active_id_ = it->second;
@@ -1822,6 +1827,10 @@ void SidebarController::SeedDemoData() {
             }
             if (MaybeRunPinnedGroupsDemo(self->browser(), demo)) {
               return;  // Modes: lb/browser/ui/views/sidebar/pinned_groups_demo.h.
+            }
+            if (demo == "tab-search") {
+              RunTabSearchDemo(self->browser());
+              return;
             }
             self->SwitchTo(1);
             if (demo == "command-bar") {

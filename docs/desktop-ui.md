@@ -12,6 +12,7 @@ custom window frame, so the 4-weekly Chromium rebase touches as little as possib
 | Piece | Where |
 |---|---|
 | Vertical tabs on by default | `patches/lb/vertical-tabs-default.patch` |
+| Tab Search always in the strip: no Pin/Unpin in its button's menu or the window menu, no Settings switch, the toggle command does nothing, and a stored "unpinned" (an older profile) cleared when a window opens | `patches/lb/tab-search-always.patch`, `lb::SidebarController` |
 | Sidebar header (address pill, space name) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
 | Footer: space switcher and the "+" menu (new space; new tab, split view, tab group), below the strip | `lb/browser/ui/views/sidebar/sidebar_footer_view.*` |
 | "+ New Tab" between pinned and today's tabs, replacing Chromium's new-tab button | `lb/browser/ui/views/sidebar/new_tab_row_view.*`, in a slot added by `patches/lb/new-tab-row.patch` |
