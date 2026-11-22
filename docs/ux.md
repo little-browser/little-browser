@@ -424,7 +424,7 @@ kept; guest windows import nothing.
 
 **Sources** — only browsers found on the Mac are listed, each once, the default browser first:
 
-- **Chrome-family browsers**: Brave, Chrome, Chromium, Dia, Edge, Opera, Vivaldi, with their
+- **Chrome-family browsers**: Brave, Chrome, Chromium, Edge, Opera, Vivaldi, with their
   profiles, under the names the browser gives them.
 - **Arc**, with its spaces. If its sidebar file can't be read (an Arc update changed it, or it is
   cut short), it is listed with its profiles instead, as a Chrome-family browser, and the dialog

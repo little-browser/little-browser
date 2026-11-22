@@ -291,7 +291,7 @@ provides (incognito, DevTools, PiP). The rest of the table is specified but not 
 
 ### 7.6 Import
 - What the user sees, and what comes from which browser: [ux.md](ux.md) §13. Desktop imports from
-  Chrome-family browsers (Brave, Chrome, Chromium, Dia, Edge, Opera, Vivaldi) and Arc, with their
+  Chrome-family browsers (Brave, Chrome, Chromium, Edge, Opera, Vivaldi) and Arc, with their
   profiles, spaces and tabs, Firefox, Safari, Safari's export file and bookmarks HTML. Mobile imports
   a bookmarks HTML file, or (simplest) syncs from a desktop.
 - **No passwords or payment cards**: users move passwords with their password manager's own

@@ -74,15 +74,6 @@ pub const BROWSERS: &[Browser] = &[
         mac_keychain_account: "Chromium",
     },
     Browser {
-        id: "dia",
-        name: "Dia",
-        kind: SourceKind::Chromium,
-        mac_bundle_id: "company.thebrowser.dia",
-        mac_user_data: "Dia/User Data",
-        mac_keychain_service: "Dia Safe Storage",
-        mac_keychain_account: "Dia",
-    },
-    Browser {
         id: "edge",
         name: "Edge",
         kind: SourceKind::Chromium,
@@ -188,19 +179,19 @@ mod tests {
 
     #[test]
     fn default_browser_comes_first() {
-        let found = ["arc", "chrome", "dia"];
+        let found = ["arc", "chrome", "edge"];
         assert_eq!(
             dialog_order(&found, Some("COM.GOOGLE.CHROME")),
-            ["chrome", "arc", "dia"]
+            ["chrome", "arc", "edge"]
         );
         assert_eq!(
             dialog_order(&found, Some("org.mozilla.firefox")),
-            ["arc", "chrome", "dia"]
+            ["arc", "chrome", "edge"]
         );
-        assert_eq!(dialog_order(&found, None), ["arc", "chrome", "dia"]);
+        assert_eq!(dialog_order(&found, None), ["arc", "chrome", "edge"]);
         assert_eq!(
-            dialog_order(&["unknown", "dia"], Some("company.thebrowser.dia")),
-            ["dia", "unknown"]
+            dialog_order(&["unknown", "edge"], Some("com.microsoft.edgemac")),
+            ["edge", "unknown"]
         );
         assert!(dialog_order(&[], Some("com.google.Chrome")).is_empty());
     }

@@ -52,7 +52,7 @@ TEST(CoreBridgeTest, BrowserSources) {
 
 TEST(CoreBridgeTest, DialogOrder) {
   rust::Vec<rust::String> found;
-  for (const char* id : {"arc", "chrome", "dia"}) {
+  for (const char* id : {"arc", "chrome", "edge"}) {
     found.push_back(rust::String(id));
   }
   EXPECT_EQ(ToStrings(core::dialog_order(found, "com.google.Chrome")),

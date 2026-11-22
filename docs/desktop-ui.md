@@ -280,8 +280,8 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
   local ones (`addresses.record_type` 0 where the table holds Google-account addresses too). Text
   goes to lb-core as valid UTF-8 (`import_text.*`; a cookie whose name or value isn't text stays
   behind, since it must stay byte for byte). Chromium is moving `Sessions` and `Bookmarks` to
-  encrypted copies (`Sessions_Encrypted`, `EncryptedBookmarks2`): a browser first saves both at once
-  (Dia does), then only the encrypted one. The plain file is read unless the encrypted copy is more
+  encrypted copies (`Sessions_Encrypted`, `EncryptedBookmarks2`): a browser first saves both at once,
+  then only the encrypted one. The plain file is read unless the encrypted copy is more
   than a minute newer or there is no plain one (`PlainCopyIsStale`); then the item is a problem line
   ("this browser keeps them encrypted"). Cookies only when ticked: the source's "‹browser› Safe
   Storage" password comes from the keychain (`import_keychain.mm`, which only reads, never adds an
