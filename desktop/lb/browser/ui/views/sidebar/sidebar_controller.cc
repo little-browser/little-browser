@@ -95,6 +95,7 @@
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "lb/browser/ui/views/sidebar/pinned_groups_demo.h"
+#include "lb/browser/ui/views/sidebar/sidebar_header_view.h"
 #include "lb/browser/ui/views/sidebar/tab_search_demo.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/base_window.h"
@@ -1832,6 +1833,10 @@ void SidebarController::SeedDemoData() {
             }
             if (demo == "tab-search") {
               RunTabSearchDemo(self->browser());
+              return;
+            }
+            if (demo == "sidebar-header") {
+              RunSidebarHeaderDemo(self->browser());
               return;
             }
             self->SwitchTo(1);

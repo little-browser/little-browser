@@ -119,7 +119,7 @@
    gemini_button_ =
        content_area_view_->AddChildView(std::make_unique<views::View>());
 +
-+  // Little Browser: address pill and space name above the tabs; space switcher
++  // Little Browser: the space name above the tabs; space switcher
 +  // and the "+" menu at the bottom. The new-tab button moves above today's tabs (below).
 +  lb::AddSidebar(content_area_view_, browser_view, region_horizontal_padding,
 +                 bottom_button_container_);

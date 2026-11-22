@@ -6,6 +6,7 @@
 #define LB_BROWSER_UI_VIEWS_COMMAND_BAR_COMMAND_BAR_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/memory/raw_ptr.h"
@@ -20,8 +21,8 @@ namespace lb {
 class CommandBarView;
 
 // The command bar (docs/ux.md §4): a palette floating over the page. Cmd+T opens it empty
-// (results open in a new tab), Cmd+L / the address pill open it with the current address
-// (results replace the page). Lists open tabs across spaces, history, commands
+// (results open in a new tab), Cmd+L opens it with the current address (results replace the
+// page). Lists open tabs across spaces, history, commands
 // and a web address or search. It also hosts "Rename space".
 class CommandBar : public views::WidgetObserver {
  public:
@@ -34,8 +35,9 @@ class CommandBar : public views::WidgetObserver {
   void Close();
   bool IsShowing() const { return !!widget_; }
 
-  // RunCommandBarForTesting() for this bar.
+  // RunCommandBarForTesting() and CommandBarTextForTesting() for this bar.
   bool RunForTesting(const std::u16string& text);
+  std::optional<std::u16string> TextForTesting() const;
 
   // Called by the view when its preferred height changes.
   void UpdateBounds();
@@ -57,6 +59,9 @@ class CommandBar : public views::WidgetObserver {
 // does; false if no bar is open or no such result is shown (the --lb-sidebar-demo=ad-blocker
 // check).
 bool RunCommandBarForTesting(const std::u16string& text);
+
+// What the open command bar's field holds, or null if no bar is open.
+std::optional<std::u16string> CommandBarTextForTesting();
 
 }  // namespace lb
 

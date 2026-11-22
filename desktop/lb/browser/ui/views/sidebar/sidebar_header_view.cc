@@ -7,17 +7,19 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/functional/bind.h"
-#include "base/strings/string_util.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
+#include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/common/chrome_constants.h"
-#include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/web_contents.h"
+#include "lb/browser/demo/demo_report.h"
 #include "lb/browser/spaces/swipe_tracker.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/command_bar/command_bar.h"
@@ -35,12 +37,7 @@
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/transform.h"
-#include "ui/gfx/text_constants.h"
-#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/animation_builder.h"
-#include "ui/views/background.h"
-#include "ui/views/border.h"
-#include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
@@ -50,9 +47,6 @@
 namespace lb {
 
 namespace {
-
-constexpr int kPillHeight = 34;
-constexpr float kRadius = 10.0f;
 
 // Two-finger sideways swipe on the sidebar switches space (docs/ux.md §5).
 class SwipeHandler : public ui::EventHandler {
@@ -94,54 +88,13 @@ class SwipeHandler : public ui::EventHandler {
   SwipeTracker tracker_;
 };
 
-// LabelButton with a settable label font (Chromium keeps label() protected).
-class FontLabelButton : public views::LabelButton {
-  METADATA_HEADER(FontLabelButton, views::LabelButton)
-
- public:
-  using views::LabelButton::LabelButton;
-  void SetLabelFont(const gfx::FontList& font_list) { label()->SetFontList(font_list); }
-};
-
-BEGIN_METADATA(FontLabelButton)
-END_METADATA
-
-std::u16string AddressPillText(const GURL& url) {
-  if (!url.is_valid() || url.is_empty()) {
-    return u"Search or enter address";
-  }
-  if (!url.SchemeIsHTTPOrHTTPS()) {
-    return base::UTF8ToUTF16(url.spec());
-  }
-  std::string_view host = url.host();
-  if (base::StartsWith(host, "www.")) {
-    host.remove_prefix(4);
-  }
-  return base::UTF8ToUTF16(host);
-}
-
 }  // namespace
 
 SidebarHeaderView::SidebarHeaderView(std::unique_ptr<SidebarController> controller)
     : controller_(std::move(controller)) {
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
-      views::BoxLayout::Orientation::kVertical, gfx::Insets::TLBR(2, 0, 10, 0),
-      /*between_child_spacing=*/12));
+      views::BoxLayout::Orientation::kVertical, gfx::Insets::TLBR(2, 0, 10, 0)));
   layout->set_cross_axis_alignment(views::BoxLayout::CrossAxisAlignment::kStretch);
-
-  // Address pill: the active tab's domain. Clicking it edits the address in the
-  // command bar.
-  auto* address = AddChildView(std::make_unique<FontLabelButton>(
-      base::BindRepeating(&SidebarHeaderView::FocusAddress, base::Unretained(this))));
-  address->SetLabelFont(gfx::FontList().DeriveWithWeight(gfx::Font::Weight::MEDIUM));
-  address_ = address;
-  address_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  address_->SetMinSize(gfx::Size(0, kPillHeight));
-  address_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(0, 12)));
-  address_->SetBackground(
-      views::CreateRoundedRectBackground(ui::kColorSysOmniboxContainer, kRadius));
-  address_->SetEnabledTextColors(ui::kColorSysOnSurface);
-  address_->GetViewAccessibility().SetName(u"Address");
 
   // Active space.
   space_label_ = AddChildView(std::make_unique<views::Label>());
@@ -152,9 +105,6 @@ SidebarHeaderView::SidebarHeaderView(std::unique_ptr<SidebarController> controll
   space_label_->SetProperty(views::kMarginsKey, gfx::Insets::VH(0, 6));
 
   controller_->AddObserver(this);
-  controller_->browser()->GetTabStripModel()->AddObserver(this);
-  Observe(controller_->browser()->GetTabStripModel()->GetActiveWebContents());
-  UpdateAddress();
   UpdateSpace();
 }
 
@@ -228,7 +178,6 @@ void SidebarHeaderView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
     return;
   }
   compact_ = compact;
-  address_->SetVisible(!compact_);
   space_label_->SetVisible(!compact_);
 }
 
@@ -256,29 +205,6 @@ void SidebarHeaderView::OnSpaceSwitched(int direction) {
       .SetOpacity(layer, 1.0f, gfx::Tween::EASE_OUT);
 }
 
-void SidebarHeaderView::OnTabStripModelChanged(TabStripModel* tab_strip_model,
-                                               const TabStripModelChange& change,
-                                               const TabStripSelectionChange& selection) {
-  if (selection.active_tab_changed()) {
-    Observe(tab_strip_model->GetActiveWebContents());
-  }
-  UpdateAddress();
-}
-
-void SidebarHeaderView::DidFinishNavigation(content::NavigationHandle* navigation_handle) {
-  if (navigation_handle->IsInPrimaryMainFrame()) {
-    UpdateAddress();
-  }
-}
-
-void SidebarHeaderView::UpdateAddress() {
-  content::WebContents* contents =
-      controller_->browser()->GetTabStripModel()->GetActiveWebContents();
-  const GURL url = contents ? contents->GetVisibleURL() : GURL();
-  address_->SetText(AddressPillText(url));
-  address_->SetTooltipText(base::UTF8ToUTF16(url.possibly_invalid_spec()));
-}
-
 void SidebarHeaderView::UpdateSpace() {
   const auto spaces = controller_->GetSpaces();
   const size_t active = controller_->GetActiveIndex();
@@ -292,10 +218,6 @@ void SidebarHeaderView::UpdateSpace() {
     text += u"   \U0001F512 " + space.profile_name;
   }
   space_label_->SetText(text);
-}
-
-void SidebarHeaderView::FocusAddress() {
-  controller_->ShowCommandBar(CommandBarMode::kEditAddress);
 }
 
 BEGIN_METADATA(SidebarHeaderView)
@@ -321,6 +243,27 @@ void AddSidebar(views::View* content_area,
   auto* footer = content_area->AddChildView(std::make_unique<SidebarFooterView>(weak_controller));
   footer->SetProperty(views::kMarginsKey,
                       gfx::Insets::TLBR(6, horizontal_padding, 8, horizontal_padding));
+}
+
+void RunSidebarHeaderDemo(BrowserWindowInterface* browser) {
+  constexpr char kMode[] = "sidebar-header";
+  const GURL page("file:///lb-sidebar-header-demo.html");  // never loaded: ⌘L only reads it
+  chrome::AddTabAt(browser, page, -1, /*foreground=*/true);
+  const std::vector<SidebarHeaderView*> headers =
+      FindViewsForDemo<SidebarHeaderView>(WindowViewForDemo(browser));
+  if (headers.size() != 1) {
+    ReportDemo(kMode, false, "no sidebar header");
+    return;
+  }
+  const auto& children = headers[0]->children();
+  const bool space_name_only =
+      children.size() == 1 && views::IsViewClass<views::Label>(children[0]);
+  chrome::ExecuteCommand(browser, IDC_FOCUS_LOCATION);
+  const std::optional<std::u16string> text = CommandBarTextForTesting();
+  const bool edits_address = text == base::UTF8ToUTF16(page.spec());
+  ReportDemo(kMode, space_name_only && edits_address,
+             std::string("header_children=") + base::NumberToString(children.size()) +
+                 " cmd_l_address=" + (edits_address ? "1" : "0"));
 }
 
 }  // namespace lb

@@ -219,6 +219,8 @@ class CommandBarView : public views::View, public views::TextfieldController {
     field_->SelectAll(false);
   }
 
+  std::u16string TextForTesting() const { return std::u16string(field_->GetText()); }
+
   bool RunForTesting(const std::u16string& text) {
     field_->SetText(text);
     Rebuild();
@@ -620,6 +622,14 @@ bool CommandBar::RunForTesting(const std::u16string& text) {
 
 bool RunCommandBarForTesting(const std::u16string& text) {
   return g_open_bar && g_open_bar->RunForTesting(text);
+}
+
+std::optional<std::u16string> CommandBar::TextForTesting() const {
+  return view_ ? std::optional<std::u16string>(view_->TextForTesting()) : std::nullopt;
+}
+
+std::optional<std::u16string> CommandBarTextForTesting() {
+  return g_open_bar ? g_open_bar->TextForTesting() : std::nullopt;
 }
 
 void CommandBar::Show(CommandBarMode mode) {

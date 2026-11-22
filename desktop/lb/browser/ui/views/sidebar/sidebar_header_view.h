@@ -9,13 +9,12 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-#include "content/public/browser/web_contents_observer.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/view.h"
 
 class BrowserView;
+class BrowserWindowInterface;
 
 namespace ui {
 class EventHandler;
@@ -23,20 +22,16 @@ class EventHandler;
 
 namespace views {
 class Label;
-class LabelButton;
 }  // namespace views
 
 namespace lb {
 
 class CommandBar;
 
-// Little Browser sidebar header (docs/ux.md §2), at the top of Chromium's vertical tab strip:
-// address pill (domain of the active tab; click = edit address) and the active space's name. Owns
-// the window's SidebarController.
-class SidebarHeaderView : public views::View,
-                          public SidebarController::Observer,
-                          public TabStripModelObserver,
-                          public content::WebContentsObserver {
+// Little Browser sidebar header (docs/ux.md §2), at the top of Chromium's vertical tab strip: the
+// active space's name. The address is in the toolbar above the page; ⌘L edits it in the command
+// bar. Owns the window's SidebarController and the command bar.
+class SidebarHeaderView : public views::View, public SidebarController::Observer {
   METADATA_HEADER(SidebarHeaderView, views::View)
 
  public:
@@ -55,18 +50,8 @@ class SidebarHeaderView : public views::View,
   void OnSidebarModelChanged() override;
   void OnSpaceSwitched(int direction) override;
 
-  // TabStripModelObserver:
-  void OnTabStripModelChanged(TabStripModel* tab_strip_model,
-                              const TabStripModelChange& change,
-                              const TabStripSelectionChange& selection) override;
-
-  // content::WebContentsObserver:
-  void DidFinishNavigation(content::NavigationHandle* navigation_handle) override;
-
  private:
-  void UpdateAddress();
   void UpdateSpace();
-  void FocusAddress();
   void ShowCommandBar(CommandBarMode mode);
 
   std::unique_ptr<SidebarController> controller_;
@@ -75,7 +60,6 @@ class SidebarHeaderView : public views::View,
   raw_ptr<views::View> swipe_target_ = nullptr;
   // Collapsed strip: icons only.
   bool compact_ = false;
-  raw_ptr<views::LabelButton> address_ = nullptr;
   raw_ptr<views::Label> space_label_ = nullptr;
 
   base::WeakPtrFactory<SidebarHeaderView> weak_factory_{this};
@@ -88,6 +72,11 @@ void AddSidebar(views::View* content_area,
                 BrowserView* browser_view,
                 int horizontal_padding,
                 views::View* bottom_container);
+
+// --lb-sidebar-demo=sidebar-header: the header holds the space's name alone (no address field),
+// and ⌘L still opens the command bar with the page's full address. Logs "lb demo: sidebar-header
+// PASS ..." or "... FAIL ...".
+void RunSidebarHeaderDemo(BrowserWindowInterface* browser);
 
 }  // namespace lb
 

@@ -13,7 +13,7 @@ custom window frame, so the 4-weekly Chromium rebase touches as little as possib
 |---|---|
 | Vertical tabs on by default | `patches/lb/vertical-tabs-default.patch` |
 | Tab Search always in the strip: no Pin/Unpin in its button's menu or the window menu, no Settings switch, the toggle command does nothing, and a stored "unpinned" (an older profile) cleared when a window opens | `patches/lb/tab-search-always.patch`, `lb::SidebarController` |
-| Sidebar header (address pill, space name) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
+| Sidebar header (the space name; no address field, the toolbar has the address) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
 | Footer: space switcher and the "+" menu (new space; new tab, split view, tab group), below the strip | `lb/browser/ui/views/sidebar/sidebar_footer_view.*` |
 | "+ New Tab" between pinned and today's tabs, replacing Chromium's new-tab button | `lb/browser/ui/views/sidebar/new_tab_row_view.*`, in a slot added by `patches/lb/new-tab-row.patch` |
 | Pinned tabs as list rows | `patches/lb/pinned-list.patch` (`tab_view.cc`, `tab_view_vertical_layout.cc`, `pinned_tab_container_view.cc`) |
@@ -170,7 +170,7 @@ vertical tabs are new upstream. The page-card patch there stays a few lines; all
 
 ## Command bar
 
-Cmd+T, the new-tab buttons, Cmd+L and the address pill open the command bar. It lists open tabs
+Cmd+T, the new-tab buttons and Cmd+L open the command bar. It lists open tabs
 across spaces, commands, bookmarks (the best six, from `BookmarkModel`, with their folder; a page
 listed as a bookmark isn't listed again from history), history and the address or search entry;
 the ranking boosts per kind are in `command_matching.*`. It has a

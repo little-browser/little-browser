@@ -21,7 +21,8 @@ for groups, the footer's Downloads button and the whole mobile section — is sp
    Browser chrome lives in one sidebar (or one slim row in top mode), plus, on desktop, Chromium's
    slim toolbar above the page (back, forward, reload, address, extensions, menu;
    [desktop-ui.md](desktop-ui.md)).
-2. **One place for everything.** Address, tabs and spaces are all in the sidebar.
+2. **One place for everything.** Tabs and spaces are all in the sidebar; the address is only in
+   the toolbar above the page.
 3. **Keyboard first.** A command bar opens everything: new tab, search, switch tab, commands.
    Every action has a shortcut; nothing needs a mouse.
 4. **Calm.** No badges, promos, pop-ups, "what's new" pages or permission nags. Nothing moves unless
@@ -38,32 +39,32 @@ for groups, the footer's Downloads button and the whole mobile section — is sp
 ```
 ┌───────────────────┬──────────────────────────────────────────────────┐
 │ ● ● ●       ≡   ⌕ │ ‹ › ⟳ ╭ https://github.com/ ─────────╮  🧩 ⬇ ◯ ⋮ │
-│ ╭───────────────╮ │╭────────────────────────────────────────────────╮│
-│ │ github.com    │ ││                                                ││
-│ ╰───────────────╯ ││                                                ││
-│ ▸ Personal        ││                                                ││
+│ ▸ Personal        │╭────────────────────────────────────────────────╮│
 │ ───────────────── ││                                                ││
-│   📌 Calendar     ││             page (rounded, inset)              ││
+│   📌 Calendar     ││                                                ││
 │   📌 Mail         ││                                                ││
-│ ───────────────── ││                                                ││
+│ ───────────────── ││             page (rounded, inset)              ││
 │   +  New Tab      ││                                                ││
 │   ◦ Hacker News   ││                                                ││
 │   ◦ MDN: flexbox  ││                                                ││
+│                   ││                                                ││
+│                   ││                                                ││
+│                   ││                                                ││
 │                   ││                                                ││
 │     ● ○ ○      ＋ │╰────────────────────────────────────────────────╯│
 └───────────────────┴──────────────────────────────────────────────────┘
 ```
 
 Beside the sidebar, above the page, sits Chromium's slim toolbar: back, forward, reload, the full
-address, extensions, downloads, profile and the menu ([desktop-ui.md](desktop-ui.md)). The
-sidebar's address pill shows the domain; the toolbar shows the full address.
+address, extensions, downloads, profile and the menu ([desktop-ui.md](desktop-ui.md)). The address
+is shown only there; the sidebar has no address field. ⌘L opens the command bar with the full
+address selected (section 4).
 
 Sidebar zones, top to bottom:
 
 | Zone | Content | Notes |
 |---|---|---|
 | Title row | Window controls, the sidebar toggle, the command bar button, Tab Search | Drag area for the window. Tab Search is always there: no Pin/Unpin in its menu or the window's, and no switch for it in Settings |
-| Address pill | Domain only (`github.com`); the full URL as its tooltip | Click or Cmd+L → command bar with the full URL selected |
 | Space header | Icon + name of the current space; a profile badge (🔒 and the profile's name) if it isn't the default profile | Space colour tints the sidebar |
 | Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
 | Divider + New tab | "+ New Tab" row, opens the command bar (Cmd+T) | The divider shows only when the space has pinned tabs |
@@ -109,7 +110,7 @@ The centre of the browser. A floating palette in the middle of the window.
 | Shortcut | Opens as |
 |---|---|
 | Cmd+T | New tab: empty input |
-| Cmd+L / click address pill | Edit current URL: full URL, selected |
+| Cmd+L | Edit current URL: full URL, selected |
 
 - Results, in one list, ranked by fuzzy match: **open tabs** (switch, across all spaces) ·
   pinned · bookmarks (by title or address; the folder they're in shown beside them) · history ·
@@ -273,8 +274,7 @@ blue groups, Teal makes cyan); the group menu changes it.
   little narrower than the page area (about 8% off each side), with no toolbar of its own: just the
   page, its top corners rounded. With reduced motion the card fades in where it ends up.
 - In the margin above the card, a small label with the page's site, so a page in a Peek can't pass
-  for the one under it: the domain alone, without "www." (`kp.ru`), as the address pill shows it,
-  with the full URL as its tooltip. It isn't a button, so a secure page gets no icon; a page the
+  for the one under it: the domain alone, without "www." (`kp.ru`), with the full URL as its tooltip. It isn't a button, so a secure page gets no icon; a page the
   address bar would warn about leads with its warning icon and "Not secure" or "Dangerous".
 - Round buttons in a column to the right of the card, from its top: **Close**, **Open as tab** (the
   card expands into the page area and becomes a today tab next to the page it came from — the page

@@ -73,14 +73,14 @@ lb/browser/ui/
   tabs/pinned_tab_sleep.*           closing a pinned tab puts it to sleep instead
   tabs/pinned_group_tracker.*       a window's pinned groups: members, commands, session data
   views/sidebar/sidebar_controller.*   spaces (Local State), space switching, saved tabs
-  views/sidebar/sidebar_header_view.*  address pill, space name
+  views/sidebar/sidebar_header_view.*  the space name; --lb-sidebar-demo=sidebar-header (below)
   views/sidebar/sidebar_footer_view.*  space switcher (switch; right-click rename/icon/colour/delete) and the "+" menu
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
   views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
   views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
-  views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
+  views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog, also opened by itself on first run
   views/peek/peek.*                    Peek: the card over the dimmed window, its page, the buttons beside it
   views/little_window/little_window.*  the little window: opening one, its toolbar buttons, moving
@@ -148,6 +148,8 @@ audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `=tab-search` saves Tab Search as unpinned, opens a second window (it must clear that and show the
 button), runs the pin toggle (it must stay pinned), checks the window menu has no toggle and
 right-clicks the button (no menu may open);
+`=sidebar-header` checks the sidebar header holds the space name alone (no address field) and that
+⌘L opens the command bar with the page's full address;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and
 out of a tab group, as single jumps and with Esc, logging the tabs after each drag;
 `=web-store` opens an extension's Chrome Web Store page, presses "Add to …" and accepts the
