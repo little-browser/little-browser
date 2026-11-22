@@ -349,6 +349,7 @@ section.alt { background: var(--bg-alt); }
 /* ---------------------------------------------------------------- features */
 
 .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card.wide { grid-column: 1 / -1; }
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
