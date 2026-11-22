@@ -1,0 +1,51 @@
+# Little Browser: the File menu has "New little window" (Cmd+Option+N) after "New Incognito
+# window" (docs/ux.md section 8). The item comes from lb::AddLittleWindowMenuItem; the window
+# enables it although Chromium's command table doesn't list IDC_NEW_LITTLE_WINDOW, and running it
+# goes through lb::HandleCommandFirst (command-hooks.patch), as the shortcut does.
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -29,6 +29,8 @@
+ #import "ui/base/l10n/l10n_util_mac.h"
+ #include "ui/strings/grit/ui_strings.h"
+ 
++#include "lb/browser/ui/views/little_window/little_window_menu.h"
++
+ namespace chrome {
+ namespace {
+ 
+@@ -166,6 +168,11 @@
+           .Build();
+   // clang-format on
+ 
++  // Little Browser: "New little window" (lb/browser/ui/views/little_window/little_window_menu.h).
++  if (!is_pwa) {
++    lb::AddLittleWindowMenuItem(item.submenu);
++  }
++
+   return item;
+ }
+ 
+--- a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+@@ -77,6 +77,8 @@
+ #include "ui/native_theme/native_theme.h"
+ #import "ui/views/cocoa/native_widget_mac_ns_window_host.h"
+ #include "ui/views/interaction/element_tracker_views.h"
++
++#include "lb/browser/ui/lb_command_ids.h"
+ 
+ namespace {
+ 
+@@ -412,6 +414,12 @@
+     remote_cocoa::mojom::ValidateUserInterfaceItemResult* result) {
+   BrowserWindowInterface* const browser =
+       browser_view_ ? browser_view_->browser() : nullptr;
++  // Little Browser: the File menu's "New little window", which Chromium's
++  // command table doesn't list; every window handles it (lb::HandleCommandFirst).
++  if (browser && tag == IDC_NEW_LITTLE_WINDOW) {
++    result->enable = true;
++    return;
++  }
+   if (!browser || !chrome::SupportsCommand(browser, tag)) {
+     result->enable = false;
+     return;

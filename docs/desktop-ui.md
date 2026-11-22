@@ -461,7 +461,10 @@ an id of ours (`lb/browser/ui/lb_command_ids.h`) that Chromium's command table d
 `lb::HandleCommandFirst` handles it before that table: it opens the command bar in its
 little-window mode, which lists only pages to open (`OffersResult`), in a new little window.
 `patches/lb/little-window-shortcut.patch` maps the key, taking it from "New Split Tab", which has it
-in Chromium on macOS. `patches/lb/little-window-link-menu.patch` adds "Open Link in Little Window"
+in Chromium on macOS. `patches/lb/little-window-menu.patch` adds the File menu's "New little
+window" (`little_window_menu.mm`, right after "New Incognito window", with ⌥⌘N) and has every
+browser window enable it, since the window's menu check asks Chromium's command table, which
+doesn't list our id. `patches/lb/little-window-link-menu.patch` adds "Open Link in Little Window"
 to a link's menu; it opens with the page's referrer and initiator, as "Open Link in New Window"
 does.
 

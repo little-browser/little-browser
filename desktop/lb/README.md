@@ -85,6 +85,8 @@ lb/browser/ui/
   views/peek/peek.*                    Peek: the card over the dimmed window, its page, the buttons beside it
   views/little_window/little_window.*  the little window: opening one, its toolbar buttons, moving
                                        its page into a tab
+  views/little_window/little_window_menu.*  the File menu's New little window;
+                                       --lb-sidebar-demo=little-window-menu (below)
   lb_command_ids.h                     our command ids (Cmd+Option+N, the link menu's little window)
   views/search/search_choice_dialog.*  first-run search engine choice
   views/password/password_manager_choice_dialog.*  first-run password manager choice
@@ -98,8 +100,8 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `tab-metrics-detached-guard.patch`, `contents-card.patch`, `ad-blocking.patch`,
 `ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker),
 `pinned-groups.patch` (pinned groups), `peek-hooks.patch`
-(Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch` and
-`little-window-link-menu.patch` (the little window);
+(Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch`,
+`little-window-link-menu.patch` and `little-window-menu.patch` (the little window);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
 Not built yet: element hiding, tracking-parameter stripping, the
@@ -150,6 +152,9 @@ button), runs the pin toggle (it must stay pinned), checks the window menu has n
 right-clicks the button (no menu may open);
 `=sidebar-header` checks the sidebar header holds the space name alone (no address field) and that
 ⌘L opens the command bar with the page's full address;
+`=little-window-menu` checks the File menu has "New little window" after "New Incognito window"
+with ⌥⌘N, that the window enables it, and that choosing it opens the command bar for a little
+window, where an address opens one;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and
 out of a tab group, as single jumps and with Esc, logging the tabs after each drag;
 `=web-store` opens an extension's Chrome Web Store page, presses "Add to …" and accepts the

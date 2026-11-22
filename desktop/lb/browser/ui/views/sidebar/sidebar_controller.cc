@@ -90,6 +90,7 @@
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/views/importer/import_dialog.h"
 #include "lb/browser/ui/views/little_window/little_window.h"
+#include "lb/browser/ui/views/little_window/little_window_menu.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/peek/peek.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
@@ -1837,6 +1838,10 @@ void SidebarController::SeedDemoData() {
             }
             if (demo == "sidebar-header") {
               RunSidebarHeaderDemo(self->browser());
+              return;
+            }
+            if (demo == "little-window-menu") {
+              RunLittleWindowMenuDemo(self->browser());
               return;
             }
             self->SwitchTo(1);

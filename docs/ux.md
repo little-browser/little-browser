@@ -298,9 +298,10 @@ blue groups, Teal makes cyan); the group menu changes it.
 
 ## 8. Little window
 
-- ⌥⌘N opens the command bar (“Search or enter an address for a little window”); what you pick opens
-  in a new little window. Also: a link's context menu **“Open Link in Little Window”**. A page's own
-  popups (`window.open` with a size) are little windows too.
+- ⌥⌘N, or the File menu's **“New little window”** (right after “New Incognito window”), opens the
+  command bar (“Search or enter an address for a little window”); what you pick opens in a new
+  little window. Also: a link's context menu **“Open Link in Little Window”**. A page's own popups
+  (`window.open` with a size) are little windows too.
   (Later: links from other apps.)
 - The command bar for a little window lists addresses, searches and history, not open tabs or
   commands: everything chosen there opens a page.
