@@ -46,8 +46,9 @@
 |---|---|---|---|---|
 | macOS | Chromium (Blink/V8) | Chromium Views (C++) | Chrome Web Store, MV3 | Sign + notarize; Sparkle-style updates |
 | Windows | Chromium | Chromium Views | Chrome Web Store, MV3 | Code signing; own updater |
-| Linux | Chromium | Chromium Views | Chrome Web Store, MV3 | Flatpak + .deb/.rpm repos |
+| Linux | Chromium | Chromium Views | Chrome Web Store, MV3 | x64 and arm64; Flatpak + .deb/.rpm repos |
 | Android | Chromium fork | Java/Kotlin | None | Play Store + F-Droid/APK |
+| ChromeOS | The Android build | The Android build's | None | The Android app from Google Play, in a window, with the sidebar layout when wide; Play serves its arm64 and x86-64 builds, for both kinds of Chromebook. The Linux build, with extensions, also runs in ChromeOS's Linux environment (Crostini) where the user turns it on |
 | iOS / iPadOS | **WebKit (WKWebView)** — required | Swift (UIKit/SwiftUI) | None (third-party browsers can't load Safari extensions) | App Store |
 
 **iOS detail.** Since iOS 17.4 Apple allows other engines (via BrowserEngineKit and a special
@@ -516,7 +517,7 @@ carrier networks.
 | Area | State |
 |---|---|
 | macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers |
-| Windows, Linux desktop | Not built: the platform recipes aren't wired up |
+| Windows, Linux (x64, arm64) desktop | Not built: the platform recipes aren't wired up; the Linux build hosts for both architectures exist |
 | Element hiding, tracking-parameter stripping, auto-PiP, on-demand Widevine | Specified, not built |
 | `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, and the import readers; linked into the desktop build through a `cxx` bridge |
 | Sync, iOS, Android | Not started |
@@ -563,7 +564,7 @@ Little Browser is open source. What that means in practice:
 |---|---|---|
 | Fast checks: Rust core, script lint, `patch-check`, release bot | `lb-linux`: small AWS Linux spot | Every push and merge request |
 | Chromium build, macOS arm64 (x64 later) | `lb-macos`: EC2 Mac host (mac2-m2pro) allocated per release by the `macos-arm64-host` job; a cold build on the instance's own disk (a persistent data volume is optional) | **Release tags only**: hours per version bump |
-| Chromium build, Linux / Windows | 64 vCPU AWS **spot** instances (300–400 GB disk), one job per host: `lb-linux-build` / `lb-windows-build` for merge requests, `lb-linux-release` / `lb-windows-release` for protected refs | **Every merge request** and release tags, once those platform recipes exist |
+| Chromium build, Linux x64 and arm64 / Windows | 64 vCPU AWS **spot** instances (300–400 GB disk), one job per host, each architecture built natively (arm64 on Graviton, so its unit tests run on the build host): `lb-linux-build` / `lb-linux-arm64-build` / `lb-windows-build` for merge requests, `lb-linux-release` / `lb-linux-arm64-release` / `lb-windows-release` for protected refs | **Every merge request** and release tags, once those platform recipes exist |
 | Compiler cache | **sccache** via GN `cc_wrapper`, keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles, and on the Mac only when it keeps a persistent data volume. Same checkout path on every runner so keys match | Always |
 
 **What a build costs.** A change to our own code on the same Chromium version mostly hits the

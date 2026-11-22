@@ -4,13 +4,15 @@
 #
 # Runners: this project's own, in the Little Browser AWS account, managed by the
 # infrastructure repository. Shared and group runners are disabled for this project.
-#   lb-linux            small Linux Spot: quick checks, patch-check, release bot
-#   lb-linux-protected  small Linux Spot, protected refs only; its role controls the Mac host
-#   lb-linux-build      64 vCPU Linux Spot, 300 GB: Chromium builds for merge requests    (later)
-#   lb-linux-release    same, protected refs only: release builds, signing secrets         (later)
-#   lb-windows-build    64 vCPU Windows Spot (instance executor): merge-request builds    (later)
-#   lb-windows-release  same, protected refs only                                          (later)
-#   lb-macos            EC2 Mac host allocated per release (macos-arm64-host job), protected refs
+#   lb-linux                small Linux Spot: quick checks, patch-check, release bot
+#   lb-linux-protected      small Linux Spot, protected refs only; its role controls the Mac host
+#   lb-linux-build          64 vCPU x86_64 Linux Spot, 300 GB: Chromium builds for merge requests (later)
+#   lb-linux-release        same, protected refs only: release builds, signing secrets            (later)
+#   lb-linux-arm64-build    64 vCPU Graviton Linux Spot, 300 GB: arm64 builds for merge requests  (later)
+#   lb-linux-arm64-release  same, protected refs only                                             (later)
+#   lb-windows-build        64 vCPU Windows Spot (instance executor): merge-request builds        (later)
+#   lb-windows-release      same, protected refs only                                             (later)
+#   lb-macos                EC2 Mac host allocated per release (macos-arm64-host job), protected refs
 # CI/CD variables LB_SCCACHE_BUCKET, LB_AWS_REGION and LB_MACOS_* come from the infrastructure repository too.
 #
 # Compiler cache: sccache via GN cc_wrapper, keyed by file content. S3 bucket shared by the
@@ -182,8 +184,8 @@ macos-arm64:
     - desktop/scripts/build.sh arm64
     - (cd desktop/build/src && ninja -C out/Default lb_unittests lb_core_unittests && out/Default/lb_unittests && out/Default/lb_core_unittests)
 
-# macos-x64, linux-x64, windows-x64: added when their platform recipes are wired up (desktop/README.md).
-# linux-x64 and windows-x64 also get a merge_request_event rule.
+# macos-x64, linux-x64, linux-arm64, windows-x64: added when their platform recipes are wired up
+# (desktop/README.md). linux-x64, linux-arm64 and windows-x64 also get a merge_request_event rule.
 
 # ------------------------------------------------------------------ package, sign, publish
 # A tag builds and signs; the signed files are the internal test build (pipeline artifacts).
