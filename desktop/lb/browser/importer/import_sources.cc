@@ -29,8 +29,6 @@ namespace lb {
 
 namespace {
 
-constexpr char kHomeSwitch[] = "lb-import-home";
-
 // The bundle id of the Mac's default browser (the app that opens https links), or empty.
 std::string DefaultBrowserBundleId() {
   base::apple::ScopedCFTypeRef<CFURLRef> url(
@@ -219,8 +217,8 @@ ImportSource::~ImportSource() = default;
 
 base::FilePath ImportSupportFolder() {
   const base::CommandLine& cl = *base::CommandLine::ForCurrentProcess();
-  if (cl.HasSwitch(kHomeSwitch)) {
-    return cl.GetSwitchValuePath(kHomeSwitch);
+  if (cl.HasSwitch(kImportHomeSwitch)) {
+    return cl.GetSwitchValuePath(kImportHomeSwitch);
   }
   return base::GetHomeDir().AppendASCII("Library").AppendASCII("Application Support");
 }
@@ -231,7 +229,7 @@ void FindImportSources(base::OnceCallback<void(std::vector<ImportSource>)> done)
       base::BindOnce(&FindOurSources, ImportSupportFolder()),
       base::BindOnce(
           [](base::OnceCallback<void(std::vector<ImportSource>)> done, Found found) {
-            if (base::CommandLine::ForCurrentProcess()->HasSwitch(kHomeSwitch)) {
+            if (base::CommandLine::ForCurrentProcess()->HasSwitch(kImportHomeSwitch)) {
               // A demo's made-up folder: Firefox and Safari would be the user's own.
               std::move(done).Run(std::move(found.sources));
               return;

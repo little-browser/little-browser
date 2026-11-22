@@ -11,6 +11,10 @@
 #include <string_view>
 #include <vector>
 
+namespace base {
+class CommandLine;
+}  // namespace base
+
 namespace lb {
 
 // The import dialog's rules (docs/ux.md §13), unit tested in import_choices_unittest.cc.
@@ -98,6 +102,15 @@ std::string ProfileProblem(std::string_view problem,
 // The line under "Stay signed in (cookies)": what macOS will ask.
 std::u16string CookiesKeychainNote(std::u16string_view keychain_service);
 
+// --lb-import-home=<folder>: a demo's made-up Application Support folder, read in place of the
+// user's.
+inline constexpr char kImportHomeSwitch[] = "lb-import-home";
+
+// Whether the other browser's "Safe Storage" password comes from a made-up keychain: only for a
+// demo's made-up folder, whose cookies were encrypted with it. --use-mock-keychain alone, as
+// desktop/scripts/run.sh passes, is about Little Browser's own keychain item; the user's browsers
+// are still read with their real keys, and macOS asks first.
+bool ReadsMadeUpImportKeychain(const base::CommandLine& command_line);
 
 // What an import added.
 struct ImportCounts {

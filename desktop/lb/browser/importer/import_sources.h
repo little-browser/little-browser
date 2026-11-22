@@ -60,7 +60,7 @@ struct ImportSource {
 void FindImportSources(base::OnceCallback<void(std::vector<ImportSource>)> done);
 
 // The Application Support folder sources are read from; a demo can point it elsewhere with
-// --lb-import-home=<folder>.
+// --lb-import-home=<folder> (kImportHomeSwitch).
 base::FilePath ImportSupportFolder();
 
 }  // namespace lb

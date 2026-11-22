@@ -202,7 +202,8 @@ sets the wait before any capture, 4 by default). Add `--use-mock-keychain` to an
 manual launch, or macOS asks for keychain access after every rebuild (`run.sh` does this).
 
 Import (a fresh `--user-data-dir`, `--use-mock-keychain`, and
-`--lb-import-home=desktop/lb/test/data/import/home`, a made-up Application Support):
+`--lb-import-home=desktop/lb/test/data/import/home`, a made-up Application Support, whose cookies
+are read with a made-up keychain's password; without that flag the real keychain is asked):
 `--lb-sidebar-demo=import-fixture` imports its Chrome profile and checks bookmarks, history, the
 search shortcut, the address, open tabs (pinned, grouped), the cookie and the offered extension,
 then that a second import adds nothing; `import-arc` checks Arc's spaces, tabs, profiles and

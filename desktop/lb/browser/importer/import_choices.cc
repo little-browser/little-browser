@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/command_line.h"
 #include "base/i18n/number_formatting.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
@@ -177,6 +178,10 @@ std::string ProfileProblem(std::string_view problem,
 std::u16string CookiesKeychainNote(std::u16string_view keychain_service) {
   return u"macOS will ask to let Little Browser use “" + std::u16string(keychain_service) +
          u"” from your keychain.";
+}
+
+bool ReadsMadeUpImportKeychain(const base::CommandLine& command_line) {
+  return command_line.HasSwitch(kImportHomeSwitch);
 }
 
 std::u16string ImportSummary(const ImportCounts& c) {

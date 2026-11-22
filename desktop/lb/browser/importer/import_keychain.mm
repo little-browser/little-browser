@@ -7,18 +7,18 @@
 
 #include "base/command_line.h"
 #include "base/no_destructor.h"
-#include "components/os_crypt/common/os_crypt_switches.h"
 #include "crypto/apple/fake_keychain_v2.h"
 #include "crypto/apple/keychain_v2.h"
 #include "lb/browser/importer/chromium_import.h"
+#include "lb/browser/importer/import_choices.h"
 
 namespace lb {
 
 namespace {
 
-// The user's keychain, or under --use-mock-keychain a fake one for this run.
+// The user's keychain, or for a demo's made-up folder a fake one for this run.
 crypto::apple::KeychainV2& Keychain() {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(os_crypt::switches::kUseMockKeychain)) {
+  if (ReadsMadeUpImportKeychain(*base::CommandLine::ForCurrentProcess())) {
     static base::NoDestructor<crypto::apple::FakeKeychainV2> fake("lb-import");
     return *fake;
   }

@@ -105,8 +105,9 @@ void AddHistoryPages(Profile* profile,
 size_t MergeIntoBookmarks(Profile* profile, const rust::Vec<core::FlatBookmark>& bookmarks);
 
 // The password of a keychain item, such as "Chrome Safe Storage" (macOS asks the user first),
-// or null when there is none or the user declines. Under --use-mock-keychain it reads Chromium's
-// fake keychain instead, which gives every item the same password. Blocking.
+// or null when there is none or the user declines. For a demo's made-up folder
+// (ReadsMadeUpImportKeychain) it reads a fake keychain instead, which gives every item the same
+// password. Blocking.
 std::optional<std::string> ReadImportKeychainPassword(const std::string& service,
                                                       const std::string& account);
 

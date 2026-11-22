@@ -93,7 +93,6 @@ namespace lb {
 namespace {
 
 constexpr char kSourceSwitch[] = "lb-import-source";
-constexpr char kHomeSwitch[] = "lb-import-home";  // import_sources.cc reads it
 constexpr char kFixtureMode[] = "import-fixture";
 constexpr char kArcMode[] = "import-arc";
 constexpr char kArcUnreadableMode[] = "import-arc-unreadable";
@@ -183,7 +182,8 @@ void WriteSession(const base::FilePath& profile) {
 }
 
 // A Cookies file like Chrome's (version 24) with one live cookie, encrypted with the password
-// the mock keychain gives every item.
+// the made-up keychain gives every item (ReadsMadeUpImportKeychain: the demos run with
+// --lb-import-home).
 bool WriteCookies(const base::FilePath& profile) {
   std::optional<std::string> password = ReadImportKeychainPassword("Chrome Safe Storage", "Chrome");
   if (!password) {
@@ -527,7 +527,7 @@ void RunArcUnreadable(std::unique_ptr<Run> run, const base::FilePath& home) {
     return;
   }
   // Where FindImportSources looks (ImportSupportFolder); the switch's new value replaces the old.
-  base::CommandLine::ForCurrentProcess()->AppendSwitchPath(kHomeSwitch, copy);
+  base::CommandLine::ForCurrentProcess()->AppendSwitchPath(kImportHomeSwitch, copy);
   FindImportSources(base::BindOnce(
       [](std::unique_ptr<Run> run, std::vector<ImportSource> sources) {
         const auto arc = std::ranges::find(sources, u"Arc", &ImportSource::browser);
@@ -888,7 +888,7 @@ void RunProgress(std::unique_ptr<Run> run, const base::FilePath& home) {
               return;
             }
             // Where FindImportSources looks; the switch's new value replaces the old.
-            base::CommandLine::ForCurrentProcess()->AppendSwitchPath(kHomeSwitch, copy);
+            base::CommandLine::ForCurrentProcess()->AppendSwitchPath(kImportHomeSwitch, copy);
             StartProgress(std::move(run));
           },
           std::move(run), copy));

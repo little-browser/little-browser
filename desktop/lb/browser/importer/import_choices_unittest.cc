@@ -9,6 +9,8 @@
 #include <utility>
 #include <vector>
 
+#include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/test/icu_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -161,6 +163,16 @@ TEST(ImportChoicesTest, ExtensionsAreGroupedByProfile) {
   EXPECT_EQ(GroupExtensionsByProfile({u"Default", u"Default", u"Work", u"Default", u"Home"}),
             std::vector<ExtensionGroup>(
                 {Group(u"Default", {0, 1, 3}), Group(u"Work", {2}), Group(u"Home", {4})}));
+}
+
+TEST(ImportChoicesTest, OnlyAMadeUpFolderIsReadWithAMadeUpKeychain) {
+  base::CommandLine dev(base::CommandLine::NO_PROGRAM);
+  dev.AppendSwitch("use-mock-keychain");  // desktop/scripts/run.sh
+  EXPECT_FALSE(ReadsMadeUpImportKeychain(dev));
+  base::CommandLine demo = dev;
+  demo.AppendSwitchPath(kImportHomeSwitch, base::FilePath("home"));
+  EXPECT_TRUE(ReadsMadeUpImportKeychain(demo));
+  EXPECT_FALSE(ReadsMadeUpImportKeychain(base::CommandLine(base::CommandLine::NO_PROGRAM)));
 }
 
 }  // namespace

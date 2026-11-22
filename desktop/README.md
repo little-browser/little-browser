@@ -80,7 +80,8 @@ signature carries no signing options: the hardened runtime's library validation 
 Local builds are ad-hoc signed and the signature changes with every rebuild, so macOS asks for
 the "Chromium Safe Storage" keychain item each time ("Always Allow" is tied to the signature).
 `run.sh` passes `--use-mock-keychain`; releases need Developer ID signing, and the keychain item
-is still named "Chromium Safe Storage" (not renamed yet).
+is still named "Chromium Safe Storage" (not renamed yet). The flag covers only that item: importing
+cookies still reads the other browser's real "‹browser› Safe Storage" key, and macOS asks.
 
 | Build | Folder | Use for |
 |---|---|---|
