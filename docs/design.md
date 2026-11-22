@@ -85,9 +85,8 @@ same UI concepts, the same Rust core and the same sync.
 │                     │  WKContentRuleList     │                        │
 │                     │  (iOS content          │                        │
 │                     │  blocker)              │                        │
-│                     │ importers (bookmarks   │                        │
-│                     │  HTML, Firefox, Safari,│                        │
-│                     │  Chrome profiles)      │                        │
+│                     │ importers (Chrome-     │                        │
+│                     │  family profiles, Arc) │                        │
 │                     └────────────────────────┘                        │
 └───────────────────────────────────────────────────────────────────────┘
 ```
@@ -144,6 +143,15 @@ stripping and cosmetic tweaks, `isInspectable` for Safari Web Inspector.
   content-blocker JSON. Brave's **adblock-rust** (MPL-2.0) is the candidate for element hiding,
   which Chromium's filter doesn't do.
 - Storage: SQLite per profile.
+- **In the desktop build** the core is compiled by Chromium's own Rust toolchain as a GN
+  `rust_static_library` (`fetch.sh` links `src/lb_core` to `core/lb-core`, as it links `src/lb`).
+  The C++ binding is a separate small crate in `desktop/lb` with a `cxx` bridge of plain structs,
+  so the core itself stays plain Rust and its cargo builds need no C++ compiler. The core's
+  dependencies are limited to crates Chromium already vendors, at Chromium's versions and
+  features, so no new third-party code enters the browser: `serde_json` reads other browsers'
+  JSON files for import. Cargo builds use the crates.io release of the same version.
+- The importers do no file or SQLite access themselves: the shell passes in file contents and the
+  rows of its queries, so they need no SQLite binding and are tested with plain strings.
 - On desktop the core is not the source of truth for Chromium's own models (bookmarks, prefs). We
   bridge: Chromium `BookmarkModel` / prefs ⇄ core via observers, and the core does sync.
 
@@ -203,8 +211,8 @@ Legend: ✅ planned for the platform · 🟡 adapted · ⏳ later · ❌ not on 
 Built so far, on macOS desktop: spaces and profiles, the command bar, the first-run search-engine
 and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering),
 Peek, the little window, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
-the quit warning, the updater, and everything Chromium already provides (incognito, DevTools, PiP,
-import). The rest of the table is specified but not built.
+the quit warning, the updater, import from other browsers (§7.6), and everything Chromium already
+provides (incognito, DevTools, PiP). The rest of the table is specified but not built.
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -279,19 +287,39 @@ import). The rest of the table is specified but not built.
 - Pinned tabs and groups are saved with the space (Local State, section 8 for sync).
 
 ### 7.6 Import
-- Desktop: bookmarks, history, search engines, open tabs where possible, autofill addresses from
-  Chrome, Edge, Brave, Arc, Firefox, Safari, and bookmarks HTML. Chromium already includes Firefox and
-  Safari importers; Chrome-family profiles (same on-disk format) need our own importer.
-- **No password import** — we point users to their password manager's own import.
-- Safari on macOS needs Full Disk Access for some files; fall back to Safari's own HTML export.
-- Mobile: import a bookmarks HTML file, or (simplest) sync from a desktop.
+- What the user sees, and what comes from which browser: [ux.md](ux.md) §13. Desktop imports from
+  Chrome-family browsers (Brave, Chrome, Chromium, Dia, Edge, Opera, Vivaldi), Arc (its spaces,
+  profiles and tabs too), Firefox, Safari, Safari's export file and bookmarks HTML. Mobile imports
+  a bookmarks HTML file, or (simplest) syncs from a desktop.
+- **No passwords or payment cards**: users move passwords with their password manager's own
+  import. **Cookies only when asked** (unticked by default): reading them means decrypting another
+  browser's data with its key from the macOS keychain, and macOS asks first.
+- **lb-core reads and decides.** Its `import` module parses Chrome-family `Local State`
+  (profiles), `Bookmarks` and `Preferences` (extensions), and Arc's `StorableSidebar.json` (spaces,
+  pinned and unpinned tabs, Favourites); it takes the rows of `History`, `Web Data` (search
+  shortcuts, addresses) and `Cookies` as plain structs. Out comes an import plan in our own terms:
+  spaces and profiles, tabs, a bookmark merge against the existing tree, history pages, search
+  shortcuts, addresses, extension ids, cookies. The table of browsers and where each keeps its data
+  is in lb-core too.
+- **The shell reads files and writes the plan.** It copies a profile's files to a temporary folder
+  (so the other browser can stay open), runs the SQL queries on the copies, reads the keychain and
+  decrypts cookies, and writes the plan through its engine's own services. Desktop details:
+  [desktop-ui.md](desktop-ui.md) "Import".
+- **Chromium's importers stay** for Firefox, Safari's bookmarks and bookmarks HTML (they run in a
+  utility process); Safari's export file is unzipped, its bookmarks file goes to Chromium's
+  bookmarks-file importer and lb-core reads its `History*.json` files (one per Safari profile). Their bookmarks go through the
+  same merge as ours. Chrome-family open tabs come from the browser's session files,
+  read with Chromium's session code because the format is Chromium's own; lb-core decides where
+  the tabs go.
+- Safari's bookmarks need Full Disk Access; without it, the dialog points to Safari's export.
 
 ### 7.7 Incognito
 - Desktop/Android: Chromium off-the-record profile + the stricter defaults in section 5.
 - iOS: `WKWebsiteDataStore.nonPersistent()`; app switcher snapshot blurred; optional Face ID lock.
 
 ### 7.8 Form autofill
-- Desktop: Chromium address autofill, **payment cards disabled**, **password manager disabled and
+- Desktop: Chromium address autofill, on by default (ungoogled-chromium turns it off; we turn it
+  back on, `desktop/lb/browser/prefs/pref_defaults.*`), **payment cards disabled**, **password manager disabled and
   hidden** (pref off + UI removed, rather than deleting code — far cheaper to maintain). Passwords
   are an extension's job: on first run the user can pick 1Password, Bitwarden or Proton Pass, which
   installs from the Chrome Web Store after Chromium's install prompt ([ux.md](ux.md) §12).
@@ -465,7 +493,7 @@ carrier networks.
 | Filter-list updates | Every 4 days, straight from the lists' maintainers: `easylist.to`, `ublockorigin.github.io`, `pgl.yoyo.org`; an hour later after a failed download | IP, version (the user agent); no cookies |
 | Widevine DRM component | Downloaded from Google, only after the user agrees on first use | IP, version |
 | Safe Browsing | Google's update API (hash prefixes only) | Hash prefixes, IP |
-| Extensions (desktop) | The Chrome Web Store: its pages, the extension download, update checks to `update.googleapis.com` every few hours while extensions are installed, and `chromewebstore.googleapis.com` for the details of an extension being installed from the first-run password manager choice, one another program installed, or one being repaired | IP, the update check's contents (§5): installed extensions' ids, versions, state and install dates, browser version, OS, language; the store page also sees which extensions are installed |
+| Extensions (desktop) | The Chrome Web Store: its pages, the extension download, update checks to `update.googleapis.com` every few hours while extensions are installed, and `chromewebstore.googleapis.com` for the details of an extension being installed from the first-run password manager choice or an import, one another program installed, or one being repaired | IP, the update check's contents (§5): installed extensions' ids, versions, state and install dates, browser version, OS, language; the store page also sees which extensions are installed |
 | Crash reports | **Opt-in** only, self-hosted | Crash dump |
 | P2P relay for device-to-device sync — **ours by default** (2–3 regions), public/user relays as fallback | Forwards encrypted bytes, stores nothing, no request logs | IP, timing/size of encrypted traffic |
 
@@ -487,10 +515,10 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key) |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers |
 | Windows, Linux desktop | Not built: the platform recipes aren't wired up |
-| Element hiding, tracking-parameter stripping, import, auto-PiP, on-demand Widevine | Specified, not built |
-| `lb-core` | Data model and the sync `Transport` trait with an in-memory transport; no dependencies yet |
+| Element hiding, tracking-parameter stripping, auto-PiP, on-demand Widevine | Specified, not built |
+| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, and the import readers; linked into the desktop build through a `cxx` bridge |
 | Sync, iOS, Android | Not started |
 
 The order of work is desktop, then iOS and sync, then Android. iOS comes before Android because a

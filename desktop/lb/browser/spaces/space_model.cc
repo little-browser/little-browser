@@ -128,6 +128,10 @@ bool IsBlankTabUrl(const GURL& url) {
          spec.starts_with("chrome://newtab") || spec.starts_with("chrome://new-tab-page");
 }
 
+bool IsUntouchedTabUrl(const GURL& url) {
+  return IsBlankTabUrl(url) || url.possibly_invalid_spec().starts_with("chrome://welcome");
+}
+
 base::DictValue SavedTabToDict(const SavedTab& tab) {
   base::DictValue dict;
   dict.Set("url", tab.url.spec());
@@ -224,6 +228,24 @@ std::vector<std::vector<size_t>> SavedTabSplits(const std::vector<SavedTab>& tab
   std::vector<std::vector<size_t>> splits = Runs(tabs, &SavedTab::split_id);
   std::erase_if(splits, [](const std::vector<size_t>& run) { return run.size() != 2; });
   return splits;
+}
+
+std::vector<SavedTab> MergeSavedTabs(std::vector<SavedTab> existing, std::vector<SavedTab> added) {
+  std::vector<SavedTab> merged;
+  merged.reserve(existing.size() + added.size());
+  for (bool pinned : {true, false}) {
+    for (std::vector<SavedTab>* list : {&existing, &added}) {
+      for (SavedTab& tab : *list) {
+        if (tab.pinned == pinned) {
+          if (list == &added) {
+            tab.active = false;
+          }
+          merged.push_back(std::move(tab));
+        }
+      }
+    }
+  }
+  return merged;
 }
 
 size_t ActiveSavedTab(const std::vector<SavedTab>& tabs) {

@@ -1,0 +1,50 @@
+{
+  "sidebar": {
+    "containers": [
+      {"global": {}},
+      {
+        "spaces": [
+          "space-personal",
+          {"id": "space-personal", "title": "Personal",
+           "containerIDs": ["pinned", "personal-pinned", "unpinned", "personal-unpinned"],
+           "profile": {"default": true},
+           "customInfo": {"iconType": {"emoji_v2": "🏠"},
+             "windowTheme": {"primaryColorPalette": {"midTone":
+               {"red": 0.2, "green": 0.4, "blue": 0.9, "alpha": 1, "colorSpace": "extendedSRGB"}}}}},
+          "space-work",
+          {"id": "space-work", "title": "Work",
+           "containerIDs": ["pinned", "work-pinned", "unpinned", "work-unpinned"],
+           "profile": {"custom": {"_0": {"directoryBasename": "Profile 1", "machineID": "m"}}},
+           "customInfo": {"iconType": {"emoji_v2": "💼"}}}
+        ],
+        "items": [
+          "personal-pinned", {"id": "personal-pinned", "childrenIds": ["mail", "folder"],
+                              "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "space-personal"}}}}},
+          "mail", {"id": "mail", "parentID": "personal-pinned", "title": "Mail", "childrenIds": [],
+                   "data": {"tab": {"savedURL": "https://mail.example/", "savedTitle": "Inbox (3)"}}},
+          "folder", {"id": "folder", "parentID": "personal-pinned", "title": "Reading", "childrenIds": ["blog", "news"],
+                     "data": {"list": {}}},
+          "blog", {"id": "blog", "parentID": "folder", "title": null, "childrenIds": [],
+                   "data": {"tab": {"savedURL": "https://blog.example/", "savedTitle": "Blog"}}},
+          "news", {"id": "news", "parentID": "folder", "title": null, "childrenIds": [],
+                   "data": {"tab": {"savedURL": "https://news.example/", "savedTitle": "News"}}},
+          "personal-unpinned", {"id": "personal-unpinned", "childrenIds": ["recipe"],
+                                "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "space-personal"}}}}},
+          "recipe", {"id": "recipe", "parentID": "personal-unpinned", "title": null, "childrenIds": [],
+                     "data": {"tab": {"savedURL": "https://recipe.example/", "savedTitle": "Recipe"}}},
+          "work-pinned", {"id": "work-pinned", "childrenIds": ["ci"],
+                          "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "space-work"}}}}},
+          "ci", {"id": "ci", "parentID": "work-pinned", "title": null, "childrenIds": [],
+                 "data": {"tab": {"savedURL": "https://ci.client.example/", "savedTitle": "CI"}}},
+          "work-unpinned", {"id": "work-unpinned", "childrenIds": [],
+                            "data": {"itemContainer": {"containerType": {"spaceItems": {"_0": "space-work"}}}}},
+          "favourites", {"id": "favourites", "childrenIds": ["calendar"],
+                         "data": {"itemContainer": {"containerType": {"topApps": {"_0": {"default": true}}}}}},
+          "calendar", {"id": "calendar", "parentID": "favourites", "title": null, "childrenIds": [],
+                       "data": {"tab": {"savedURL": "https://calendar.example/", "savedTitle": "Calendar"}}}
+        ],
+        "topAppsContainerIDs": [{"default": true}, "favourites"]
+      }
+    ]
+  }
+}

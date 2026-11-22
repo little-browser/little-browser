@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "roots": {
+    "bookmark_bar": {"type": "folder", "name": "Bookmarks bar", "children": [
+      {"type": "url", "name": "Docs", "url": "https://docs.example/"},
+      {"type": "folder", "name": "Work", "children": [
+        {"type": "url", "name": "CI", "url": "https://ci.example/"},
+        {"type": "url", "name": "Tracker", "url": "https://tracker.example/"}
+      ]}
+    ]},
+    "other": {"type": "folder", "name": "Other bookmarks", "children": [
+      {"type": "url", "name": "Read later", "url": "https://later.example/"}
+    ]},
+    "synced": {"type": "folder", "name": "Mobile bookmarks", "children": []}
+  }
+}

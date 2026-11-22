@@ -7,8 +7,10 @@
     desktop/scripts/check_lb_tests.py
 
 Every .cc file in the //lb:model target (desktop/lb/BUILD.gn) needs a <name>_unittest.cc next to
-it, listed in lb_unittests, with at least one TEST. CI runs this on every push; it needs no
-Chromium tree. The tests themselves run with the Chromium build (desktop/lb/AGENTS.md).
+it, listed in lb_unittests, with at least one TEST. The lb_core target must list exactly the .rs
+files of core/lb-core/src, so the browser builds (and lb_core_unittests runs) all of lb-core. CI
+runs this on every push; it needs no Chromium tree. The tests themselves run with the Chromium
+build (desktop/lb/AGENTS.md).
 """
 
 import re
@@ -16,6 +18,9 @@ import sys
 from pathlib import Path
 
 LB = Path(__file__).resolve().parent.parent / "lb"
+CORE_SRC = Path(__file__).resolve().parent.parent.parent / "core" / "lb-core" / "src"
+# Where fetch.sh links core/lb-core in the Chromium tree.
+CORE_GN_PREFIX = "//lb_core/src/"
 
 
 def target_sources(build_gn: str, kind: str, name: str) -> list[str]:
@@ -26,6 +31,15 @@ def target_sources(build_gn: str, kind: str, name: str) -> list[str]:
     if not match:
         sys.exit(f"check_lb_tests: no {kind}(\"{name}\") with sources in {LB / 'BUILD.gn'}")
     return re.findall(r'"([^"]+)"', match.group(1))
+
+
+def core_source_problems(build_gn: str, core_src: Path) -> list[str]:
+    """How the lb_core target's sources differ from the .rs files in `core_src`."""
+    listed = set(target_sources(build_gn, "rust_static_library", "lb_core"))
+    on_disk = {CORE_GN_PREFIX + p.relative_to(core_src).as_posix() for p in core_src.rglob("*.rs")}
+    problems = [f"{s}: in core/lb-core but not in lb_core's sources" for s in sorted(on_disk - listed)]
+    problems += [f"{s}: in lb_core's sources but not in core/lb-core" for s in sorted(listed - on_disk)]
+    return problems
 
 
 def main() -> int:
@@ -44,11 +58,14 @@ def main() -> int:
     for test in sorted(tests):
         if not (LB / test).is_file():
             problems.append(f"{test}: listed in lb_unittests but missing")
+    core_problems = core_source_problems(build_gn, CORE_SRC)
+    problems += core_problems
     for problem in dict.fromkeys(problems):
         print(f"check_lb_tests: {problem}", file=sys.stderr)
     if problems:
         print(
-            "Each //lb:model source needs unit tests (desktop/lb/AGENTS.md, Tests).",
+            "Each //lb:model source needs unit tests (desktop/lb/AGENTS.md, Tests)"
+            + ("; lb_core lists lb-core's files (desktop/lb/BUILD.gn)." if core_problems else "."),
             file=sys.stderr,
         )
         return 1

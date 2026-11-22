@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,6 +28,7 @@
 #include "base/task/cancelable_task_tracker.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
@@ -37,6 +39,8 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/pref_names.h"
+#include "components/bookmarks/browser/bookmark_model.h"
+#include "components/bookmarks/browser/bookmark_node.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/keyed_service/core/service_access_type.h"
@@ -46,6 +50,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/models/tree_node_iterator.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/color/color_id.h"
@@ -373,6 +378,7 @@ class CommandBarView : public views::View, public views::TextfieldController {
         {u"New little window", u"Command", u"⌥⌘N", 0, exec(IDC_NEW_LITTLE_WINDOW)},
         {u"Copy URL", u"Command", u"⇧⌘C", 0, exec(IDC_COPY_URL)},
         {u"New incognito window", u"Command", u"⇧⌘N", 0, exec(IDC_NEW_INCOGNITO_WINDOW)},
+        {u"Import from another browser", u"Command", u"", 0, exec(IDC_IMPORT_SETTINGS)},
         {u"History", u"Command", u"⌘Y", 0, exec(IDC_SHOW_HISTORY)},
         {u"Downloads", u"Command", u"⌥⌘L", 0, exec(IDC_SHOW_DOWNLOADS)},
         {u"Settings", u"Command", u"⌘,", 0, exec(IDC_OPTIONS)},
@@ -439,17 +445,26 @@ class CommandBarView : public views::View, public views::TextfieldController {
     for (const TabEntry& tab : tabs ? controller_->GetAllTabs() : std::vector<TabEntry>()) {
       if (double s = MatchScore(query, tab.title + u" " + base::UTF8ToUTF16(tab.url.spec()));
           s > 0) {
-        items_.push_back(tab_item(tab, s + 0.3));
+        items_.push_back(tab_item(tab, s + ResultBoost(CommandBarResult::kOpenTab)));
       }
     }
     for (Item& command :
          OffersResult(mode_, CommandBarResult::kCommand) ? Commands() : std::vector<Item>()) {
       if (double s = MatchScore(query, command.title); s > 0) {
-        command.score = s + 0.2;
+        command.score = s + ResultBoost(CommandBarResult::kCommand);
         items_.push_back(std::move(command));
       }
     }
+    std::set<GURL> bookmarked;
+    if (OffersResult(mode_, CommandBarResult::kBookmark)) {
+      for (Item& bookmark : MatchingBookmarks(query, bookmarked)) {
+        items_.push_back(std::move(bookmark));
+      }
+    }
     for (const auto& [url, title] : history_) {
+      if (bookmarked.contains(url)) {
+        continue;  // Listed as a bookmark already.
+      }
       if (double s = MatchScore(query, title + u" " + base::UTF8ToUTF16(url.spec())); s > 0) {
         items_.push_back({title.empty() ? DisplayHost(url) : title,
                           u"History · " + DisplayHost(url), u"", s, Open(url)});
@@ -472,6 +487,41 @@ class CommandBarView : public views::View, public views::TextfieldController {
     }
     Render();
     QueryHistory(query);
+  }
+
+  // The bookmarks that best match `query` (PickBookmarkResults); adds the addresses of those
+  // listed, and only those, to `urls`.
+  std::vector<Item> MatchingBookmarks(const std::u16string& query, std::set<GURL>& urls) {
+    bookmarks::BookmarkModel* model =
+        BookmarkModelFactory::GetForBrowserContext(browser()->GetProfile());
+    if (!model || !model->loaded()) {
+      return {};
+    }
+    std::vector<const bookmarks::BookmarkNode*> matches;
+    std::vector<double> scores;
+    ui::TreeNodeIterator<const bookmarks::BookmarkNode> it(model->root_node());
+    while (it.has_next()) {
+      const bookmarks::BookmarkNode* node = it.Next();
+      if (!node->is_url()) {
+        continue;
+      }
+      if (double s =
+              MatchScore(query, node->GetTitle() + u" " + base::UTF8ToUTF16(node->url().spec()));
+          s > 0) {
+        matches.push_back(node);
+        scores.push_back(s);
+      }
+    }
+    std::vector<Item> listed;
+    for (size_t i : PickBookmarkResults(scores)) {
+      const bookmarks::BookmarkNode* node = matches[i];
+      const std::u16string& title = node->GetTitle();
+      listed.push_back({title.empty() ? DisplayHost(node->url()) : title,
+                        BookmarkSubtitle(node->parent()->GetTitle(), node->url()), u"",
+                        scores[i] + ResultBoost(CommandBarResult::kBookmark), Open(node->url())});
+      urls.insert(node->url());
+    }
+    return listed;
   }
 
   void QueryHistory(const std::u16string& query) {

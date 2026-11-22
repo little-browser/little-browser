@@ -1,0 +1,3 @@
+{"version": 1, "roots": {"bookmark_bar": {"type": "folder", "children": [
+  {"type": "url", "name": "Client wiki", "url": "https://wiki.client.example/"}]},
+  "other": {"type": "folder", "children": []}, "synced": {"type": "folder", "children": []}}}

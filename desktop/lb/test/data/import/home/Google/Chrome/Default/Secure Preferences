@@ -1,0 +1,5 @@
+{"extensions": {"settings": {
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {"location": 1, "creation_flags": 9,
+                                        "manifest": {"name": "Made-up Reader"}},
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb": {"location": 4, "manifest": {"name": "Unpacked tool"}}
+}}}

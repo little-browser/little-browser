@@ -180,7 +180,7 @@ macos-arm64:
     - rm -rf desktop/build/src   # fresh tree each release; download cache is kept
     - desktop/scripts/fetch.sh arm64
     - desktop/scripts/build.sh arm64
-    - (cd desktop/build/src && ninja -C out/Default lb_unittests && out/Default/lb_unittests)
+    - (cd desktop/build/src && ninja -C out/Default lb_unittests lb_core_unittests && out/Default/lb_unittests && out/Default/lb_core_unittests)
 
 # macos-x64, linux-x64, windows-x64: added when their platform recipes are wired up (desktop/README.md).
 # linux-x64 and windows-x64 also get a merge_request_event rule.

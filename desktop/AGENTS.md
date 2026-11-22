@@ -15,7 +15,7 @@ This file covers how to work in the fork.
    `patches/domsub-exclude.txt`;
 5. the macOS toolchains (LLVM, Rust, Node.js, Crubit);
 6. branding: `rebrand_strings.py` and `brand_assets.sh`;
-7. a symlink `src/lb` → `desktop/lb`.
+7. symlinks `src/lb` → `desktop/lb` and `src/lb_core` → `core/lb-core`.
 
 So **our patches apply before domain substitution**. A patch must be made against the text as it
 is before substitution, not against what you see in `build/src`.

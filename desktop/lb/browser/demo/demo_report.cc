@@ -13,8 +13,10 @@
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/prefs/pref_service.h"
+#include "lb/browser/ui/views/importer/import_dialog.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "ui/events/base_event_utils.h"
@@ -45,6 +47,7 @@ void PostDemoTask(base::OnceClosure task, base::TimeDelta delay) {
 }
 
 void SkipFirstRunQuestionsForDemo(Profile* profile) {
+  g_browser_process->local_state()->SetBoolean(kImportOfferedPref, true);
   profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
   profile->GetPrefs()->SetBoolean(kPasswordManagerChoiceShownPref, true);
 }

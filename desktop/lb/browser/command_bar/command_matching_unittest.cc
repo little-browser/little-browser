@@ -130,6 +130,7 @@ TEST(OffersResultTest, LittleWindowModeListsOnlyPagesToOpen) {
   // Everything chosen opens in a new little window: no tabs to switch to, no commands.
   EXPECT_FALSE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kOpenTab));
   EXPECT_FALSE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kCommand));
+  EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kBookmark));
   EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kHistory));
   EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kAddress));
   EXPECT_TRUE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kSearch));
@@ -139,11 +140,35 @@ TEST(OffersResultTest, OtherModesListEverything) {
   for (CommandBarMode mode :
        {CommandBarMode::kNewTab, CommandBarMode::kOpenHere, CommandBarMode::kEditAddress}) {
     for (CommandBarResult kind :
-         {CommandBarResult::kOpenTab, CommandBarResult::kCommand, CommandBarResult::kHistory,
-          CommandBarResult::kAddress, CommandBarResult::kSearch}) {
+         {CommandBarResult::kOpenTab, CommandBarResult::kCommand, CommandBarResult::kBookmark,
+          CommandBarResult::kHistory, CommandBarResult::kAddress, CommandBarResult::kSearch}) {
       EXPECT_TRUE(OffersResult(mode, kind));
     }
   }
+}
+
+TEST(ResultBoostTest, TabsThenCommandsThenBookmarksThenHistory) {
+  EXPECT_GT(ResultBoost(CommandBarResult::kOpenTab), ResultBoost(CommandBarResult::kCommand));
+  EXPECT_GT(ResultBoost(CommandBarResult::kCommand), ResultBoost(CommandBarResult::kBookmark));
+  EXPECT_GT(ResultBoost(CommandBarResult::kBookmark), ResultBoost(CommandBarResult::kHistory));
+  // A boost never lifts a gappy match over a substring one (substrings score above 2).
+  EXPECT_LT(ResultBoost(CommandBarResult::kOpenTab), 1);
+}
+
+TEST(BookmarkSubtitleTest, NamesTheFolderAndHost) {
+  EXPECT_EQ(BookmarkSubtitle(u"Work", GURL("https://www.ci.example/jobs")),
+            u"Bookmark · Work · ci.example");
+  EXPECT_EQ(BookmarkSubtitle(u"", GURL("https://docs.example/")), u"Bookmark · docs.example");
+}
+
+TEST(PickBookmarkResultsTest, BestFirstAtMostSix) {
+  EXPECT_EQ(PickBookmarkResults({}), std::vector<size_t>{});
+  EXPECT_EQ(PickBookmarkResults({1.0, 3.0, 2.0}), (std::vector<size_t>{1, 2, 0}));
+  // Equal scores keep their order.
+  EXPECT_EQ(PickBookmarkResults({2.0, 2.0, 2.0}), (std::vector<size_t>{0, 1, 2}));
+  // Eight matches: the six best are listed, the two weakest (indexes 0 and 7) are not.
+  EXPECT_EQ(PickBookmarkResults({0.1, 5, 4, 3, 2.5, 2, 1.5, 0.2}),
+            (std::vector<size_t>{1, 2, 3, 4, 5, 6}));
 }
 
 }  // namespace

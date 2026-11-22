@@ -24,6 +24,7 @@
 #include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
@@ -56,6 +57,7 @@
 #include "chrome/browser/ui/views/tabs/tab/tab_close_button.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/webui_url_constants.h"
+#include "components/policy/core/common/policy_pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -81,9 +83,12 @@
 #include "lb/browser/adblock/ad_blocker_demo.h"
 #include "lb/browser/demo/demo_report.h"
 #include "lb/browser/extensions/extensions_demo.h"
+#include "lb/browser/importer/import_demo.h"
 #include "lb/browser/peek/peek_demo.h"
+#include "lb/browser/prefs/pref_defaults.h"
 #include "lb/browser/ui/lb_command_ids.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
+#include "lb/browser/ui/views/importer/import_dialog.h"
 #include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/peek/peek.h"
@@ -447,7 +452,7 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
     SeedDemoData();
     const std::string mode =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
-    if (mode == "ad-blocker" || mode == "peek") {
+    if (mode == "ad-blocker" || mode == "peek" || mode.starts_with("import")) {
       SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
   }
@@ -470,15 +475,25 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
       base::BindOnce(
           [](base::WeakPtr<SidebarController> self) {
             if (self) {
-              // First-run questions, one after the other (docs/ux.md section 12).
-              MaybeShowSearchChoice(self->browser(),
-                                    base::BindOnce(
-                                        [](base::WeakPtr<BrowserWindowInterface> browser) {
-                                          if (browser) {
-                                            MaybeShowPasswordManagerChoice(browser.get());
-                                          }
-                                        },
-                                        self->browser()->GetWeakPtr()));
+              // First-run questions, one after the other (docs/ux.md section 12): the import
+              // offer, the search engine, the password manager.
+              MaybeShowImportOffer(self->browser(),
+                                   base::BindOnce(
+                                       [](base::WeakPtr<BrowserWindowInterface> browser) {
+                                         if (!browser) {
+                                           return;
+                                         }
+                                         MaybeShowSearchChoice(
+                                             browser.get(),
+                                             base::BindOnce(
+                                                 [](base::WeakPtr<BrowserWindowInterface> browser) {
+                                                   if (browser) {
+                                                     MaybeShowPasswordManagerChoice(browser.get());
+                                                   }
+                                                 },
+                                                 browser));
+                                       },
+                                       self->browser()->GetWeakPtr()));
             }
           },
           GetWeakPtr()),
@@ -953,8 +968,8 @@ std::string SidebarController::FreeEmptySpace() {
   return CreateEmptySpace();
 }
 
-std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(
-    const std::vector<SavedTab>& saved) {
+std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(const std::vector<SavedTab>& saved,
+                                                                 bool show_active) {
   TabStripModel* model = browser_->GetTabStripModel();
   // Each saved group gets a fresh id, as session restore does (crbug.com/40055647).
   std::vector<std::optional<tab_groups::TabGroupId>> group_of(saved.size());
@@ -1028,6 +1043,9 @@ std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(
                             : split_tabs::SplitTabLayout::kSideBySide;
     model->RestoreSplit(split_tabs::SplitTabId::GenerateNew(), indices,
                         split_tabs::SplitTabVisualData(layout, first.split_ratio));
+  }
+  if (!show_active) {
+    return added;
   }
   // Show the space's active tab (this loads it).
   const size_t active = ActiveSavedTab(saved);
@@ -1556,6 +1574,79 @@ void SidebarController::NewSpace() {
   }
 }
 
+// static
+std::vector<std::pair<Space, bool>> SidebarController::GetSpacesForImport() {
+  std::vector<std::pair<Space, bool>> result;
+  PrefService* local_state = g_browser_process->local_state();
+  for (const base::Value& value : local_state->GetList(kSpacesPref)) {
+    std::optional<Space> space =
+        value.is_dict() ? SpaceFromDict(value.GetDict(), chrome::kInitialProfile) : std::nullopt;
+    if (!space) {
+      continue;
+    }
+    space->profile_name = ProfileDisplayName(space->profile);
+    bool empty = true;
+    bool shown = false;
+    for (const auto& [browser, controller] : Registry()) {
+      if (controller->is_private_) {
+        continue;
+      }
+      if (controller->active_id_ == space->id) {
+        shown = true;
+        for (tabs::TabInterface* tab : *browser->GetTabStripModel()) {
+          // First run's welcome page leaves the first space empty too (docs/ux.md §13).
+          content::WebContents* contents = tab->GetContents();
+          empty = empty && !contents->GetController().CanGoBack() &&
+                  IsUntouchedTabUrl(contents->GetVisibleURL());
+        }
+      } else if (auto it = controller->detached_.find(space->id);
+                 it != controller->detached_.end() && !it->second.items.empty()) {
+        empty = false;
+      }
+    }
+    if (!shown) {
+      const base::ListValue* saved = local_state->GetDict(kSpaceTabsPref).FindList(space->id);
+      empty = empty && (!saved || saved->empty());
+    }
+    result.emplace_back(std::move(*space), empty);
+  }
+  return result;
+}
+
+// static
+void SidebarController::AddImportedSpace(const Space& space, const std::vector<SavedTab>& tabs) {
+  PrefService* local_state = g_browser_process->local_state();
+  base::ListValue records;
+  for (const SavedTab& tab : tabs) {
+    records.Append(SavedTabToDict(tab));
+  }
+  ScopedDictPrefUpdate(*local_state, kSpaceTabsPref)->Set(space.id, std::move(records));
+  ScopedListPrefUpdate(*local_state, kSpacesPref)->Append(SpaceToDict(space));
+}
+
+// static
+void SidebarController::AddImportedTabs(const std::string& space_id,
+                                        const std::vector<SavedTab>& tabs) {
+  for (const auto& [browser, controller] : Registry()) {
+    if (!controller->is_private_ && controller->active_id_ == space_id) {
+      // Pinned tabs land after the pinned ones, today tabs at the end: the tab strip keeps
+      // pinned tabs first. None is shown, so none loads.
+      controller->AddSavedTabs(tabs, /*show_active=*/false);
+      controller->ScheduleSave();
+      return;
+    }
+  }
+  PrefService* local_state = g_browser_process->local_state();
+  const base::ListValue* saved = local_state->GetDict(kSpaceTabsPref).FindList(space_id);
+  std::vector<SavedTab> merged =
+      MergeSavedTabs(saved ? SavedTabsFromList(*saved) : std::vector<SavedTab>(), tabs);
+  base::ListValue records;
+  for (const SavedTab& tab : merged) {
+    records.Append(SavedTabToDict(tab));
+  }
+  ScopedDictPrefUpdate(*local_state, kSpaceTabsPref)->Set(space_id, std::move(records));
+}
+
 void SidebarController::CreateSpace(const std::string& name,
                                     const std::string& icon,
                                     int hue,
@@ -1677,7 +1768,12 @@ void SidebarController::DeleteSpace(size_t index) {
 // ---------------------------------------------------------------- demo data
 
 void SidebarController::SeedDemoData() {
-  if (GetSpaces().size() == 1) {
+  // A second space to switch to, except for the import demos, which start from a fresh
+  // profile's one space.
+  const bool import_demo = base::CommandLine::ForCurrentProcess()
+                               ->GetSwitchValueASCII(kDemoSwitch)
+                               .starts_with("import");
+  if (GetSpaces().size() == 1 && !import_demo) {
     Space work{base::Uuid::GenerateRandomV4().AsLowercaseString(),
                "Work",
                kSpaceIcons[1],
@@ -1716,6 +1812,9 @@ void SidebarController::SeedDemoData() {
             }
             if (MaybeRunExtensionsDemo(self->browser(), demo)) {
               return;  // Modes: lb/browser/extensions/extensions_demo.h.
+            }
+            if (MaybeRunImportDemo(self->browser(), demo)) {
+              return;  // Modes: lb/browser/importer/import_demo.h.
             }
             self->SwitchTo(1);
             if (demo == "command-bar") {
@@ -2171,6 +2270,43 @@ bool HandleCommandFirst(BrowserWindowInterface* browser, int command_id) {
   if (command_id == IDC_NEW_LITTLE_WINDOW) {
     return ShowLittleWindowCommandBar(browser);
   }
+  if (command_id == IDC_IMPORT_SETTINGS) {
+    // The app menu's "Import Bookmarks and Settings…", the command bar and Settings' row: our
+    // import dialog, always over a normal window of the original profile (what is imported is
+    // kept, and open tabs need a space). Guest and forced-incognito windows import nothing, as
+    // in Chromium.
+    Profile* profile = browser->GetProfile();
+    if (profile->IsGuestSession() ||
+        IncognitoModePrefs::GetAvailability(profile->GetOriginalProfile()) ==
+            policy::IncognitoModeAvailability::kForced) {
+      return true;
+    }
+    if (profile->IsOffTheRecord()) {
+      Profile* original = profile->GetOriginalProfile();
+      BrowserWindowInterface* normal = nullptr;
+      for (const auto& [window, controller] : Registry()) {
+        if (!controller->IsPrivate() && window->GetProfile() == original) {
+          normal = window;
+        }
+      }
+      if (!normal) {
+        normal = chrome::OpenEmptyWindow(original, /*should_trigger_session_restore=*/false);
+      }
+      if (normal) {
+        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+            FROM_HERE, base::BindOnce(
+                           [](base::WeakPtr<BrowserWindowInterface> window) {
+                             if (window) {
+                               ShowImportDialog(window.get());
+                             }
+                           },
+                           normal->GetWeakPtr()));
+      }
+      return true;
+    }
+    ShowImportDialog(browser);
+    return true;
+  }
   return HandlePeekCommand(browser, command_id);
 }
 
@@ -2209,6 +2345,7 @@ bool HandleNewTab(BrowserWindowInterface* browser) {
 }
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+  SetProfilePrefDefaults(registry);
   registry->RegisterStringPref(kActiveSpacePref, std::string());
   registry->RegisterBooleanPref(kSearchChoiceShownPref, false);
   registry->RegisterBooleanPref(kPasswordManagerChoiceShownPref, false);
@@ -2227,6 +2364,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   registry->RegisterListPref(kSpacesPref);
   registry->RegisterDictionaryPref(kSpaceTabsPref);
+  RegisterImportLocalStatePrefs(registry);
   RegisterAdBlockerLocalStatePrefs(registry);
 }
 

@@ -7,7 +7,26 @@ Contents (the sidebar, spaces and command bar; the design is in
 [docs/desktop-ui.md](../../docs/desktop-ui.md)):
 
 ```
-lb/BUILD.gn                         //lb:model (view-free logic) + lb_unittests
+lb/BUILD.gn                         //lb:model (view-free logic) + lb_unittests; lb_core (core/lb-core)
+                                    + core_bridge, and lb_core_unittests
+lb/core_bridge/lib.rs               lb-core's C++ binding (cxx, namespace lb::core)
+lb/core_bridge/core_bridge_unittest.cc  the bridge carries lb-core's values across
+lb/browser/importer/                import from other browsers (docs/desktop-ui.md "Import")
+  import_choices.*                  what each source offers, labels, the summary line (unit tested)
+  chromium_profile_reader.*         reads a Chrome-family profile (copies of its files) through
+                                    lb-core's rules (unit tested)
+  cookie_decryptor.*                opens Chrome-family cookie values with the keychain key (tested)
+  imported_bookmarks.*              Chromium importers' bookmarks as lb-core's list (unit tested)
+  chromium_import.*                 imports a Chrome-family profile into a profile and space
+  arc_import.*                      imports Arc: profiles, spaces, tabs, then each profile's data
+  other_import.*                    Firefox, Safari, bookmarks files, Safari's export, through
+                                    Chromium's importers with our bookmark merge
+  import_sources.*                  finds the browsers on the Mac, the default one first
+  import_keychain.mm                reads a "<browser> Safe Storage" keychain item
+  import_text.*                     makes other browsers' bytes valid UTF-8 for lb-core (unit tested)
+  import_demo.*                     --lb-sidebar-demo=import-* (below)
+lb/browser/prefs/pref_defaults.*    Chromium prefs whose default differs here (address autofill on)
+lb/test/data/import/home/           a made-up Application Support (Chrome, Arc, a bookmarks file)
 lb/browser/spaces/space_model.*     Space type, saved form, new-space defaults, which space a window opens on
 lb/browser/spaces/swipe_tracker.*   two-finger swipe → one space switch per gesture
 lb/browser/command_bar/command_matching.*  command bar scoring and "is this an address?"
@@ -49,6 +68,7 @@ lb/browser/ui/
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
+  views/importer/import_dialog.*       the import dialog and the first-run import offer
   views/peek/peek.*                    Peek: the card over the dimmed window, its page, the buttons beside it
   views/little_window/little_window.*  the little window: opening one, its toolbar buttons, moving
                                        its page into a tab
@@ -149,6 +169,19 @@ extension is uBlock Origin Lite unless
 prefills it; `--lb-ui-snapshot-command-bar=<png>` captures it; `--lb-ui-snapshot-delay=<seconds>`
 sets the wait before any capture, 4 by default). Add `--use-mock-keychain` to any
 manual launch, or macOS asks for keychain access after every rebuild (`run.sh` does this).
+
+Import (a fresh `--user-data-dir`, `--use-mock-keychain`, and
+`--lb-import-home=desktop/lb/test/data/import/home`, a made-up Application Support):
+`--lb-sidebar-demo=import-fixture` imports its Chrome profile and checks bookmarks, history, the
+search shortcut, the address, open tabs (pinned, grouped), the cookie and the offered extension,
+then that a second import adds nothing; `import-arc` checks Arc's spaces, tabs, profiles and
+bookmarks; `import-dia` that a profile laid out as Dia keeps it, whose bookmarks and session files
+are saved with encrypted copies, still imports both; `import-files` a bookmarks file and a Safari
+export; `import-dialog` the dialog's sources and its Import button (`--lb-ui-snapshot-dialog=<png>`
+captures it). Run without `--no-first-run` and with `--lb-ui-snapshot-dialog=<png>` to capture the
+first-run import offer. `--lb-sidebar-demo=import --lb-import-source=<profile folder>` imports a
+real Chrome-family profile and logs only how many of each item came along. Each logs
+`lb demo: <mode> PASS` or `FAIL`.
 
 Snapshot of the UI without touching the screen:
 

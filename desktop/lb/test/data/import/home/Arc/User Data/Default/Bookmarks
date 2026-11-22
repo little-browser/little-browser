@@ -1,0 +1,3 @@
+{"version": 1, "roots": {"bookmark_bar": {"type": "folder", "children": [
+  {"type": "url", "name": "Arc docs", "url": "https://arc-docs.example/"}]},
+  "other": {"type": "folder", "children": []}, "synced": {"type": "folder", "children": []}}}

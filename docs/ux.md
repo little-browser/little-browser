@@ -7,7 +7,8 @@
 **Built so far (macOS desktop):** the sidebar layout on upstream's vertical tabs, the command bar,
 spaces and profiles (new-space dialog, switching by shortcut, swipe or footer, per-space tint, saved
 tabs per space), pinned tabs as a list, the first-run search-engine and password-manager choices,
-the ad blocker, Peek, the little window, the quit warning, and Chromium's own tab groups. Everything
+the ad blocker, Peek, the little window, the quit warning, Chromium's own tab groups, bookmarks in
+the command bar, and import from other browsers with its first-run offer (section 13). Everything
 else here — auto-archive, group suggestions and auto-grouping, the distinct incognito look,
 top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the footer's Downloads button and
 the whole mobile section — is specified but not built.
@@ -111,9 +112,10 @@ The centre of the browser. A floating palette in the middle of the window.
 | Cmd+L / click address pill | Edit current URL: full URL, selected |
 
 - Results, in one list, ranked by fuzzy match: **open tabs** (switch, across all spaces) ·
-  pinned · history · archived tabs · **commands** (“Toggle sidebar”, “New space”,
-  “Tabs on top”, “Incognito window”, “New little window”, “Copy URL”, “Allow ads on this site” /
-  “Block ads on this site”…) · URL / “Search with ‹engine›”.
+  pinned · bookmarks (by title or address; the folder they're in shown beside them) · history ·
+  archived tabs · **commands** (“Toggle sidebar”, “New space”, “Tabs on top”, “Incognito window”,
+  “New little window”, “Copy URL”, “Allow ads on this site” / “Block ads on this site”, “Import
+  from another browser”…) · URL / “Search with ‹engine›”.
 - Enter takes the top result; ↑/↓ moves; Esc closes and returns focus to the page.
 - Opens in < 50 ms; it's a native/overlay view, not a page.
 - Search suggestions from the engine appear only if the user turns them on (privacy default).
@@ -365,6 +367,14 @@ work.
 Two questions, once per profile, one after the other in dialogs over the first window; a window
 opened meanwhile waits for them. "Not now" skips either one.
 
+Before them, on the browser's very first run only (not for each new profile), and only if another
+browser's data is on the Mac: **"Bring your tabs and bookmarks from ‹browser›?"** (the Mac's default
+browser if it is one of them, otherwise the first one found). **Import…** opens the import dialog
+(section 13) with that browser selected; **Not now** skips it. The two questions follow once the
+dialog closes and the extensions it installs are in, so spaces and extensions brought from Arc or
+Chrome are already there. A password manager installed by the import counts as installed. A
+window opened meanwhile waits for all of it, as for the two questions.
+
 1. **Search engine.** There's no default; the user picks one (design.md §5). Until they do, a
    search from the command bar brings the choice back.
 2. **Password manager.** Little Browser has no password manager of its own (design.md §7.8), so
@@ -377,7 +387,105 @@ opened meanwhile waits for them. "Not now" skips either one.
 
 Auto-archive's question comes after these (section 6).
 
-## 13. What we leave out of Arc
+## 13. Import from another browser
+
+Opened from first run (section 12), the command bar ("Import from another browser"), the app
+menu's "Import Bookmarks and Settings…" and Settings' "Import bookmarks and settings" (also the
+address chrome://settings/importData), which all open the same dialog over the window. From a
+private window it opens over a normal window of the same profile, because what is imported is
+kept; guest windows import nothing.
+
+**Sources** — only those found on the Mac are listed, the default browser first:
+
+- **Chrome-family browsers**: Brave, Chrome, Chromium, Dia, Edge, Opera, Vivaldi. Each of their
+  profiles is listed separately, under the name the browser gives it ("Chrome — Work").
+- **Arc**, once, with all its profiles: its spaces span profiles, so they come together.
+- **Firefox**, each profile.
+- **Safari**, when Little Browser has Full Disk Access, which reading its bookmarks needs. Without
+  it Safari isn't listed, and the dialog says how to export from Safari instead (File → Export
+  Browsing Data to File).
+- **A Safari export file…** (the `.zip` that export makes) and **a bookmarks file…** (HTML, which
+  every browser can export). Both open a file picker.
+
+**What comes along**
+
+| | Chrome-family | Arc | Firefox | Safari | Safari export | Bookmarks file |
+|---|---|---|---|---|---|---|
+| Spaces and profiles | — | ✅ | — | — | — | — |
+| Open tabs | ✅ | ✅ | — | — | — | — |
+| Bookmarks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| History | ✅ | ✅ | ✅ | — | ✅ | — |
+| Search shortcuts | ✅ | ✅ | ✅ | — | — | ✅ |
+| Addresses | ✅ | ✅ | — | — | — | — |
+| Extensions | ✅ | ✅ | — | — | — | — |
+| Cookies (stay signed in) | opt-in | opt-in | — | — | — | — |
+
+Passwords and payment cards never come along, even when a source has them: passwords are the
+password manager's job (design.md §7.8), and its own import takes them.
+
+**The dialog**
+
+1. **From:** the list of sources, the first picked. Picking one shows what it has as checkboxes,
+   all ticked except **Stay signed in (cookies)**; for Arc, its spaces and tabs are one checkbox,
+   **Spaces, profiles and tabs**. Under **Stay signed in (cookies)** a line says that macOS will
+   ask to let Little Browser use "‹browser› Safe Storage" from the keychain.
+2. **Import.** "Importing from ‹source›…", then a summary ("812 bookmarks, 12,400 pages of
+   history, 3 spaces, 41 tabs"). Anything that couldn't be read is named with the reason, and the
+   rest still imports.
+3. **Extensions**, when ticked: the source's extensions from the Chrome Web Store, each with a
+   checkbox, ticked (with the profile it goes into when there are several), and **Install** or
+   **Skip**. Extensions already installed aren't listed, and each comes once per profile; ones
+   not from the store are counted ("2 aren't from the Chrome Web Store"). Install goes through them
+   one after another, each with Chromium's install prompt and its permissions. Their settings and
+   data don't come along.
+
+The other browser can stay open: Little Browser reads copies of its files. Firefox is the
+exception, because it locks its profile, so Chromium's own prompt asks to close it first. If a
+copy can't be read because the browser was writing it, the dialog asks to quit that browser and
+try again.
+
+**Where things go**
+
+- **Arc.** Each Arc space becomes a space with its name, its emoji (a space with a symbol icon gets
+  the next of our icons, as a new space does) and the nearest of our colours. Its pinned tabs become pinned tabs in the same order. Its
+  pinned folders, nested ones too, are flattened in place and the folder names are dropped. Its
+  unpinned tabs become today tabs, and its Favourites become pinned tabs at the top of the first
+  space of their profile. Arc's default profile maps to the default profile; each other Arc
+  profile becomes a profile with the same name, or uses one that already has it (if the default
+  profile was deleted, the current profile stands in for it). Each Arc profile's bookmarks,
+  history, search shortcuts, addresses, extensions and cookies go into its matching profile.
+  With **Spaces, profiles and tabs** unticked, no space or profile is made and every Arc
+  profile's data goes into the current space's profile.
+- **Open tabs from a Chrome-family browser** join the current space: pinned as pinned, the rest as
+  today tabs after the ones already there, and tab groups stay tab groups. Everything else from it
+  goes into the current space's profile, as do imports from every other source.
+- **A space whose name is taken** gets a number ("Work 2"), except that an empty space with the
+  same name and profile is filled instead. So Arc's "Personal" fills the empty first space at
+  first run.
+- **Imported tabs sleep** until clicked, like tabs after a restart (section 6).
+- **Bookmarks** keep the source's tree: its bookmarks bar, other bookmarks and mobile bookmarks
+  go into the same places here, not into an "Imported" folder. A folder with the same name in the
+  same place is merged into, and a link already in that folder isn't added again, so importing
+  twice adds only what is new. The command bar finds them (section 4).
+- **History** keeps its visit times and counts. A page comes once, and only when it is new here
+  or its last visit is newer than the one history has, so importing twice adds nothing; the
+  summary counts the pages added. Only web pages (`http`, `https`) visited in the last 90 days
+  come along, since history keeps nothing older.
+- **Search shortcuts** are the site searches the user added in the other browser (keywords such as
+  `w` for Wikipedia; in Firefox, bookmarks with a keyword; in a bookmarks file, those with a
+  SHORTCUTURL), not its built-in engines, and the default search engine stays the user's own
+  choice (section 12).
+- **Cookies**, when ticked: the source's cookies that haven't expired, except partitioned ones.
+  If macOS's keychain prompt is declined, everything else still imports and the summary says
+  cookies were skipped.
+
+Importing the same source again adds its spaces and tabs again; bookmarks and history merge as
+described above.
+
+Mobile has no import dialog: a bookmarks file can be imported from Settings, and everything else
+comes from a desktop through sync (design.md §7.6).
+
+## 14. What we leave out of Arc
 
 Boosts, Easels, Notes, Library media view, AI features, accounts, Air Traffic Control (rule-based link
 routing), right/bottom tabs. Candidate for later: link routing rules.

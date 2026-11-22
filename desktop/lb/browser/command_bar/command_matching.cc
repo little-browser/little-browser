@@ -137,6 +137,42 @@ std::optional<TypedAddress> InputAsAddress(std::u16string_view input) {
   return TypedAddress{url, known_domain};
 }
 
+double ResultBoost(CommandBarResult kind) {
+  switch (kind) {
+    case CommandBarResult::kOpenTab:
+      return 0.3;
+    case CommandBarResult::kCommand:
+      return 0.2;
+    case CommandBarResult::kBookmark:
+      return 0.1;
+    case CommandBarResult::kHistory:
+    case CommandBarResult::kAddress:
+    case CommandBarResult::kSearch:
+      return 0;
+  }
+}
+
+std::vector<size_t> PickBookmarkResults(const std::vector<double>& scores) {
+  std::vector<size_t> picked(scores.size());
+  for (size_t i = 0; i < picked.size(); ++i) {
+    picked[i] = i;
+  }
+  std::ranges::stable_sort(picked, [&](size_t a, size_t b) { return scores[a] > scores[b]; });
+  if (picked.size() > kMaxBookmarkResults) {
+    picked.resize(kMaxBookmarkResults);
+  }
+  return picked;
+}
+
+std::u16string BookmarkSubtitle(std::u16string_view folder, const GURL& url) {
+  std::u16string subtitle = u"Bookmark · ";
+  if (!folder.empty()) {
+    subtitle.append(folder);
+    subtitle += u" · ";
+  }
+  return subtitle + DisplayHost(url);
+}
+
 bool OffersResult(CommandBarMode mode, CommandBarResult kind) {
   if (mode == CommandBarMode::kLittleWindow) {
     return kind != CommandBarResult::kOpenTab && kind != CommandBarResult::kCommand;

@@ -2,7 +2,48 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import("//build/rust/rust_static_library.gni")
 import("//testing/test.gni")
+
+# lb-core, the shared Rust core (core/lb-core; fetch.sh links it at //lb_core), built with
+# Chromium's toolchain and vendored crates (docs/design.md §4.4). Its tests run as
+# lb_core_unittests. Keep `sources` the crate's files (../scripts/check_lb_tests.py checks it).
+rust_static_library("lb_core") {
+  crate_name = "lb_core"
+  crate_root = "//lb_core/src/lib.rs"
+  edition = "2021"
+  sources = [
+    "//lb_core/src/import/addresses.rs",
+    "//lb_core/src/import/arc.rs",
+    "//lb_core/src/import/bookmarks.rs",
+    "//lb_core/src/import/cookies.rs",
+    "//lb_core/src/import/extensions.rs",
+    "//lb_core/src/import/history.rs",
+    "//lb_core/src/import/mod.rs",
+    "//lb_core/src/import/plan.rs",
+    "//lb_core/src/import/profiles.rs",
+    "//lb_core/src/import/safari.rs",
+    "//lb_core/src/import/search.rs",
+    "//lb_core/src/import/sources.rs",
+    "//lb_core/src/import/tabs.rs",
+    "//lb_core/src/lib.rs",
+    "//lb_core/src/model.rs",
+    "//lb_core/src/sync.rs",
+  ]
+  deps = [ "//third_party/rust/serde_json/v1:lib" ]
+  build_native_rust_unit_tests = true
+}
+
+# The C++ binding of lb-core: include "lb/core_bridge/lib.rs.h" (namespace lb::core).
+rust_static_library("core_bridge") {
+  crate_name = "lb_core_bridge"
+  crate_root = "core_bridge/lib.rs"
+  edition = "2021"
+  allow_unsafe = true  # cxx's generated glue
+  sources = [ "core_bridge/lib.rs" ]
+  cxx_bindings = [ "core_bridge/lib.rs" ]
+  deps = [ ":lb_core" ]
+}
 
 # Little Browser logic that doesn't need views or a browser window: unit tested by
 # lb_unittests. The sidebar's views target depends on it (patches/lb/sidebar-hooks.patch), which
@@ -15,12 +56,24 @@ source_set("model") {
     "browser/adblock/site_ads.h",
     "browser/command_bar/command_matching.cc",
     "browser/command_bar/command_matching.h",
+    "browser/importer/chromium_profile_reader.cc",
+    "browser/importer/chromium_profile_reader.h",
+    "browser/importer/cookie_decryptor.cc",
+    "browser/importer/cookie_decryptor.h",
+    "browser/importer/import_choices.cc",
+    "browser/importer/import_choices.h",
+    "browser/importer/import_text.cc",
+    "browser/importer/import_text.h",
+    "browser/importer/imported_bookmarks.cc",
+    "browser/importer/imported_bookmarks.h",
     "browser/little_window/little_window_rules.cc",
     "browser/little_window/little_window_rules.h",
     "browser/password/password_manager_choice.cc",
     "browser/password/password_manager_choice.h",
     "browser/peek/peek_rules.cc",
     "browser/peek/peek_rules.h",
+    "browser/prefs/pref_defaults.cc",
+    "browser/prefs/pref_defaults.h",
     "browser/search/search_choice.cc",
     "browser/search/search_choice.h",
     "browser/spaces/space_model.cc",
@@ -38,19 +91,28 @@ source_set("model") {
     "browser/update/update_reminder.h",
   ]
   public_deps = [
+    ":core_bridge",  # import: lb-core's types in the readers' results
     "//components/security_state/core",  # Peek: the site label's warning
     "//components/tab_groups",
+    "//components/user_data_importer/common",  # import: Chromium importers' bookmark entries
     "//ui/base:types",
     "//ui/gfx/geometry",
   ]
   deps = [
     "//base",
     "//chrome/app:command_ids",  # Peek: which browser commands act on the Peek's page
+    "//components/autofill/core/common",  # pref defaults: address autofill
+    "//components/pref_registry",
     "//components/subresource_filter/core/common",
     "//components/subresource_filter/tools/rule_parser",
     "//components/url_formatter",
     "//components/url_pattern_index",
     "//net",
+    "//sql",  # import: reading copies of other browsers' databases
+    "//base:i18n",  # import: numbers in the summary
+    "//components/sessions",  # import: open tabs from a session file
+    "//crypto",  # import: cookie decryption
+    "//third_party/boringssl",  # import: cookie key (PBKDF2)
     "//third_party/protobuf:protobuf_lite",
     "//url",
   ]
@@ -82,24 +144,34 @@ test("lb_unittests") {
     "browser/command_bar/command_matching_unittest.cc",
     "browser/extensions/update_check_unittest.cc",
     "browser/extensions/web_store_unittest.cc",
+    "browser/importer/chromium_profile_reader_unittest.cc",
+    "browser/importer/cookie_decryptor_unittest.cc",
+    "browser/importer/import_choices_unittest.cc",
+    "browser/importer/import_text_unittest.cc",
+    "browser/importer/imported_bookmarks_unittest.cc",
     "browser/little_window/little_window_rules_unittest.cc",
     "browser/password/password_manager_choice_unittest.cc",
     "browser/peek/peek_rules_unittest.cc",
+    "browser/prefs/pref_defaults_unittest.cc",
     "browser/search/search_choice_unittest.cc",
     "browser/spaces/space_model_unittest.cc",
     "browser/spaces/swipe_tracker_unittest.cc",
     "browser/tabs/pinned_close_unittest.cc",
     "browser/tabs/restore_order_unittest.cc",
     "browser/tabs/tab_to_show_unittest.cc",
+    "core_bridge/core_bridge_unittest.cc",
     "browser/update/update_reminder_unittest.cc",
   ]
   deps = [
+    ":core_bridge",
     ":model",
     "//base",
     "//base/test:test_support",
     "//chrome/app:command_ids",
     "//components/component_updater",
+    "//components/autofill/core/common",
     "//components/prefs:test_support",
+    "//components/sync_preferences:test_support",
     "//components/subresource_filter/core/browser",
     "//components/subresource_filter/core/common",
     "//components/subresource_filter/core/mojom",
@@ -111,6 +183,11 @@ test("lb_unittests") {
     "//extensions/common:mojom",
     "//mojo/core/test:run_all_unittests",  # the update check test needs Mojo (network requests)
     "//net",
+    "//components/sessions",
+    "//components/user_data_importer/common",
+    "//crypto",
+    "//sql",
+    "//sql:test_support",
     "//testing/gtest",
     "//third_party/protobuf:protobuf_lite",
     "//ui/gfx:test_support",  # gtest printers for gfx geometry

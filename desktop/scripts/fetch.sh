@@ -120,5 +120,6 @@ python3 "$DESKTOP/scripts/rebrand_strings.py" "$SRC" "$PRODUCT" "$COMPANY" \
   chrome/app/chromium_strings.grd components/components_chromium_strings.grd
 "$DESKTOP/scripts/brand_assets.sh" "$SRC"
 ln -sfn "$DESKTOP/lb" "$SRC/lb"
+ln -sfn "$DESKTOP/../core/lb-core" "$SRC/lb_core"
 
 log "Done. Source tree: $SRC ($(du -sh "$SRC" | cut -f1)). Next: desktop/scripts/build.sh"

@@ -2,10 +2,10 @@
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
 # snapshot tool, pinned tab sleep, extensions demo, first-run dialogs, ad blocker, Peek, little
-# window) with the region view's target.
+# window, import) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,50 @@
+@@ -537,7 +537,63 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -24,6 +24,17 @@
 +    "//lb/browser/demo/demo_report.h",
 +    "//lb/browser/extensions/extensions_demo.cc",
 +    "//lb/browser/extensions/extensions_demo.h",
++    "//lb/browser/importer/arc_import.cc",
++    "//lb/browser/importer/arc_import.h",
++    "//lb/browser/importer/chromium_import.cc",
++    "//lb/browser/importer/chromium_import.h",
++    "//lb/browser/importer/import_demo.cc",
++    "//lb/browser/importer/import_demo.h",
++    "//lb/browser/importer/import_keychain.mm",
++    "//lb/browser/importer/import_sources.cc",
++    "//lb/browser/importer/import_sources.h",
++    "//lb/browser/importer/other_import.cc",
++    "//lb/browser/importer/other_import.h",
 +    "//lb/browser/peek/peek_demo.cc",
 +    "//lb/browser/peek/peek_demo.h",
 +    "//lb/browser/ui/lb_command_ids.h",
@@ -32,6 +43,8 @@
 +    "//lb/browser/ui/views/browser_modal_dialog.h",
 +    "//lb/browser/ui/views/command_bar/command_bar.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.h",
++    "//lb/browser/ui/views/importer/import_dialog.cc",
++    "//lb/browser/ui/views/importer/import_dialog.h",
 +    "//lb/browser/ui/views/little_window/little_window.cc",
 +    "//lb/browser/ui/views/little_window/little_window.h",
 +    "//lb/browser/ui/views/peek/peek.cc",
@@ -57,7 +70,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +600,15 @@
+@@ -557,6 +613,20 @@
      "//ui/views",
    ]
    deps = [
@@ -70,6 +83,11 @@
 +    "//components/subresource_filter/content/browser",  # Little Browser: ad blocker
 +    "//components/subresource_filter/core/browser",  # Little Browser: ad blocker
 +    "//services/network/public/cpp",  # Little Browser: ad blocker (filter list downloads)
++    "//chrome/browser/importer",  # Little Browser: import (lb/browser/importer)
++    "//sql",  # Little Browser: import demo
++    "//components/os_crypt/common",  # Little Browser: import (keychain, cookies)
++    "//crypto",  # Little Browser: import (keychain)
++    "//third_party/zlib/google:zip",  # Little Browser: import (Safari's export file)
      ":browser_view_header",
      ":custom_corners_background",
      ":frame",

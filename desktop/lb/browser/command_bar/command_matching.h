@@ -5,9 +5,11 @@
 #ifndef LB_BROWSER_COMMAND_BAR_COMMAND_MATCHING_H_
 #define LB_BROWSER_COMMAND_BAR_COMMAND_MATCHING_H_
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "url/gurl.h"
 
@@ -21,12 +23,29 @@ namespace lb {
 enum class CommandBarMode { kNewTab, kOpenHere, kEditAddress, kRenameSpace, kLittleWindow };
 
 // The kinds of result the command bar lists.
-enum class CommandBarResult { kOpenTab, kCommand, kHistory, kAddress, kSearch };
+enum class CommandBarResult { kOpenTab, kCommand, kBookmark, kHistory, kAddress, kSearch };
 
 // Whether the bar in `mode` lists results of `kind`. In the little-window mode everything chosen
 // opens a page in a new little window, so it lists no open tabs (they'd switch the window behind)
 // and no commands (they'd act on it).
 bool OffersResult(CommandBarMode mode, CommandBarResult kind);
+
+// What is added to a result's match score for its kind, so that among equally good matches open
+// tabs come first, then commands, then bookmarks, then history. The boost is small, so a better
+// match of any kind still comes first (docs/ux.md §4 ranks by fuzzy match).
+double ResultBoost(CommandBarResult kind);
+
+// How many bookmarks the bar lists at most, the best matches.
+inline constexpr size_t kMaxBookmarkResults = 6;
+
+// Which bookmark matches the bar lists, given their scores: the indexes of the best
+// kMaxBookmarkResults, best first (equal scores keep their order). Only these count as listed,
+// so a page left out here can still come from history.
+std::vector<size_t> PickBookmarkResults(const std::vector<double>& scores);
+
+// A bookmark result's subtitle: "Bookmark · <its folder> · <host>", without the folder when it
+// has none.
+std::u16string BookmarkSubtitle(std::u16string_view folder, const GURL& url);
 
 // How well `query` matches `text`, case-insensitively; 0 means no match. A substring scores
 // above 2 (more at the start of the text or of a word); letters in order with gaps score

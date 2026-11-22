@@ -86,6 +86,10 @@ std::optional<std::string> ChooseSpaceForWindow(
 // A page nobody has used yet: empty, about:blank or the new-tab page.
 bool IsBlankTabUrl(const GURL& url);
 
+// A page that leaves its space empty for import (docs/ux.md §13: an empty space with the same
+// name and profile is filled): a blank page, or the welcome page first run opens.
+bool IsUntouchedTabUrl(const GURL& url);
+
 // A saved tab of a space, as in Local State lb.space_tabs[space id]. Every space is saved
 // there, also those a window shows (continuously), so their tabs survive a restart.
 struct SavedTab {
@@ -112,6 +116,11 @@ base::DictValue SavedTabToDict(const SavedTab& tab);
 
 // The valid records of a saved tab list, in order; malformed records and invalid URLs are skipped.
 std::vector<SavedTab> SavedTabsFromList(const base::ListValue& list);
+
+// A space's saved tabs with imported ones added (docs/ux.md §13): imported pinned tabs after its
+// pinned tabs, the rest after its today tabs. Which tab is active doesn't change, and none of the
+// added tabs is active.
+std::vector<SavedTab> MergeSavedTabs(std::vector<SavedTab> existing, std::vector<SavedTab> added);
 
 // Which of `tabs` to show first: the one saved as active, else the first. 0 for an empty list.
 size_t ActiveSavedTab(const std::vector<SavedTab>& tabs);

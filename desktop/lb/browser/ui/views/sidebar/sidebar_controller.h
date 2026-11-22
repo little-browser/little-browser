@@ -116,6 +116,16 @@ class SidebarController : public TabStripModelObserver {
   void SwitchBy(int step);
   // Opens the new-space dialog (name, profile, colour, icon).
   void NewSpace();
+  // Import (docs/ux.md §13): every space, browser-wide, and whether it has no tabs (none shown
+  // in a window, saved or parked).
+  static std::vector<std::pair<Space, bool>> GetSpacesForImport();
+  // Appends `space` with `tabs` as its saved tabs; sidebars show it at once.
+  static void AddImportedSpace(const Space& space, const std::vector<SavedTab>& tabs);
+  // Adds `tabs` to the space `space_id`: pinned ones after its pinned tabs, the rest after its
+  // today tabs. In a window showing it they open as tabs that load when first shown (the shown
+  // tab stays); otherwise they go into its saved tabs.
+  static void AddImportedTabs(const std::string& space_id, const std::vector<SavedTab>& tabs);
+
   // Creates a space and switches to it. Empty `profile` = create a new profile named
   // `new_profile_name`.
   void CreateSpace(const std::string& name,
@@ -211,7 +221,8 @@ class SidebarController : public TabStripModelObserver {
   void LoadSavedTabs();
   // Opens saved tabs at the end of the strip (lazily: only the active one loads) and activates
   // the one saved as active. Returns the tab opened for each saved tab (null if it failed).
-  std::vector<tabs::TabInterface*> AddSavedTabs(const std::vector<SavedTab>& saved);
+  std::vector<tabs::TabInterface*> AddSavedTabs(const std::vector<SavedTab>& saved,
+                                                bool show_active = true);
   // Tab groups and Chromium's saved groups (TabGroupSyncService): a parked group must not stay
   // saved, as it is in no tab strip. A group that comes back is saved again (TabGroupSaver).
   void UnsaveTabGroups(const std::set<tab_groups::TabGroupId>& groups);

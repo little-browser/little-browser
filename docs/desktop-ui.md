@@ -111,7 +111,9 @@ vertical tabs are new upstream. The page-card patch there stays a few lines; all
 ## Command bar
 
 Cmd+T, the new-tab buttons, Cmd+L and the address pill open the command bar. It lists open tabs
-across spaces, history, commands and the address or search entry, and has a
+across spaces, commands, bookmarks (the best six, from `BookmarkModel`, with their folder; a page
+listed as a bookmark isn't listed again from history), history and the address or search entry;
+the ranking boosts per kind are in `command_matching.*`. It has a
 rename-space mode. Two hooks in `patches/lb/command-hooks.patch` route into it: the command
 controller's entry point (keyboard and menus) and the `kActionNewTab` action in
 `browser_actions.cc`, because Chromium runs some commands through its actions framework, which
@@ -196,6 +198,85 @@ prompt and installs from the Chrome Web Store.
 Browser-modal dialogs don't own their `DialogDelegate` (only allow-listed classes may ask the
 widget to), so ours derive from `BrowserModalDialog` (`browser_modal_dialog.*`), which deletes the
 dialog when its widget is destroyed.
+
+## Import
+
+Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell in
+[design.md](design.md) §7.6. Everything is in `browser/importer/` unless named otherwise.
+
+- **Sources.** `import_sources.*` finds what's on the Mac: each Chrome-family browser's profiles
+  and Arc from lb-core's table of browsers (`Local State` in each data folder), Firefox and Safari
+  from Chromium's `ImporterList`, the default browser first (Launch Services' handler for https).
+- **Reading** a Chrome-family profile: `chromium_profile_reader.*` (in `//lb:model`, unit tested)
+  on a `MayBlock` single-threaded runner (Chromium's session backend needs one). It copies the
+  profile's SQLite files (with any `-wal` and `-journal` files) and its `Sessions` folder into a
+  temporary folder and reads only the copies: `sql::Database`, choosing columns and table names
+  by what each file has, so older and newer Chromium versions both read; open tabs through
+  `sessions::CommandStorageBackend` and `RestoreSessionFromCommands`; extensions from `Preferences`
+  and `Secure Preferences`, with names an extension keeps in its `messages.json`. Addresses: only
+  local ones (`addresses.record_type` 0 where the table holds Google-account addresses too). Text
+  goes to lb-core as valid UTF-8 (`import_text.*`; a cookie whose name or value isn't text stays
+  behind, since it must stay byte for byte). Chromium is moving `Sessions` and `Bookmarks` to
+  encrypted copies (`Sessions_Encrypted`, `EncryptedBookmarks2`): a browser first saves both at once
+  (Dia does), then only the encrypted one. The plain file is read unless the encrypted copy is more
+  than a minute newer or there is no plain one (`PlainCopyIsStale`); then the item is a problem line
+  ("this browser keeps them encrypted"). Cookies only when ticked: the source's "‹browser› Safe
+  Storage" password comes from the keychain (`import_keychain.mm`, which only reads, never adds an
+  item), and `cookie_decryptor.*` opens each value as Chromium's `os_crypt` does on macOS
+  (PBKDF2-SHA1 key through BoringSSL, AES-128-CBC). Text and rows go through lb-core's rules
+  (`lb::core`, `lb/core_bridge`).
+- **Writing**, on the UI thread, by `chromium_import.*`, once each service has loaded. Bookmarks:
+  `BookmarkModel` `AddFolder` / `AddURL` from lb-core's merge, under the bookmarks bar, other or
+  mobile node. History: `AddHistoryPages`, a history DB task that adds only pages history doesn't
+  have or has with an older visit, and counts them. Search shortcuts: Chromium's own
+  `ProfileWriter::AddKeywords`, which skips keywords already here. Addresses:
+  `AddressDataManager::AddProfile`, after lb-core leaves out those already saved; Chromium drops
+  addresses silently while "Save and fill addresses" is off, so the import reports that instead,
+  and a web database that never loads is given up on after a while. Open tabs:
+  `SidebarController::AddImportedTabs`, as tabs that load when first shown. Cookies: the profile's
+  `CookieManager::SetCanonicalCookie`, created now (the store caps a cookie's life at 400 days
+  from its creation), a reply that never comes counting as not written. Extensions are only
+  listed; the dialog installs them. If the profile goes away first, the import ends with that as
+  a problem.
+- **Arc**: `arc_import.*` reads `StorableSidebar.json` and Arc's `Local State`, maps Arc's
+  profiles through lb-core (making missing ones with `ProfileManager::CreateMultiProfileAsync`),
+  places the spaces through lb-core (`SidebarController::AddImportedSpace`, or `AddImportedTabs`
+  for an empty space it fills; first run's welcome page counts as empty, `IsUntouchedTabUrl`) and
+  then imports each Arc profile's data into its matching profile as above, reading Arc's
+  keychain item once for all of them. Without "Spaces, profiles and tabs" it makes no profile and
+  imports everything into the current one.
+- **Chromium's importers** (Firefox, Safari, bookmarks HTML): `other_import.*` runs
+  `ExternalProcessImporterHost` with a `ProfileWriter` subclass. Its `AddBookmarks` turns the
+  entries' folder paths into lb-core's flat list (`imported_bookmarks.*`, which maps the source's
+  root folders, such as the toolbar and Firefox's "unfiled", to our places) and merges them,
+  instead of making an "Imported from" folder; its `AddHistoryPage` passes history through
+  lb-core's rule (web pages, once each) and `AddHistoryPages`; its `AddKeywords` adds search
+  shortcuts only when they are ticked, and counts them. An import that never started (Firefox
+  left open and its lock prompt dismissed) or didn't finish is named in the summary. Safari's
+  export `.zip` is unzipped (`zip::Unzip`, only its `.html` and `History*.json` files; its
+  passwords and cards never reach the disk): the bookmarks go to Chromium's bookmarks-file
+  importer, every history file through lb-core, and the folder is deleted in the background.
+- **The dialog** is `ui/views/importer/import_dialog.*`, a `BrowserModalDialog` that steps from
+  the source and items (`import_choices.*` in `//lb:model` holds what each source offers, the
+  labels and the summary line) to the progress line and the summary, then installs the ticked
+  extensions one after another with Chromium's `WebstoreInstallWithPrompt`; what follows the
+  dialog (the next first-run question) waits for the installs. Files are picked with
+  `ui::SelectFileDialog`, attached to the dialog's own window (a second sheet on the browser
+  window would wait behind the dialog's).
+- **Entry points.** `IDC_IMPORT_SETTINGS` (the app menu's "Import Bookmarks and Settings…") is
+  taken in `lb::HandleCommandFirst`, which opens the dialog over a normal window of the original
+  profile (a private window's is never used) and does nothing in guest or forced-incognito
+  windows; the command bar's "Import from another browser" runs it, and so does Settings'
+  importData route, which the row, the app menu with no window open and the address all reach
+  (`patches/lb/import-settings-row.patch`), instead of Chromium's WebUI dialog. First run asks
+  first (`MaybeShowImportOffer`, Local State `lb.import_offered`, on the browser's first run
+  only; `NextImportOfferStep` in `import_choices.*`): other windows' first-run questions wait
+  until the offer, the dialog and its installs are over.
+- **Address autofill** is on by default (`browser/prefs/pref_defaults.*`); ungoogled-chromium
+  turns it off, and Chromium then drops imported addresses.
+- **Check.** The `import-fixture`, `import-arc`, `import-dia`, `import-files` and `import-dialog`
+  demos import the made-up sources in `lb/test/data/import/home` (`lb/README.md`); `import` with a
+  real profile folder logs only how many of each item came along.
 
 ## Ad blocker
 

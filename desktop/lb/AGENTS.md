@@ -19,6 +19,7 @@ build is in `../AGENTS.md`.
   | Last active space (per profile) | profile prefs `lb.active_space` |
   | Whether the first-run search choice was offered (per profile) | profile prefs `lb.search_choice_shown` |
   | Whether the first-run password manager choice was offered (per profile) | profile prefs `lb.password_manager_choice_shown` |
+  | Whether the first-run import offer was made (browser-wide) | Local State `lb.import_offered` |
   | When the ad blocker's filter lists were last downloaded (browser-wide) | Local State `lb.filter_lists_updated` |
   | The last "Later" on the update prompt (per app, next to Sparkle's own settings) | macOS user defaults `LBUpdateLaterVersion`, `LBUpdateLaterTime` |
   | The downloaded filter rules (browser-wide), before Chromium indexes them | `<user data>/Filter Lists/<version>/` |
@@ -54,23 +55,28 @@ build is in `../AGENTS.md`.
 
 ## Tests
 
-`BUILD.gn` here has two targets:
+`BUILD.gn` here has these targets:
 
 - **`//lb:model`**, a `source_set` for logic that needs no views or browser window
   (`browser/spaces/`, `browser/command_bar/`, `browser/tabs/`, `browser/adblock/`,
-  `browser/password/`, `browser/search/`, `browser/peek/`, `browser/little_window/`). The sidebar's views target depends on it through
+  `browser/password/`, `browser/search/`, `browser/peek/`, `browser/little_window/`,
+  `browser/prefs/` and the rules and readers of `browser/importer/`). The sidebar's views target depends on it through
   `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this file.
 - **`lb_unittests`**, a gtest binary built from `*_unittest.cc` files next to the code they
   test.
+- **`lb_core`**, lb-core (`core/lb-core`, linked at `//lb_core`) built with Chromium's Rust
+  toolchain, and **`core_bridge`**, its C++ binding (`core_bridge/lib.rs`, a `cxx` bridge in
+  `namespace lb::core`; include `lb/core_bridge/lib.rs.h`). lb-core's own tests also run here as
+  `lb_core_unittests`. A new `.rs` file in lb-core goes in `lb_core`'s sources.
 
 ```bash
 cd desktop/build/src
-ninja -C out/Dev lb_unittests && out/Dev/lb_unittests                  # all tests (seconds)
+ninja -C out/Dev lb_unittests lb_core_unittests && out/Dev/lb_unittests && out/Dev/lb_core_unittests
 out/Dev/lb_unittests --gtest_filter='SwipeTrackerTest.*'                 # one suite or test
 ```
 
-`build.sh` builds only `chrome`, so build `lb_unittests` yourself and run it before committing
-`lb/` changes.
+`build.sh` builds only `chrome`, so build both test binaries yourself and run them before
+committing `lb/` changes.
 
 - **Put new rules in the model.** That covers naming, ordering, choosing, parsing saved state,
   URL rules and gesture thresholds. Views and the controller call into it. If logic is stuck in a
@@ -78,8 +84,9 @@ out/Dev/lb_unittests --gtest_filter='SwipeTrackerTest.*'                 # one s
 - **Add a test with every change** to model code. A bug fix gets a test that fails without the
   fix (see `SwipeTrackerTest.OneSwitchPerGestureIncludingMomentum` and
   `PinnedCloseTest.BeforeUnloadHandlerWithoutTypingSleeps`). Every `.cc` in `//lb:model` needs a
-  `<name>_unittest.cc` in `lb_unittests`; `../scripts/check_lb_tests.py` checks it on every push,
-  and the release build runs `lb_unittests`.
+  `<name>_unittest.cc` in `lb_unittests`; `../scripts/check_lb_tests.py` checks it (and that
+  `lb_core` lists every lb-core file) on every push, and the release build runs both test
+  binaries.
 - **Keep decisions out of views and hooks.** When view code or a patched Chromium function decides
   something (close or keep, which tab to show), put the rule in the model as a function over a
   plain state struct (`browser/tabs/pinned_close.h`) and test every case there.

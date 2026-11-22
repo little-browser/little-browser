@@ -309,5 +309,36 @@ TEST(SavedTabsTest, SplitsArePairsOfTheSameId) {
   EXPECT_EQ(splits[0], (std::vector<size_t>{0, 1}));
 }
 
+TEST(MergeSavedTabsTest, ImportedTabsGoAfterTheirKind) {
+  auto tab = [](const char* url, bool pinned, bool active = false) {
+    SavedTab t;
+    t.url = GURL(url);
+    t.pinned = pinned;
+    t.active = active;
+    return t;
+  };
+  std::vector<SavedTab> merged =
+      MergeSavedTabs({tab("https://p1/", true), tab("https://t1/", false, /*active=*/true)},
+                     {tab("https://t2/", false, /*active=*/true), tab("https://p2/", true)});
+  std::vector<std::string> urls;
+  for (const SavedTab& t : merged) {
+    urls.push_back(t.url.spec());
+  }
+  EXPECT_EQ(urls,
+            (std::vector<std::string>{"https://p1/", "https://p2/", "https://t1/", "https://t2/"}));
+  EXPECT_EQ(ActiveSavedTab(merged), 2u);  // still the space's own active tab
+  EXPECT_FALSE(merged[3].active);
+  EXPECT_TRUE(MergeSavedTabs({}, {}).empty());
+}
+
+TEST(SpaceModelTest, UntouchedTabsForImport) {
+  // First run's window holds the welcome page: its space still counts as empty for import.
+  EXPECT_TRUE(IsUntouchedTabUrl(GURL("chrome://welcome/")));
+  EXPECT_TRUE(IsUntouchedTabUrl(GURL("chrome://newtab/")));
+  EXPECT_TRUE(IsUntouchedTabUrl(GURL()));
+  EXPECT_FALSE(IsUntouchedTabUrl(GURL("https://example.com/")));
+  EXPECT_FALSE(IsUntouchedTabUrl(GURL("chrome://settings/")));
+}
+
 }  // namespace
 }  // namespace lb
