@@ -264,9 +264,12 @@ dialog when its widget is destroyed.
 Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell in
 [design.md](design.md) §7.6. Everything is in `browser/importer/` unless named otherwise.
 
-- **Sources.** `import_sources.*` finds what's on the Mac: each Chrome-family browser's profiles
-  and Arc from lb-core's table of browsers (`Local State` in each data folder), Firefox and Safari
-  from Chromium's `ImporterList`, the default browser first (Launch Services' handler for https).
+- **Sources.** `import_sources.*` finds the browsers on the Mac, each once with what the dialog's
+  second step lists: each Chrome-family browser with its profiles and Arc with its spaces (read
+  through lb-core's `arc_sidebar`, a space outside Arc's default profile labelled with that
+  profile's name), from lb-core's table of browsers (`Local State` in each data folder); Firefox
+  with its profiles and Safari from Chromium's `ImporterList`. The default browser comes first
+  (Launch Services' handler for https).
 - **Reading** a Chrome-family profile: `chromium_profile_reader.*` (in `//lb:model`, unit tested)
   on a `MayBlock` single-threaded runner (Chromium's session backend needs one). It copies the
   profile's SQLite files (with any `-wal` and `-journal` files) and its `Sessions` folder into a
@@ -298,29 +301,51 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
   from its creation), a reply that never comes counting as not written. Extensions are only
   listed; the dialog installs them. If the profile goes away first, the import ends with that as
   a problem.
-- **Arc**: `arc_import.*` reads `StorableSidebar.json` and Arc's `Local State`, maps Arc's
-  profiles through lb-core (making missing ones with `ProfileManager::CreateMultiProfileAsync`),
-  places the spaces through lb-core (`SidebarController::AddImportedSpace`, or `AddImportedTabs`
-  for an empty space it fills; first run's welcome page counts as empty, `IsUntouchedTabUrl`) and
-  then imports each Arc profile's data into its matching profile as above, reading Arc's
-  keychain item once for all of them. Without "Spaces, profiles and tabs" it makes no profile and
-  imports everything into the current one.
+- **A whole browser** (its chosen Chrome-family profiles, or Arc's chosen spaces):
+  `browser_import.*` reads the browser's `Local State` for its profiles' names and, for Arc,
+  `StorableSidebar.json` through lb-core's `chosen_arc_spaces` (the chosen spaces, Favourites in
+  each profile's first chosen one); Arc's source profiles are those of the chosen spaces. It maps
+  the source profiles through lb-core's `map_profiles` (making missing ones with
+  `ProfileManager::CreateMultiProfileAsync`), places the spaces through lb-core (Arc's spaces, or
+  one space per Chrome-family profile, named after it) with `SidebarController::AddImportedSpace`,
+  or `AddImportedTabs` for an empty space it fills (first run's welcome page counts as empty,
+  `IsUntouchedTabUrl`), and then imports each source profile into its profile as above, one after
+  another (two may go into one profile), a Chrome-family profile's open tabs into its space. The
+  browser's keychain item is read once for all of them, and with several profiles each problem
+  line names the one it came from. Without "Spaces, profiles and tabs" it makes no profile or
+  space, brings no tabs and imports everything into the current profile.
 - **Chromium's importers** (Firefox, Safari, bookmarks HTML): `other_import.*` runs
   `ExternalProcessImporterHost` with a `ProfileWriter` subclass. Its `AddBookmarks` turns the
   entries' folder paths into lb-core's flat list (`imported_bookmarks.*`, which maps the source's
   root folders, such as the toolbar and Firefox's "unfiled", to our places) and merges them,
   instead of making an "Imported from" folder; its `AddHistoryPage` passes history through
   lb-core's rule (web pages, once each) and `AddHistoryPages`; its `AddKeywords` adds search
-  shortcuts only when they are ticked, and counts them. An import that never started (Firefox
+  shortcuts only when they are ticked, and counts them. Firefox's chosen profiles are imported
+  one after another. An import that never started (Firefox
   left open and its lock prompt dismissed) or didn't finish is named in the summary. Safari's
   export `.zip` is unzipped (`zip::Unzip`, only its `.html` and `History*.json` files; its
   passwords and cards never reach the disk): the bookmarks go to Chromium's bookmarks-file
   importer, every history file through lb-core, and the folder is deleted in the background.
 - **The dialog** is `ui/views/importer/import_dialog.*`, a `BrowserModalDialog` that steps from
-  the source and items (`import_choices.*` in `//lb:model` holds what each source offers, the
-  labels and the summary line) to the progress line and the summary, then installs the ticked
-  extensions one after another with Chromium's `WebstoreInstallWithPrompt`; what follows the
-  dialog (the next first-run question) waits for the installs. Files are picked with
+  the browser (Next) to its profiles or spaces and items (with a Back button as the dialog's
+  extra view) to the progress line and the summary (`import_choices.*` in `//lb:model` holds what
+  each source offers, when the profiles or spaces are listed, when Import can be pressed, the
+  labels and the summary line). The first step lists each browser with its macOS app icon
+  (`import_app_icon.mm`, from the browser's bundle id, a globe when it isn't installed; the two
+  file choices get a document glyph) and the "what comes along" step gives each item a leading
+  icon. Each row is an icon beside a radio or a checkbox; the radios sit in those rows yet stay
+  one group through a cascading radio-group view set on the body. While a Chrome-family browser
+  or Arc imports, the progress step lists the chosen items, each with a spinner that becomes a
+  check as it comes over: the profile writer reports each item once it is written (or has nothing
+  to write), through `ChromiumImportRequest::on_item_written`; `ImportBrowser` passes on the
+  reports of the last source profile that imports each item, so a check means every profile's
+  share is in, and reports spaces, profiles and tabs together once the tabs have joined their
+  spaces (an item still unreported when the import ends is reported then). It then
+  installs the ticked
+  extensions one after another (`importer/extension_install.*`: Chromium's
+  `WebstoreInstallWithPrompt` with no prompt, so `WebstoreStandaloneInstaller` goes straight to
+  the store download, and no "added" bubble); what follows the dialog (the next first-run
+  question) waits for the installs. Files are picked with
   `ui::SelectFileDialog`, attached to the dialog's own window (a second sheet on the browser
   window would wait behind the dialog's).
 - **Entry points.** `IDC_IMPORT_SETTINGS` (the app menu's "Import Bookmarks and Settings…") is
@@ -328,15 +353,20 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
   profile (a private window's is never used) and does nothing in guest or forced-incognito
   windows; the command bar's "Import from another browser" runs it, and so does Settings'
   importData route, which the row, the app menu with no window open and the address all reach
-  (`patches/lb/import-settings-row.patch`), instead of Chromium's WebUI dialog. First run asks
-  first (`MaybeShowImportOffer`, Local State `lb.import_offered`, on the browser's first run
-  only; `NextImportOfferStep` in `import_choices.*`): other windows' first-run questions wait
-  until the offer, the dialog and its installs are over.
+  (`patches/lb/import-settings-row.patch`), instead of Chromium's WebUI dialog. On first run
+  the dialog opens by itself before the other questions (`MaybeShowImportOffer`, Local State
+  `lb.import_offered`, on the browser's first run only; `NextImportOfferStep` in
+  `import_choices.*`), with the browsers it already found, an introduction on its first step and
+  "Not now" for Cancel; other windows' first-run questions wait until the dialog and its installs
+  are over. The dialog's body is a `views::ScrollView` clipped to 480 high, so a long step
+  scrolls under a fixed title and buttons.
 - **Address autofill** is on by default (`browser/prefs/pref_defaults.*`); ungoogled-chromium
   turns it off, and Chromium then drops imported addresses.
-- **Check.** The `import-fixture`, `import-arc`, `import-dia`, `import-files` and `import-dialog`
-  demos import the made-up sources in `lb/test/data/import/home` (`lb/README.md`); `import` with a
-  real profile folder logs only how many of each item came along.
+- **Check.** The `import-fixture`, `import-arc`, `import-arc-unreadable`, `import-edge`,
+  `import-files`, `import-dialog`, `import-choices`, `import-progress` and `import-first-run` demos
+  import the made-up sources in `lb/test/data/import/home`, and `import-extensions` installs a store
+  extension as an import does (`lb/README.md`); `import` with a real profile folder logs only how
+  many of each item came along.
 
 ## Ad blocker
 

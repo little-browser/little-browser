@@ -56,9 +56,9 @@ TEST(CoreBridgeTest, DialogOrder) {
     found.push_back(rust::String(id));
   }
   EXPECT_EQ(ToStrings(core::dialog_order(found, "com.google.Chrome")),
-            (std::vector<std::string>{"chrome", "arc", "dia"}));
+            (std::vector<std::string>{"chrome", "arc", "edge"}));
   EXPECT_EQ(ToStrings(core::dialog_order(found, "")),
-            (std::vector<std::string>{"arc", "chrome", "dia"}));
+            (std::vector<std::string>{"arc", "chrome", "edge"}));
 }
 
 TEST(CoreBridgeTest, Profiles) {
@@ -225,6 +225,7 @@ TEST(CoreBridgeTest, ArcSidebar) {
   ASSERT_TRUE(std::string(arc.error).empty());
   ASSERT_EQ(arc.spaces.size(), 1u);
   const core::ArcSpace& home = arc.spaces[0];
+  EXPECT_EQ(std::string(home.id), "s");
   EXPECT_EQ(std::string(home.name), "Home");
   EXPECT_EQ(std::string(home.emoji), "🏠");
   EXPECT_EQ(home.hue, -1);
@@ -238,6 +239,20 @@ TEST(CoreBridgeTest, ArcSidebar) {
   EXPECT_TRUE(home.unpinned.empty());
 
   EXPECT_FALSE(std::string(core::arc_sidebar("[]").error).empty());
+}
+
+TEST(CoreBridgeTest, ChosenArcSpaces) {
+  const char kSidebar[] = R"({"sidebar": {"containers": [{
+      "spaces": ["a", {"id": "a", "title": "A"}, "b", {"id": "b", "title": "B"}],
+      "items": []}]}})";
+  rust::Vec<rust::String> chosen;
+  chosen.push_back("b");
+  core::ArcResult arc = core::chosen_arc_spaces(kSidebar, chosen);
+  ASSERT_TRUE(std::string(arc.error).empty());
+  ASSERT_EQ(arc.spaces.size(), 1u);
+  EXPECT_EQ(std::string(arc.spaces[0].name), "B");
+  EXPECT_EQ(core::arc_sidebar(kSidebar).spaces.size(), 2u);
+  EXPECT_FALSE(std::string(core::chosen_arc_spaces("[]", chosen).error).empty());
 }
 
 TEST(CoreBridgeTest, PlacesSpacesAndProfiles) {
@@ -254,11 +269,11 @@ TEST(CoreBridgeTest, PlacesSpacesAndProfiles) {
 
   rust::Vec<core::ExistingProfile> profiles;
   profiles.push_back(core::ExistingProfile{"Profile 2", "Work"});
-  rust::Vec<core::ArcProfileName> arc;
-  arc.push_back(core::ArcProfileName{"", "Main"});
-  arc.push_back(core::ArcProfileName{"Profile 1", "work"});
-  arc.push_back(core::ArcProfileName{"Profile 3", "Side"});
-  rust::Vec<core::ProfileTarget> mapped = core::map_arc_profiles(profiles, "Default", arc);
+  rust::Vec<core::ProfileName> source;
+  source.push_back(core::ProfileName{"", "Main"});
+  source.push_back(core::ProfileName{"Profile 1", "work"});
+  source.push_back(core::ProfileName{"Profile 3", "Side"});
+  rust::Vec<core::ProfileTarget> mapped = core::map_profiles(profiles, "Default", source);
   ASSERT_EQ(mapped.size(), 3u);
   EXPECT_EQ(std::string(mapped[0].existing_id), "Default");
   EXPECT_EQ(std::string(mapped[1].existing_id), "Profile 2");

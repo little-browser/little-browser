@@ -1,0 +1,48 @@
+{
+  "extensions": {
+    "settings": {
+      "cccccccccccccccccccccccccccccccc": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Reader"
+        }
+      },
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 1"
+        }
+      },
+      "ffffffffffffffffffffffffffffffff": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 2"
+        }
+      },
+      "gggggggggggggggggggggggggggggggg": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 3"
+        }
+      },
+      "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 4"
+        }
+      },
+      "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 5"
+        }
+      }
+    }
+  }
+}

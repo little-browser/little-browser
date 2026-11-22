@@ -47,6 +47,9 @@ impl From<ImportedTab> for ArcPinnedTab {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ArcSpace {
+    /// Arc's id for it, which the import dialog's choice names it by; `#2` for the third space
+    /// when Arc gave it none.
+    pub id: String,
     /// Its name; may be empty.
     pub name: String,
     pub emoji: Option<String>,
@@ -97,7 +100,8 @@ pub fn arc_sidebar(text: &str) -> Result<ArcSidebar, ImportError> {
     };
 
     let spaces = objects(container.get("spaces"))
-        .map(|space| {
+        .enumerate()
+        .map(|(index, space)| {
             let part = |label: &str| {
                 let ids = space.get("containerIDs").and_then(Value::as_array);
                 let ids = ids.map(Vec::as_slice).unwrap_or_default();
@@ -107,6 +111,10 @@ pub fn arc_sidebar(text: &str) -> Result<ArcSidebar, ImportError> {
                     .and_then(Value::as_str)
             };
             ArcSpace {
+                id: match space.get("id").and_then(Value::as_str) {
+                    Some(id) if !id.is_empty() => id.to_owned(),
+                    _ => format!("#{index}"),
+                },
                 name: space
                     .get("title")
                     .and_then(Value::as_str)
@@ -369,6 +377,7 @@ mod tests {
             got.spaces,
             [
                 ArcSpace {
+                    id: "s1".into(),
                     name: "Personal".into(),
                     emoji: Some("🏠".into()),
                     hue: Some(223),
@@ -381,6 +390,7 @@ mod tests {
                     unpinned: vec![tab("https://news.example/", "News")],
                 },
                 ArcSpace {
+                    id: "s2".into(),
                     name: "Work".into(),
                     emoji: Some("💼".into()),
                     hue: None,
@@ -430,7 +440,7 @@ mod tests {
     fn tolerates_missing_parts() {
         let text = sidebar(
             vec![
-                json!({"id": "s1"}),
+                json!({}),
                 json!({"id": "s2", "title": "X",
                 "containerIDs": ["pinned"], "profile": {"custom": {"_0": {"directoryBasename": ""}}},
                 "customInfo": {"iconType": {"emoji_v2": " "}}}),
@@ -448,6 +458,11 @@ mod tests {
         }
         assert_eq!(got.spaces[0].name, "");
         assert_eq!(got.spaces[1].name, "X");
+        // A space without an id is named by its place.
+        assert_eq!(
+            (got.spaces[0].id.as_str(), got.spaces[1].id.as_str()),
+            ("#0", "s2")
+        );
     }
 
     #[test]

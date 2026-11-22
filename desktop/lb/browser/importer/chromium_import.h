@@ -8,11 +8,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/functional/callback_forward.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/history/core/browser/url_row.h"
@@ -35,6 +36,8 @@ struct ExtensionToInstall {
   // The profile it was imported for, and that profile's name.
   base::WeakPtr<Profile> profile;
   std::u16string profile_name;
+  // Turned off in the source browser: offered unticked.
+  bool enabled = true;
 };
 
 // What an import did, for its summary (docs/ux.md §13).
@@ -49,9 +52,10 @@ struct ImportResult {
   ImportCounts counts;
   // One line per item that couldn't be read or written ("History: ...").
   std::vector<std::string> problems;
-  // Extensions to offer (the dialog's last step), and how many couldn't come along.
+  // Extensions to offer (the dialog's last step), and those that couldn't come along, each once
+  // per profile ("<profile folder>/<extension id>"), so the summary counts each once.
   std::vector<ExtensionToInstall> extensions;
-  size_t extensions_not_from_store = 0;
+  std::set<std::string> extensions_not_from_store;
 };
 
 // What to import from one Chrome-family profile.
@@ -70,6 +74,10 @@ struct ChromiumImportRequest {
   std::optional<std::string> keychain_password;
   // kImportOpenTabs: the space the tabs join.
   std::string space_id;
+  // Run after each requested item (an ImportItem bit) has been written into the profile, or turned
+  // out to have nothing to write, for a progress display; kImportOpenTabs once the open tabs have
+  // joined their space.
+  base::RepeatingCallback<void(uint32_t)> on_item_written;
 };
 
 // Imports a Chrome-family profile into `profile`: its files are read on a background sequence
@@ -85,7 +93,8 @@ void ImportChromiumProfile(Profile* profile,
                            base::OnceCallback<void(ImportResult)> done);
 
 // Adds history pages to `profile`'s history: those it doesn't have, or has with an older visit
-// (so importing twice adds nothing). `done` gets how many pages that was, on the UI thread.
+// (so importing twice adds nothing). `done` gets how many pages that was, on the UI thread, and
+// always runs: 0 when history couldn't take them (its database didn't open).
 void AddHistoryPages(Profile* profile,
                      history::URLRows rows,
                      history::VisitSource source,

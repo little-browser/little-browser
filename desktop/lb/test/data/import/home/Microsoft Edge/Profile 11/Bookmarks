@@ -2,7 +2,7 @@
   "version": 1,
   "roots": {
     "bookmark_bar": {"type": "folder", "name": "Bookmarks bar", "children": [
-      {"type": "url", "name": "Dia notes", "url": "https://notes.example/"}
+      {"type": "url", "name": "Personal notes", "url": "https://personal.example/"}
     ]},
     "other": {"type": "folder", "name": "Other bookmarks", "children": []},
     "synced": {"type": "folder", "name": "Mobile bookmarks", "children": []}

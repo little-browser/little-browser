@@ -49,6 +49,10 @@ inline constexpr char kActiveSpacePref[] = "lb.active_space";
 // A space colour as the window tint and the colour swatches show it.
 SkColor SpaceTint(int hue);
 
+// A profile's name as the sidebar and Chromium's profile menu show it, from its folder name
+// ("Profile 1"); the first profile, never named, is "Personal". The folder name if it isn't known.
+std::u16string ProfileDisplayName(const std::string& base_name);
+
 // A tab in any space of this window (for the command bar).
 struct TabEntry {
   size_t space_index;

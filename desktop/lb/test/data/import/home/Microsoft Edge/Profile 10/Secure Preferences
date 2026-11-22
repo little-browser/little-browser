@@ -1,0 +1,72 @@
+{
+  "extensions": {
+    "settings": {
+      "cccccccccccccccccccccccccccccccc": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Reader"
+        }
+      },
+      "dddddddddddddddddddddddddddddddd": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Notes"
+        }
+      },
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 1"
+        }
+      },
+      "ffffffffffffffffffffffffffffffff": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 2"
+        }
+      },
+      "gggggggggggggggggggggggggggggggg": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 3"
+        }
+      },
+      "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 4"
+        }
+      },
+      "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 5"
+        }
+      },
+      "jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj": {
+        "location": 1,
+        "creation_flags": 9,
+        "manifest": {
+          "name": "Made-up Tool 6"
+        }
+      },
+      "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk": {
+        "location": 1,
+        "creation_flags": 9,
+        "disable_reasons": [
+          1
+        ],
+        "manifest": {
+          "name": "Made-up Paused"
+        }
+      }
+    }
+  }
+}

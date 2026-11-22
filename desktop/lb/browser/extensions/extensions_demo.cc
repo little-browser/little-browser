@@ -59,6 +59,8 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_urls.h"
 #include "lb/browser/demo/demo_report.h"
+#include "lb/browser/importer/chromium_import.h"
+#include "lb/browser/importer/extension_install.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -776,6 +778,62 @@ class PasswordManagerDemo {
   bool picked_ = false;
 };
 
+// ------------------------------------------------------------------------------ import-extensions
+
+// The import's extension install (docs/ux.md section 13): ticked extensions install from the
+// store with no prompt. Any prompt that shows is cancelled, so the extension only arrives if none
+// does. One whose profile went away and one the store doesn't have come first, and mustn't stop
+// it.
+class ImportExtensionsDemo {
+ public:
+  static constexpr char kMode[] = "import-extensions";
+
+  ImportExtensionsDemo(Profile* profile, std::string id)
+      : profile_(profile->GetWeakPtr()),
+        id_(std::move(id)),
+        auto_cancel_(std::make_unique<extensions::ScopedTestDialogAutoConfirm>(
+            extensions::ScopedTestDialogAutoConfirm::CANCEL)) {}
+
+  // The object is never deleted (the demo runs once per launch), so base::Unretained is safe.
+  void Start() {
+    FailDemoAfter(kMode, base::Seconds(120));
+    // Already there, it would pass even if a prompt showed and was cancelled: needs a profile
+    // without it.
+    if (extensions::ExtensionRegistry::Get(profile_.get())
+            ->GenerateInstalledExtensionsSet()
+            .Contains(id_)) {
+      ReportDemo(kMode, false, "needs a profile without the extension (run it on a fresh one)");
+      auto_cancel_.reset();
+      return;
+    }
+    std::vector<ExtensionToInstall> extensions(3);
+    extensions[0].id = id_;                   // no profile: skipped
+    extensions[1].id = std::string(32, 'a');  // not on the store
+    extensions[1].profile = profile_;
+    extensions[2].id = id_;
+    extensions[2].profile = profile_;
+    InstallImportedExtensions(std::move(extensions),
+                              base::BindOnce(&ImportExtensionsDemo::Done, base::Unretained(this)));
+  }
+
+ private:
+  void Done() {
+    const extensions::Extension* extension =
+        profile_
+            ? extensions::ExtensionRegistry::Get(profile_.get())->enabled_extensions().GetByID(id_)
+            : nullptr;
+    ReportDemo(kMode, extension && extension->from_webstore(),
+               extension ? "installed \"" + extension->name() +
+                               "\" from_webstore=" + (extension->from_webstore() ? "1" : "0")
+                         : std::string("not installed: a prompt showed, or the install failed"));
+    auto_cancel_.reset();
+  }
+
+  base::WeakPtr<Profile> profile_;
+  std::string id_;
+  std::unique_ptr<extensions::ScopedTestDialogAutoConfirm> auto_cancel_;
+};
+
 }  // namespace
 
 bool MaybeRunExtensionsDemo(BrowserWindowInterface* browser, const std::string& mode) {
@@ -791,6 +849,8 @@ bool MaybeRunExtensionsDemo(BrowserWindowInterface* browser, const std::string& 
     (new StoreLinksDemo(browser))->Start();
   } else if (mode == PasswordManagerDemo::kMode) {
     (new PasswordManagerDemo(browser->GetProfile()))->Start();
+  } else if (mode == ImportExtensionsDemo::kMode) {
+    (new ImportExtensionsDemo(browser->GetProfile(), DemoExtensionId()))->Start();
   } else {
     return false;
   }

@@ -21,32 +21,37 @@ enum ImportItem : uint32_t {
   kImportHistory = 1 << 1,
   kImportSearchShortcuts = 1 << 2,
   kImportAddresses = 1 << 3,
+  // A Chrome-family profile's open tabs, into a space. Not a choice in the dialog: kImportSpaces
+  // brings them.
   kImportOpenTabs = 1 << 4,
-  kImportSpaces = 1 << 5,  // Arc: spaces, profiles, pinned and unpinned tabs, Favourites
+  // Spaces, profiles and tabs: Arc's spaces (pinned and unpinned tabs, Favourites), or a
+  // Chrome-family profile as a space with its open tabs; each in its matching profile.
+  kImportSpaces = 1 << 5,
   kImportExtensions = 1 << 6,
   kImportCookies = 1 << 7,
 };
 
 // Where an import comes from.
 enum class ImportSourceKind {
-  kChromium,       // a Chrome-family browser's profile
-  kArc,            // Arc, all its profiles
-  kFirefox,        // a Firefox profile (Chromium's importer)
+  kChromium,       // a Chrome-family browser, its profiles chosen
+  kArc,            // Arc, its spaces chosen
+  kFirefox,        // Firefox, its profiles chosen (Chromium's importer)
   kSafari,         // Safari's bookmarks (Chromium's importer; needs Full Disk Access)
   kSafariExport,   // Safari's export file (.zip)
   kBookmarksFile,  // a bookmarks HTML file
 };
 
-// The first-run import offer (docs/ux.md §12), asked once on the browser's very first run.
+// The first-run import offer (docs/ux.md §12): the import dialog opens by itself once, on the
+// browser's very first run, when another browser's data is on the Mac.
 enum class ImportOfferStep {
-  kSkip,         // already asked, or not the first run: go on with the other questions
-  kWait,         // another window is asking or importing: go on once that is over
-  kFindSources,  // look for other browsers, and ask if any is found
+  kSkip,         // already offered, or not the first run: go on with the other questions
+  kWait,         // another window is looking for browsers or importing: go on once that is over
+  kFindSources,  // look for other browsers, and open the dialog if any is found
 };
 struct ImportOfferState {
   bool offered = false;      // Local State lb.import_offered
   bool first_run = false;    // the browser's very first run
-  bool in_progress = false;  // a window shows the offer, the dialog or its installs
+  bool in_progress = false;  // a window is looking for browsers, or shows the dialog or installs
 };
 ImportOfferStep NextImportOfferStep(const ImportOfferState& state);
 
@@ -56,18 +61,43 @@ uint32_t OfferedImportItems(ImportSourceKind kind);
 // The items ticked when a source is picked: all it has, except cookies.
 uint32_t DefaultImportItems(ImportSourceKind kind);
 
-// Every item, in the order the dialog lists them.
+// Every item the dialog lists, in its order.
 std::vector<ImportItem> ImportItemsInOrder();
 
 // An item's checkbox label.
 std::u16string ImportItemLabel(ImportItem item);
 
-// A source as the dialog lists it: "Chrome — Work", or the browser's name alone when the
-// profile has no name.
-std::u16string ImportSourceLabel(std::u16string_view browser, std::u16string_view profile);
+// The heading over a browser's profiles or spaces in the dialog's second step: "Profiles",
+// "Spaces" (Arc), or empty for a source that has neither.
+std::u16string ImportChoicesHeading(ImportSourceKind kind);
+
+// Whether the dialog lists the profiles or spaces: only when there is more than one to pick
+// from (one is simply taken).
+bool ShowsImportChoices(size_t choices);
+
+// Whether Import can be pressed: something to bring is ticked and, for a browser with profiles
+// or spaces, at least one of its `choices` is picked (`picked` of them).
+bool CanImport(ImportSourceKind kind, size_t choices, size_t picked, uint32_t items);
+
+// A name and the profile it belongs to: "Work — Client", or the name alone when `profile` is
+// empty. `name` empty is "Untitled".
+std::u16string NameWithProfile(std::u16string_view name, std::u16string_view profile);
+
+// How the dialog lists a source profile: the name the browser shows for it, else its folder, else
+// (a profile kept in the browser's data folder itself) the browser's name.
+std::u16string ProfileLabel(std::u16string_view name,
+                            std::string_view folder,
+                            std::u16string_view browser);
+
+// A problem line of an import from several source profiles names the profile it came from
+// ("Work: History: ..."); from one, or from a profile without a name, it is the problem alone.
+std::string ProfileProblem(std::string_view problem,
+                           std::string_view profile,
+                           bool several_profiles);
 
 // The line under "Stay signed in (cookies)": what macOS will ask.
 std::u16string CookiesKeychainNote(std::u16string_view keychain_service);
+
 
 // What an import added.
 struct ImportCounts {
@@ -86,11 +116,23 @@ struct ImportCounts {
 // none left out), or "Nothing new to import".
 std::u16string ImportSummary(const ImportCounts& counts);
 
-// An extension's checkbox in the extensions step: its name, and the profile it goes into when
-// the import brought extensions for more than one profile ("uBlock Origin — Work").
-std::u16string ExtensionLabel(std::u16string_view name,
-                              std::u16string_view profile,
-                              bool several_profiles);
+// The extensions step's list, grouped by the profile each extension goes into: one group per
+// profile in the order they first come in `profiles` (each extension's profile, by something
+// unique to it such as its folder, since two profiles may share a name), with the indices of its
+// extensions in their order. When all go into one profile there is one group with an empty
+// `profile`, and the list shows no heading; else the dialog heads each group with the profile's
+// name.
+struct ExtensionGroup {
+  ExtensionGroup();
+  ExtensionGroup(const ExtensionGroup&);
+  ExtensionGroup& operator=(const ExtensionGroup&);
+  ~ExtensionGroup();
+  bool operator==(const ExtensionGroup&) const;
+
+  std::u16string profile;
+  std::vector<size_t> extensions;
+};
+std::vector<ExtensionGroup> GroupExtensionsByProfile(const std::vector<std::u16string>& profiles);
 
 // The extensions step's line about extensions that can't come along ("2 aren't from the Chrome
 // Web Store"); empty for none.

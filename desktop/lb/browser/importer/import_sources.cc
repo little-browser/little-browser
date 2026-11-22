@@ -45,6 +45,59 @@ std::string DefaultBrowserBundleId() {
   return id ? base::SysCFStringRefToUTF8(id) : std::string();
 }
 
+// Arc's spaces as the dialog lists them: each with its profile's name when it isn't in Arc's
+// default profile. False, with `arc.problem` saying why, when its sidebar file can't be read.
+bool AddArcSpaces(const base::FilePath& sidebar,
+                  const rust::Vec<core::SourceProfile>& profiles,
+                  ImportSource& arc) {
+  std::string text;
+  if (!base::ReadFileToString(sidebar, &text)) {
+    arc.problem = "Arc's spaces couldn't be read: its sidebar file is missing or unreadable";
+    return false;
+  }
+  core::ArcResult read = core::arc_sidebar(ToCoreText(text));
+  if (!read.error.empty()) {
+    arc.problem = "Arc's spaces couldn't be read: " + std::string(read.error);
+    return false;
+  }
+  for (const core::ArcSpace& space : read.spaces) {
+    const std::string dir(space.profile_dir);
+    std::u16string profile;
+    if (!dir.empty()) {
+      std::u16string name;
+      for (const core::SourceProfile& p : profiles) {
+        if (std::string(p.dir) == dir) {
+          name = base::UTF8ToUTF16(std::string(p.name));
+        }
+      }
+      profile = ProfileLabel(name, dir, u"");
+    }
+    ImportChoice choice;
+    choice.id = std::string(space.id);
+    choice.label = NameWithProfile(base::UTF8ToUTF16(std::string(space.name)), profile);
+    arc.choices.push_back(std::move(choice));
+  }
+  return true;
+}
+
+// A Chrome-family browser's profiles as the dialog lists them, those that hold any data.
+void AddProfiles(const base::FilePath& user_data,
+                 const rust::Vec<core::SourceProfile>& profiles,
+                 ImportSource& source) {
+  for (const core::SourceProfile& p : profiles) {
+    const std::string folder(p.dir);
+    const base::FilePath dir = folder.empty() ? user_data : user_data.Append(folder);
+    if (!base::PathExists(dir.AppendASCII("History")) &&
+        !base::PathExists(dir.AppendASCII("Bookmarks"))) {
+      continue;  // listed, but never used
+    }
+    ImportChoice choice;
+    choice.id = folder;
+    choice.label = ProfileLabel(base::UTF8ToUTF16(std::string(p.name)), folder, source.browser);
+    source.choices.push_back(std::move(choice));
+  }
+}
+
 struct Found {
   std::vector<ImportSource> sources;  // ours, in the dialog's order
   std::string default_bundle_id;
@@ -56,7 +109,9 @@ Found FindOurSources(base::FilePath support) {
   rust::Vec<rust::String> ids;
   rust::Vec<core::BrowserSource> browsers = core::browser_sources();
   for (const core::BrowserSource& b : browsers) {
-    if (base::PathExists(support.Append(std::string(b.mac_user_data)).AppendASCII("Local State"))) {
+    // Arc counts when either its profiles or its sidebar are there.
+    if (base::PathExists(support.Append(std::string(b.mac_user_data)).AppendASCII("Local State")) ||
+        (b.is_arc && base::PathExists(support.Append(std::string(core::arc_sidebar_file()))))) {
       ids.push_back(b.id);
     }
   }
@@ -71,32 +126,29 @@ Found FindOurSources(base::FilePath support) {
       base.bundle_id = std::string(b.mac_bundle_id);
       base.keychain_service = std::string(b.mac_keychain_service);
       base.keychain_account = std::string(b.mac_keychain_account);
-      if (b.is_arc) {
-        if (base::PathExists(support.Append(std::string(core::arc_sidebar_file())))) {
-          base.kind = ImportSourceKind::kArc;
-          base.label = base.browser;
-          base.path = user_data.DirName();
-          found.sources.push_back(base);
-        }
-        continue;
-      }
       std::string local_state;
-      if (!base::ReadFileToString(user_data.AppendASCII("Local State"), &local_state)) {
+      const bool has_local_state =
+          base::ReadFileToString(user_data.AppendASCII("Local State"), &local_state);
+      rust::Vec<core::SourceProfile> profiles;
+      if (has_local_state) {
+        profiles = core::chromium_profiles(ToCoreText(local_state)).profiles;
+      }
+      if (b.is_arc) {
+        base.kind = ImportSourceKind::kArc;
+        base.path = user_data.DirName();
+        if (AddArcSpaces(support.Append(std::string(core::arc_sidebar_file())), profiles, base)) {
+          found.sources.push_back(std::move(base));
+          continue;
+        }
+        // Its spaces can't be read: its profiles still can, as from any Chrome-family browser.
+      } else if (!has_local_state) {
         continue;
       }
-      for (const core::SourceProfile& p :
-           core::chromium_profiles(ToCoreText(local_state)).profiles) {
-        const base::FilePath dir =
-            std::string(p.dir).empty() ? user_data : user_data.Append(std::string(p.dir));
-        if (!base::PathExists(dir.AppendASCII("History")) &&
-            !base::PathExists(dir.AppendASCII("Bookmarks"))) {
-          continue;  // listed, but never used
-        }
-        ImportSource source = base;
-        source.kind = ImportSourceKind::kChromium;
-        source.path = dir;
-        source.label = ImportSourceLabel(base.browser, base::UTF8ToUTF16(std::string(p.name)));
-        found.sources.push_back(std::move(source));
+      base.kind = ImportSourceKind::kChromium;
+      base.path = user_data;
+      AddProfiles(user_data, profiles, base);
+      if (!base.choices.empty()) {
+        found.sources.push_back(std::move(base));
       }
     }
   }
@@ -106,28 +158,31 @@ Found FindOurSources(base::FilePath support) {
 void AddChromiumImporterSources(Found found,
                                 std::unique_ptr<ImporterList> list,
                                 base::OnceCallback<void(std::vector<ImportSource>)> done) {
+  // Firefox once, with its profiles; then Safari.
   std::vector<ImportSource> theirs;
+  ImportSource firefox;
+  firefox.kind = ImportSourceKind::kFirefox;
+  firefox.browser = u"Firefox";
+  firefox.bundle_id = std::string(core::firefox_bundle_id());
   for (size_t i = 0; i < list->count(); ++i) {
     const user_data_importer::SourceProfile& p = list->GetSourceProfileAt(i);
-    ImportSource source;
-    source.chromium_source = p;
-    source.label = p.importer_name;
     if (p.importer_type == user_data_importer::TYPE_FIREFOX) {
-      source.kind = ImportSourceKind::kFirefox;
-      source.browser = u"Firefox";
-      source.bundle_id = std::string(core::firefox_bundle_id());
-      if (!p.profile.empty()) {
-        source.label = ImportSourceLabel(u"Firefox", p.profile);
-      }
+      ImportChoice choice;
+      choice.id = base::NumberToString(i);
+      choice.label = ProfileLabel(p.profile, std::string(), p.importer_name);
+      choice.chromium_source = p;
+      firefox.choices.push_back(std::move(choice));
     } else if (p.importer_type == user_data_importer::TYPE_SAFARI) {
-      source.kind = ImportSourceKind::kSafari;
-      source.browser = u"Safari";
-      source.bundle_id = std::string(core::safari_bundle_id());
-      source.label = u"Safari";
-    } else {
-      continue;
+      ImportSource safari;
+      safari.kind = ImportSourceKind::kSafari;
+      safari.browser = u"Safari";
+      safari.bundle_id = std::string(core::safari_bundle_id());
+      safari.chromium_source = p;
+      theirs.push_back(std::move(safari));
     }
-    theirs.push_back(std::move(source));
+  }
+  if (!firefox.choices.empty()) {
+    theirs.insert(theirs.begin(), std::move(firefox));
   }
   // Ours (already in lb-core's order), then Firefox and Safari; the default browser first.
   std::vector<ImportSource> listed = std::move(found.sources);
@@ -151,6 +206,11 @@ void AddChromiumImporterSources(Found found,
 }
 
 }  // namespace
+
+ImportChoice::ImportChoice() = default;
+ImportChoice::ImportChoice(const ImportChoice&) = default;
+ImportChoice& ImportChoice::operator=(const ImportChoice&) = default;
+ImportChoice::~ImportChoice() = default;
 
 ImportSource::ImportSource() = default;
 ImportSource::ImportSource(const ImportSource&) = default;

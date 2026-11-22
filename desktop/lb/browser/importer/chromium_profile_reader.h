@@ -51,10 +51,10 @@ struct ChromiumProfileData {
   rust::Vec<core::Address> addresses;
   // In the order they join the space (lb::core::place_open_tabs).
   rust::Vec<core::OpenTab> open_tabs;
-  // Chrome Web Store extensions not installed here, with their names; and how many others the
-  // profile has, which can't come along.
+  // Chrome Web Store extensions not installed here, with their names; and the ids of the others
+  // the profile has, which can't come along.
   rust::Vec<core::StoreExtension> extensions;
-  size_t extensions_not_from_store = 0;
+  std::vector<std::string> extensions_not_from_store;
   rust::Vec<core::Cookie> cookies;
   // "History: ...", one line per item that couldn't be read.
   std::vector<std::string> problems;

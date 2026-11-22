@@ -107,11 +107,12 @@ mod ffi {
         name_message: String,
         default_locale: String,
         path: String,
+        enabled: bool,
     }
 
     struct ExtensionsResult {
         store: Vec<StoreExtension>,
-        not_from_store: usize,
+        not_from_store: Vec<String>,
         error: String,
     }
 
@@ -165,9 +166,11 @@ mod ffi {
         folder_name: String,
     }
 
-    /// An Arc space, Favourites already at the top of its profile's first space.
-    /// `profile_dir` empty is Arc's default profile; `hue` is -1 when it has none.
+    /// An Arc space, Favourites already at the top of its profile's first space. `id` is Arc's
+    /// (lb_core::import::arc::ArcSpace::id); `profile_dir` empty is Arc's default profile; `hue`
+    /// is -1 when it has none.
     struct ArcSpace {
+        id: String,
         name: String,
         emoji: String,
         hue: i32,
@@ -220,8 +223,9 @@ mod ffi {
         name: String,
     }
 
-    /// An Arc profile (`dir` empty: its default profile) and the name Arc shows for it.
-    struct ArcProfileName {
+    /// A source browser's profile (`dir` empty: its default profile) and the name the browser
+    /// shows for it.
+    struct ProfileName {
         dir: String,
         name: String,
     }
@@ -280,16 +284,20 @@ mod ffi {
         /// the files that couldn't be read.
         fn safari_history(texts: &Vec<String>, oldest_unix_micros: i64) -> SafariHistoryResult;
 
+        /// Every Arc space, as the import dialog lists them.
         fn arc_sidebar(text: &str) -> ArcResult;
+        /// The Arc spaces `chosen` names by id, Favourites in the first chosen space of their
+        /// profile (lb_core::import::plan::arc_spaces).
+        fn chosen_arc_spaces(text: &str, chosen: &Vec<String>) -> ArcResult;
         fn place_spaces(
             existing: &Vec<ExistingSpace>,
             imported: &Vec<SpaceToPlace>,
             fallback_name: &str,
         ) -> Vec<SpaceTarget>;
-        fn map_arc_profiles(
+        fn map_profiles(
             existing: &Vec<ExistingProfile>,
             default_profile_id: &str,
-            arc_profiles: &Vec<ArcProfileName>,
+            source_profiles: &Vec<ProfileName>,
         ) -> Vec<ProfileTarget>;
     }
 }
@@ -515,6 +523,7 @@ fn extensions(
                     name_message: e.name_message.unwrap_or_default(),
                     default_locale: e.default_locale.unwrap_or_default(),
                     path: e.path.unwrap_or_default(),
+                    enabled: e.enabled,
                 })
                 .collect(),
             not_from_store: list.not_from_store,
@@ -522,7 +531,7 @@ fn extensions(
         },
         Err(e) => ffi::ExtensionsResult {
             store: Vec::new(),
-            not_from_store: 0,
+            not_from_store: Vec::new(),
             error: e.to_string(),
         },
     }
@@ -602,11 +611,20 @@ fn profile_dir(profile: arc::ArcProfile) -> String {
 }
 
 fn arc_sidebar(text: &str) -> ffi::ArcResult {
+    arc_result(text, None)
+}
+
+fn chosen_arc_spaces(text: &str, chosen: &Vec<String>) -> ffi::ArcResult {
+    arc_result(text, Some(chosen))
+}
+
+fn arc_result(text: &str, chosen: Option<&[String]>) -> ffi::ArcResult {
     match arc::arc_sidebar(text) {
         Ok(sidebar) => ffi::ArcResult {
-            spaces: plan::arc_spaces(sidebar)
+            spaces: plan::arc_spaces(sidebar, chosen)
                 .into_iter()
                 .map(|s| ffi::ArcSpace {
+                    id: s.id,
                     name: s.name,
                     emoji: s.emoji.unwrap_or_default(),
                     hue: s.hue.unwrap_or(-1),
@@ -669,10 +687,10 @@ fn place_spaces(
         .collect()
 }
 
-fn map_arc_profiles(
+fn map_profiles(
     existing: &Vec<ffi::ExistingProfile>,
     default_profile_id: &str,
-    arc_profiles: &Vec<ffi::ArcProfileName>,
+    source_profiles: &Vec<ffi::ProfileName>,
 ) -> Vec<ffi::ProfileTarget> {
     let existing: Vec<plan::ExistingProfile> = existing
         .iter()
@@ -681,7 +699,7 @@ fn map_arc_profiles(
             name: p.name.clone(),
         })
         .collect();
-    let arc_profiles: Vec<(arc::ArcProfile, String)> = arc_profiles
+    let source_profiles: Vec<(arc::ArcProfile, String)> = source_profiles
         .iter()
         .map(|p| {
             let profile = match p.dir.as_str() {
@@ -691,7 +709,7 @@ fn map_arc_profiles(
             (profile, p.name.clone())
         })
         .collect();
-    plan::map_arc_profiles(&existing, default_profile_id, &arc_profiles)
+    plan::map_profiles(&existing, default_profile_id, &source_profiles)
         .into_iter()
         .map(|t| match t {
             plan::ProfileTarget::Existing(id) => ffi::ProfileTarget {
@@ -795,6 +813,7 @@ fn sort_store_extensions(list: Vec<ffi::StoreExtension>) -> Vec<ffi::StoreExtens
             name_message: (!e.name_message.is_empty()).then_some(e.name_message),
             default_locale: (!e.default_locale.is_empty()).then_some(e.default_locale),
             path: (!e.path.is_empty()).then_some(e.path),
+            enabled: e.enabled,
         })
         .collect();
     extensions::sort_by_name(&mut core_list);
@@ -806,6 +825,7 @@ fn sort_store_extensions(list: Vec<ffi::StoreExtension>) -> Vec<ffi::StoreExtens
             name_message: e.name_message.unwrap_or_default(),
             default_locale: e.default_locale.unwrap_or_default(),
             path: e.path.unwrap_or_default(),
+            enabled: e.enabled,
         })
         .collect()
 }

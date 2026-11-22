@@ -29,6 +29,9 @@ namespace lb {
 //   password-manager  on a fresh profile: the first-run password manager choice must come after
 //                     the search engine choice; picking Proton Pass and accepting the install
 //                     prompt must install it from the store.
+//   import-extensions on a profile without the extension: installs it as an import does, with
+//                     any install prompt cancelled; it must install from the store all the same
+//                     (no prompt), after one with no profile and one the store doesn't have.
 // The extension is uBlock Origin Lite unless --lb-demo-extension=<id> names another. Returns false
 // for any other mode.
 bool MaybeRunExtensionsDemo(BrowserWindowInterface* browser, const std::string& mode);

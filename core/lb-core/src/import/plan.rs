@@ -82,25 +82,28 @@ pub struct ExistingProfile {
     pub name: String,
 }
 
-/// Which profile here an Arc profile maps to.
+/// Which profile here a source profile maps to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProfileTarget {
     /// The existing profile with this id.
     Existing(String),
-    /// A new profile with this name; Arc profiles with the same name share one.
+    /// A new profile with this name; source profiles with the same name share one.
     New(String),
 }
 
-/// Maps each Arc profile, given with the name Arc shows for it, to a profile here: Arc's default
-/// profile to our default profile, every other one to the existing profile with the same name
-/// (ignoring case), else to a new profile with that name. A profile without a name is called
-/// after its folder.
-pub fn map_arc_profiles(
+/// Maps each profile of the source browser (Arc or a Chrome-family browser), given with the name
+/// the browser shows for it, to a profile here: the browser's default profile
+/// ([`ArcProfile::Default`]) to our default profile, every other one to the existing profile with
+/// the same name (ignoring case), else to a new profile with that name. A profile without a name
+/// is called after its folder. New profiles whose names differ only in case get the first one's
+/// name, so they are one profile.
+pub fn map_profiles(
     existing: &[ExistingProfile],
     default_profile_id: &str,
-    arc_profiles: &[(ArcProfile, String)],
+    source_profiles: &[(ArcProfile, String)],
 ) -> Vec<ProfileTarget> {
-    arc_profiles
+    let mut new_names: Vec<String> = Vec::new();
+    source_profiles
         .iter()
         .map(|(profile, name)| match profile {
             ArcProfile::Default => ProfileTarget::Existing(default_profile_id.to_owned()),
@@ -109,9 +112,15 @@ pub fn map_arc_profiles(
                     "" => dir.as_str(),
                     n => n,
                 };
-                match existing.iter().find(|p| same_name(&p.name, name)) {
-                    Some(p) => ProfileTarget::Existing(p.id.clone()),
-                    None => ProfileTarget::New(name.to_owned()),
+                if let Some(p) = existing.iter().find(|p| same_name(&p.name, name)) {
+                    return ProfileTarget::Existing(p.id.clone());
+                }
+                match new_names.iter().find(|n| same_name(n, name)) {
+                    Some(first) => ProfileTarget::New(first.clone()),
+                    None => {
+                        new_names.push(name.to_owned());
+                        ProfileTarget::New(name.to_owned())
+                    }
                 }
             }
         })
@@ -121,14 +130,30 @@ pub fn map_arc_profiles(
 /// Name of the space made for Favourites whose profile has no space.
 pub const FAVOURITES_SPACE: &str = "Favourites";
 
-/// Arc's spaces with its Favourites as pinned tabs at the top of the first space of their
-/// profile, leaving out any already pinned there. A profile with Favourites but no space gets a
-/// space of its own, called [`FAVOURITES_SPACE`].
-pub fn arc_spaces(sidebar: ArcSidebar) -> Vec<ArcSpace> {
-    let mut spaces = sidebar.spaces;
+/// The id of the space made for `profile`'s Favourites when it has no space.
+pub fn favourites_space_id(profile: &ArcProfile) -> String {
+    match profile {
+        ArcProfile::Default => "favourites:".to_owned(),
+        ArcProfile::Dir(dir) => format!("favourites:{dir}"),
+    }
+}
+
+/// Arc's spaces that `chosen` names by id (all of them for `None`), with its Favourites as pinned
+/// tabs at the top of the first chosen space of their profile, leaving out any already pinned
+/// there; a profile with none of its spaces chosen leaves its Favourites behind. A profile with
+/// Favourites but no space gets a space of its own, called [`FAVOURITES_SPACE`], with the id
+/// [`favourites_space_id`].
+pub fn arc_spaces(sidebar: ArcSidebar, chosen: Option<&[String]>) -> Vec<ArcSpace> {
+    let is_chosen = |id: &str| chosen.is_none_or(|ids| ids.iter().any(|c| c == id));
+    let with_spaces: Vec<ArcProfile> = sidebar.spaces.iter().map(|s| s.profile.clone()).collect();
+    let mut spaces: Vec<ArcSpace> = sidebar
+        .spaces
+        .into_iter()
+        .filter(|s| is_chosen(&s.id))
+        .collect();
     for (profile, tabs) in sidebar.favourites {
-        match spaces.iter_mut().find(|s| s.profile == profile) {
-            Some(space) => {
+        if with_spaces.contains(&profile) {
+            if let Some(space) = spaces.iter_mut().find(|s| s.profile == profile) {
                 let mut pinned: Vec<ArcPinnedTab> = tabs
                     .into_iter()
                     .filter(|t| !space.pinned.iter().any(|p| p.tab.url == t.url))
@@ -137,14 +162,16 @@ pub fn arc_spaces(sidebar: ArcSidebar) -> Vec<ArcSpace> {
                 pinned.append(&mut space.pinned);
                 space.pinned = pinned;
             }
-            None => spaces.push(ArcSpace {
+        } else if is_chosen(&favourites_space_id(&profile)) {
+            spaces.push(ArcSpace {
+                id: favourites_space_id(&profile),
                 name: FAVOURITES_SPACE.to_owned(),
                 emoji: None,
                 hue: None,
                 profile,
                 pinned: tabs.into_iter().map(ArcPinnedTab::from).collect(),
                 unpinned: Vec::new(),
-            }),
+            });
         }
     }
     spaces
@@ -212,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn arc_profiles_map_to_ours() {
+    fn source_profiles_map_to_ours() {
         let ours = [
             ExistingProfile {
                 id: "Default".into(),
@@ -230,7 +257,7 @@ mod tests {
             (ArcProfile::Dir("Profile 4".into()), "".to_string()),
         ];
         assert_eq!(
-            map_arc_profiles(&ours, "Default", &arc),
+            map_profiles(&ours, "Default", &arc),
             [
                 ProfileTarget::Existing("Default".into()),
                 ProfileTarget::Existing("Profile 2".into()),
@@ -253,6 +280,7 @@ mod tests {
 
     fn arc_space(name: &str, profile: ArcProfile, pinned: Vec<ArcPinnedTab>) -> ArcSpace {
         ArcSpace {
+            id: format!("id {name}"),
             name: name.into(),
             emoji: None,
             hue: None,
@@ -265,7 +293,6 @@ mod tests {
     #[test]
     fn favourites_go_to_the_top_of_their_profiles_first_space() {
         let work = ArcProfile::Dir("Profile 1".into());
-        let side = ArcProfile::Dir("Profile 2".into());
         // A Favourite already pinned there, in a folder, stays in its folder.
         let in_folder = ArcPinnedTab {
             tab: tab("https://a/"),
@@ -274,6 +301,7 @@ mod tests {
                 name: "F".into(),
             }),
         };
+        let side = ArcProfile::Dir("Profile 2".into());
         let sidebar = ArcSidebar {
             spaces: vec![
                 arc_space("Home", ArcProfile::Default, vec![in_folder.clone()]),
@@ -288,7 +316,7 @@ mod tests {
                 (side.clone(), vec![tab("https://side/")]),
             ],
         };
-        let spaces = arc_spaces(sidebar);
+        let spaces = arc_spaces(sidebar, None);
         assert_eq!(spaces.len(), 4);
         assert_eq!(
             spaces[0].pinned,
@@ -300,6 +328,7 @@ mod tests {
         assert_eq!(
             spaces[3],
             ArcSpace {
+                id: "favourites:Profile 2".into(),
                 name: FAVOURITES_SPACE.into(),
                 emoji: None,
                 hue: None,
@@ -308,6 +337,43 @@ mod tests {
                 unpinned: vec![],
             }
         );
+    }
+
+    #[test]
+    fn only_chosen_spaces_come_and_favourites_go_to_the_first_chosen_one() {
+        let work = ArcProfile::Dir("Profile 1".into());
+        let side = ArcProfile::Dir("Profile 2".into());
+        let sidebar = ArcSidebar {
+            spaces: vec![
+                arc_space("Home", ArcProfile::Default, vec![]),
+                arc_space("Home 2", ArcProfile::Default, vec![]),
+                arc_space("Work", work.clone(), vec![]),
+            ],
+            favourites: vec![
+                (ArcProfile::Default, vec![tab("https://fav/")]),
+                (work, vec![tab("https://work-fav/")]),
+                (side.clone(), vec![tab("https://side/")]),
+            ],
+        };
+        let ids = |spaces: &[ArcSpace]| spaces.iter().map(|s| s.id.clone()).collect::<Vec<_>>();
+
+        // Home isn't chosen: the default profile's Favourites go to Home 2. Work isn't chosen, so
+        // its profile's Favourites stay behind; Profile 2 has no space, so its Favourites space
+        // comes when chosen.
+        let chosen = ["id Home 2".to_string(), "favourites:Profile 2".to_string()];
+        let spaces = arc_spaces(sidebar.clone(), Some(&chosen));
+        assert_eq!(ids(&spaces), ["id Home 2", "favourites:Profile 2"]);
+        assert_eq!(spaces[0].pinned, loose(vec![tab("https://fav/")]));
+        assert_eq!(spaces[1].profile, side);
+
+        // A Favourites space not chosen doesn't come; nothing chosen brings nothing.
+        let spaces = arc_spaces(sidebar.clone(), Some(&["id Work".to_string()]));
+        assert_eq!(ids(&spaces), ["id Work"]);
+        assert_eq!(spaces[0].pinned, loose(vec![tab("https://work-fav/")]));
+        assert!(arc_spaces(sidebar, Some(&[])).is_empty());
+
+        // The default profile's Favourites space has its own id.
+        assert_eq!(favourites_space_id(&ArcProfile::Default), "favourites:");
     }
 
     #[test]
@@ -326,12 +392,30 @@ mod tests {
             name: "Élise".into(),
         }];
         assert_eq!(
-            map_arc_profiles(
+            map_profiles(
                 &ours,
                 "Default",
                 &[(ArcProfile::Dir("Profile 1".into()), "élise".to_string())]
             ),
             [ProfileTarget::Existing("Profile 2".into())]
+        );
+    }
+
+    #[test]
+    fn new_profiles_with_the_same_name_share_one_name() {
+        // "Work" and "work", with no such profile here: one new profile, under the first's name.
+        let source = [
+            (ArcProfile::Dir("Profile 1".into()), "Work".to_string()),
+            (ArcProfile::Dir("Profile 2".into()), "work".to_string()),
+            (ArcProfile::Dir("Profile 3".into()), "Home".to_string()),
+        ];
+        assert_eq!(
+            map_profiles(&[], "Default", &source),
+            [
+                ProfileTarget::New("Work".into()),
+                ProfileTarget::New("Work".into()),
+                ProfileTarget::New("Home".into()),
+            ]
         );
     }
 }

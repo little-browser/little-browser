@@ -31,6 +31,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
@@ -53,6 +54,7 @@
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/keyed_service/core/service_access_type.h"
+#include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/sessions/core/command_storage_backend.h"
 #include "components/sessions/core/command_storage_manager.h"
@@ -67,13 +69,14 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/demo/demo_report.h"
-#include "lb/browser/importer/arc_import.h"
+#include "lb/browser/importer/browser_import.h"
 #include "lb/browser/importer/chromium_import.h"
 #include "lb/browser/importer/cookie_decryptor.h"
 #include "lb/browser/importer/import_sources.h"
 #include "lb/browser/importer/other_import.h"
 #include "lb/browser/spaces/space_model.h"
 #include "lb/browser/ui/views/importer/import_dialog.h"
+#include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_access_result.h"
@@ -90,13 +93,18 @@ namespace lb {
 namespace {
 
 constexpr char kSourceSwitch[] = "lb-import-source";
+constexpr char kHomeSwitch[] = "lb-import-home";  // import_sources.cc reads it
 constexpr char kFixtureMode[] = "import-fixture";
 constexpr char kArcMode[] = "import-arc";
+constexpr char kArcUnreadableMode[] = "import-arc-unreadable";
 constexpr char kDialogMode[] = "import-dialog";
+constexpr char kChoicesMode[] = "import-choices";
+constexpr char kProgressMode[] = "import-progress";
+constexpr char kFirstRunMode[] = "import-first-run";
 constexpr char kImportMode[] = "import";
 constexpr sql::Database::Tag kTag = "FirefoxImporter";
 constexpr char kFilesMode[] = "import-files";
-constexpr char kDiaMode[] = "import-dia";
+constexpr char kEdgeMode[] = "import-edge";
 constexpr uint32_t kChromiumItems = kImportBookmarks | kImportHistory | kImportSearchShortcuts |
                                     kImportAddresses | kImportOpenTabs | kImportCookies |
                                     kImportExtensions;
@@ -278,7 +286,7 @@ bool HasAnaLee(Profile* profile) {
 }
 
 // The window's tabs as "url" (pinned ones "P url", grouped ones "url [group title]", ones in a
-// pinned group "P url {group title}").
+// pinned group "P url {group title}"), with ", collapsed" in the brackets when the group is.
 std::vector<std::string> TabsOf(BrowserWindowInterface* browser) {
   std::vector<std::string> tabs;
   TabStripModel* model = browser->GetTabStripModel();
@@ -288,12 +296,14 @@ std::vector<std::string> TabsOf(BrowserWindowInterface* browser) {
     std::string entry = (model->IsTabPinned(i) ? "P " : "") + contents->GetVisibleURL().spec();
     if (std::optional<tab_groups::TabGroupId> group = model->GetTabGroupForTab(i)) {
       if (TabGroup* g = model->group_model()->GetTabGroup(*group)) {
-        entry += " [" + base::UTF16ToUTF8(g->visual_data()->title()) + "]";
+        entry += " [" + base::UTF16ToUTF8(g->visual_data()->title()) +
+                 (g->visual_data()->is_collapsed() ? ", collapsed" : "") + "]";
       }
     }
     if (const PinnedGroup* pinned_group =
             controller ? controller->pinned_groups().GroupOf(model->GetTabAtIndex(i)) : nullptr) {
-      entry += " {" + base::UTF16ToUTF8(pinned_group->title) + "}";
+      entry += " {" + base::UTF16ToUTF8(pinned_group->title) +
+               (pinned_group->collapsed ? ", collapsed" : "") + "}";
     }
     tabs.push_back(entry);
   }
@@ -381,7 +391,7 @@ void FirstImportDone(std::unique_ptr<Run> run, ImportResult first) {
                   first.counts.tabs == 3 && first.counts.cookies == 1 && first.problems.empty(),
               "first import: " + Counts(first));
   run->Expect(first.extensions.size() == 1 && first.extensions[0].name == u"Made-up Reader" &&
-                  first.extensions_not_from_store == 1,
+                  first.extensions_not_from_store.size() == 1,
               "the store extension is offered, the unpacked one counted");
 
   bookmarks::BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile);
@@ -397,9 +407,9 @@ void FirstImportDone(std::unique_ptr<Run> run, ImportResult first) {
 
   const std::vector<std::string> tabs = TabsOf(browser);
   run->Expect(Contains(tabs, "P https://mail.example/"), "Mail is a pinned tab");
-  run->Expect(Contains(tabs, "https://ci.example/ [Work]") &&
-                  Contains(tabs, "https://tracker.example/ [Work]"),
-              "CI and Tracker are in the Work group: " + base::JoinString(tabs, ", "));
+  run->Expect(Contains(tabs, "https://ci.example/ [Work, collapsed]") &&
+                  Contains(tabs, "https://tracker.example/ [Work, collapsed]"),
+              "CI and Tracker are in the Work group, collapsed: " + base::JoinString(tabs, ", "));
 
   static base::NoDestructor<base::CancelableTaskTracker> tracker;
   HistoryServiceFactory::GetForProfile(profile, ServiceAccessType::EXPLICIT_ACCESS)
@@ -438,6 +448,30 @@ void RunFixture(std::unique_ptr<Run> run, const base::FilePath& home) {
 
 // --- import-arc -------------------------------------------------------------------------------
 
+// The name of the profile in the folder `base`, or empty.
+std::u16string ProfileNameOf(const std::string& base) {
+  for (ProfileAttributesEntry* entry : g_browser_process->profile_manager()
+                                           ->GetProfileAttributesStorage()
+                                           .GetAllProfilesAttributes()) {
+    if (entry->GetPath().BaseName().AsUTF8Unsafe() == base) {
+      return entry->GetLocalProfileName();
+    }
+  }
+  return std::u16string();
+}
+
+// Every profile as "folder=name", for a failure's log line.
+std::string AllProfiles() {
+  std::string profiles;
+  for (ProfileAttributesEntry* entry : g_browser_process->profile_manager()
+                                           ->GetProfileAttributesStorage()
+                                           .GetAllProfilesAttributes()) {
+    profiles += entry->GetPath().BaseName().AsUTF8Unsafe() + "=" +
+                base::UTF16ToUTF8(entry->GetLocalProfileName()) + " ";
+  }
+  return profiles;
+}
+
 void ArcImported(std::unique_ptr<Run> run, ImportResult result) {
   Profile* profile = run->profile.get();
   BrowserWindowInterface* browser = run->browser.get();
@@ -448,14 +482,14 @@ void ArcImported(std::unique_ptr<Run> run, ImportResult result) {
               "import: " + Counts(result));
 
   // Personal was empty, so it was filled, in this window: Favourites, the pinned tabs (the
-  // "Reading" folder a pinned group in place), then the today tab.
+  // "Reading" folder a pinned group in place, collapsed), then the today tab.
   std::vector<std::string> tabs = TabsOf(browser);
   std::erase_if(tabs,
                 [](const std::string& t) { return t.find(".example/") == std::string::npos; });
   run->Expect(
       tabs == std::vector<std::string>{"P https://calendar.example/", "P https://mail.example/",
-                                       "P https://blog.example/ {Reading}",
-                                       "P https://news.example/ {Reading}",
+                                       "P https://blog.example/ {Reading, collapsed}",
+                                       "P https://news.example/ {Reading, collapsed}",
                                        "https://recipe.example/"},
       "Personal's tabs: " + base::JoinString(tabs, ", "));
 
@@ -469,24 +503,10 @@ void ArcImported(std::unique_ptr<Run> run, ImportResult result) {
   }
   run->Expect(personal == 1, "Personal was filled, not added again");
   run->Expect(work && work->icon == "💼", "Work is a space with its emoji");
-  std::u16string work_profile_name;
-  for (ProfileAttributesEntry* entry : g_browser_process->profile_manager()
-                                           ->GetProfileAttributesStorage()
-                                           .GetAllProfilesAttributes()) {
-    if (work && entry->GetPath().BaseName().AsUTF8Unsafe() == work->profile) {
-      work_profile_name = entry->GetLocalProfileName();
-    }
-  }
-  std::string profiles;
-  for (ProfileAttributesEntry* entry : g_browser_process->profile_manager()
-                                           ->GetProfileAttributesStorage()
-                                           .GetAllProfilesAttributes()) {
-    profiles += entry->GetPath().BaseName().AsUTF8Unsafe() + "=" +
-                base::UTF16ToUTF8(entry->GetLocalProfileName()) + " ";
-  }
-  run->Expect(work_profile_name == u"Client",
+  run->Expect(work && ProfileNameOf(work->profile) == u"Client",
               "Work is in a new profile called Client (Work's profile: " +
-                  (work ? work->profile : std::string("none")) + "; profiles: " + profiles + ")");
+                  (work ? work->profile : std::string("none")) + "; profiles: " + AllProfiles() +
+                  ")");
   const bookmarks::BookmarkNode* bar =
       BookmarkModelFactory::GetForBrowserContext(profile)->bookmark_bar_node();
   run->Expect(Child(bar, u"Arc docs") != nullptr,
@@ -496,14 +516,53 @@ void ArcImported(std::unique_ptr<Run> run, ImportResult result) {
   Report(std::move(run), "Arc's spaces, tabs, profile and bookmarks are in place");
 }
 
-void RunArc(std::unique_ptr<Run> run, const base::FilePath& home) {
-  FailDemoAfter(kArcMode, base::Seconds(40));
-  const std::string current_profile = run->profile->GetBaseName().AsUTF8Unsafe();
-  ImportArc(home.AppendASCII("Arc"), kImportSpaces | kImportBookmarks, "Arc Safe Storage", "Arc",
-            current_profile, base::BindOnce(&ArcImported, std::move(run)));
+// Arc whose sidebar file can't be read (an Arc update changed it, or it is cut short): its spaces
+// can't be listed, so its profiles are, as for a Chrome-family browser, with the problem named.
+void RunArcUnreadable(std::unique_ptr<Run> run, const base::FilePath& home) {
+  FailDemoAfter(kArcUnreadableMode, base::Seconds(20));
+  const base::FilePath copy = run->dir.GetPath().AppendASCII("home");
+  if (!base::CopyDirectory(home, copy, /*recursive=*/true) ||
+      !base::WriteFile(copy.AppendASCII("Arc/StorableSidebar.json"), "{ not json")) {
+    ReportDemo(kArcUnreadableMode, false, "couldn't make the copy");
+    return;
+  }
+  // Where FindImportSources looks (ImportSupportFolder); the switch's new value replaces the old.
+  base::CommandLine::ForCurrentProcess()->AppendSwitchPath(kHomeSwitch, copy);
+  FindImportSources(base::BindOnce(
+      [](std::unique_ptr<Run> run, std::vector<ImportSource> sources) {
+        const auto arc = std::ranges::find(sources, u"Arc", &ImportSource::browser);
+        run->Expect(arc != sources.end(), "Arc is listed");
+        if (arc != sources.end()) {
+          std::vector<std::string> labels;
+          for (const ImportChoice& choice : arc->choices) {
+            labels.push_back(base::UTF16ToUTF8(choice.label));
+          }
+          run->Expect(arc->kind == ImportSourceKind::kChromium &&
+                          arc->path.BaseName().value() == "User Data",
+                      "Arc is imported as a Chrome-family browser");
+          run->Expect(arc->choices.size() == 2,
+                      "Arc's two profiles are listed: " + base::JoinString(labels, ", "));
+          run->Expect(arc->problem.starts_with("Arc's spaces couldn't be read"),
+                      "the problem is named: " + arc->problem);
+        }
+        Report(std::move(run), "Arc with an unreadable sidebar lists its profiles instead");
+      },
+      std::move(run)));
 }
 
-// --- import-dia -------------------------------------------------------------------------------
+void RunArc(std::unique_ptr<Run> run, const base::FilePath& home) {
+  FailDemoAfter(kArcMode, base::Seconds(40));
+  BrowserImportRequest request;
+  request.kind = ImportSourceKind::kArc;
+  request.dir = home.AppendASCII("Arc");
+  request.chosen = {"space-personal", "space-work"};
+  request.items = kImportSpaces | kImportBookmarks;
+  request.current_profile = run->profile->GetBaseName().AsUTF8Unsafe();
+  request.browser = "Arc";
+  ImportBrowser(request, base::BindOnce(&ArcImported, std::move(run)));
+}
+
+// --- import-edge -------------------------------------------------------------------------------
 
 // Sets when every file in `dir` was last changed.
 bool TouchFilesIn(const base::FilePath& dir, base::Time when) {
@@ -515,16 +574,16 @@ bool TouchFilesIn(const base::FilePath& dir, base::Time when) {
   return ok;
 }
 
-// Copies the made-up Dia profile into `dir` and writes its session the way Dia saves it: the
-// plain files, and an encrypted copy of each saved some milliseconds later, here in the next
-// second. The copies' contents stand in for encrypted ones; only their times matter.
-bool PrepareDia(const base::FilePath& home, const base::FilePath& dir) {
-  const base::FilePath fixture = home.AppendASCII("Dia/User Data/Profile 10");
-  for (const char* name : {"Bookmarks", "EncryptedBookmarks2"}) {
-    if (!base::CopyFile(fixture.AppendASCII(name), dir.AppendASCII(name))) {
-      return false;
-    }
+// Copies the made-up Edge into `user_data` and writes the session of its "Profile 10" the way a
+// browser moving to encrypted copies saves it: the plain files, and an encrypted copy of each
+// saved some milliseconds later, here in the next second. The copies' contents stand in for
+// encrypted ones; only their times matter.
+bool PrepareEdge(const base::FilePath& home, const base::FilePath& user_data) {
+  const base::FilePath fixture = home.AppendASCII("Microsoft Edge");
+  if (!base::CopyDirectory(fixture, user_data.DirName(), /*recursive=*/true)) {
+    return false;
   }
+  const base::FilePath dir = user_data.AppendASCII("Profile 10");
   WriteSession(dir);
   const base::FilePath sessions = dir.AppendASCII("Sessions");
   const base::FilePath encrypted = dir.AppendASCII("Sessions_Encrypted");
@@ -545,74 +604,375 @@ bool PrepareDia(const base::FilePath& home, const base::FilePath& dir) {
          base::TouchFile(dir.AppendASCII("EncryptedBookmarks2"), copied, copied);
 }
 
-void DiaImported(std::unique_ptr<Run> run, ImportResult result) {
-  Profile* profile = run->profile.get();
-  BrowserWindowInterface* browser = run->browser.get();
-  if (!profile || !browser) {
-    return;
-  }
-  run->Expect(result.counts.bookmarks == 1 && result.counts.tabs == 3 && result.problems.empty(),
-              "Dia import: " + Counts(result));
-  bookmarks::BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile);
-  run->Expect(Child(model->bookmark_bar_node(), u"Dia notes") != nullptr,
-              "Dia notes is in the bar");
-  const std::vector<std::string> tabs = TabsOf(browser);
-  run->Expect(
-      Contains(tabs, "P https://mail.example/") && Contains(tabs, "https://ci.example/ [Work]"),
-      "Dia's open tabs arrived: " + base::JoinString(tabs, ", "));
-  Report(std::move(run), "plain files saved with encrypted copies are read: bookmark and tabs");
+// Where the demo's copy of Edge's user data folder goes.
+base::FilePath EdgeUserData(const Run& run) {
+  return run.dir.GetPath().AppendASCII("Microsoft Edge");
 }
 
-void RunDia(std::unique_ptr<Run> run, const base::FilePath& home) {
-  FailDemoAfter(kDiaMode, base::Seconds(40));
-  const base::FilePath dir = run->dir.GetPath();
+void EdgeImported(std::unique_ptr<Run> run, ImportResult result) {
+  Profile* profile = run->profile.get();
+  if (!profile) {
+    return;
+  }
+  run->Expect(result.counts.bookmarks == 1 && result.counts.tabs == 3 &&
+                  result.counts.spaces == 1 && result.problems.empty(),
+              "Edge import: " + Counts(result));
+  // "Studio" became a space of its own, with its open tabs, in a new profile of the same name.
+  std::optional<Space> studio;
+  bool has_tabs = false;
+  for (const auto& [space, empty] : SidebarController::GetSpacesForImport()) {
+    if (space.name == "Studio") {
+      studio = space;
+      has_tabs = !empty;
+    }
+  }
+  run->Expect(
+      studio && has_tabs && ProfileNameOf(studio->profile) == u"Studio",
+      "Studio is a space with tabs in a profile called Studio (profiles: " + AllProfiles() + ")");
+  // Its open tabs keep their kind in the new space, which no window shows yet: the pinned tab
+  // pinned, the group a group, collapsed.
+  const base::ListValue* saved =
+      studio ? g_browser_process->local_state()->GetDict("lb.space_tabs").FindList(studio->id)
+             : nullptr;
+  std::vector<std::string> tabs;
+  for (const SavedTab& t : saved ? SavedTabsFromList(*saved) : std::vector<SavedTab>()) {
+    std::string entry = (t.pinned ? "P " : "") + t.url.spec();
+    if (!t.group_id.empty()) {
+      entry +=
+          " [" + base::UTF16ToUTF8(t.group_title) + (t.group_collapsed ? ", collapsed" : "") + "]";
+    }
+    tabs.push_back(entry);
+  }
+  run->Expect(
+      Contains(tabs, "P https://mail.example/") &&
+          Contains(tabs, "https://ci.example/ [Work, collapsed]") &&
+          Contains(tabs, "https://tracker.example/ [Work, collapsed]"),
+      "Studio's tabs keep their kind, the group collapsed: " + base::JoinString(tabs, ", "));
+  ProfileManager* manager = g_browser_process->profile_manager();
+  Profile* studio_profile =
+      studio ? manager->GetProfileByPath(manager->user_data_dir().AppendASCII(studio->profile))
+             : nullptr;
+  const bookmarks::BookmarkNode* studio_bar =
+      studio_profile
+          ? BookmarkModelFactory::GetForBrowserContext(studio_profile)->bookmark_bar_node()
+          : nullptr;
+  run->Expect(studio_bar && Child(studio_bar, u"Edge notes"), "Edge notes is in Studio's bar");
+  // "Personal" wasn't picked, and nothing went into the current profile.
+  const bookmarks::BookmarkNode* bar =
+      BookmarkModelFactory::GetForBrowserContext(profile)->bookmark_bar_node();
+  run->Expect(!Child(bar, u"Edge notes") && !Child(bar, u"Personal notes") &&
+                  !(studio_bar && Child(studio_bar, u"Personal notes")),
+              "only the picked profile came along");
+  Report(std::move(run),
+         "the picked Edge profile became a space and a profile; its plain files saved with "
+         "encrypted copies were read");
+}
+
+void RunEdge(std::unique_ptr<Run> run, const base::FilePath& home) {
+  FailDemoAfter(kEdgeMode, base::Seconds(40));
   base::ThreadPool::CreateSingleThreadTaskRunner({base::MayBlock()})
       ->PostTaskAndReplyWithResult(
-          FROM_HERE, base::BindOnce(&PrepareDia, home, dir),
+          FROM_HERE, base::BindOnce(&PrepareEdge, home, EdgeUserData(*run)),
           base::BindOnce(
               [](std::unique_ptr<Run> run, bool ok) {
                 Profile* profile = run->profile.get();
                 if (!ok || !profile) {
-                  ReportDemo(kDiaMode, false, "couldn't build the Dia profile");
+                  ReportDemo(kEdgeMode, false, "couldn't build the Edge profile");
                   return;
                 }
-                ChromiumImportRequest request;
-                request.profile_dir = run->dir.GetPath();
-                request.items = kImportBookmarks | kImportOpenTabs;
-                request.space_id = GetWindowSpaceId(run->browser.get());
-                ImportChromiumProfile(profile, request,
-                                      base::BindOnce(&DiaImported, std::move(run)));
+                BrowserImportRequest request;
+                request.kind = ImportSourceKind::kChromium;
+                request.dir = EdgeUserData(*run);
+                request.chosen = {"Profile 10"};
+                request.items = kImportSpaces | kImportBookmarks;
+                request.current_profile = profile->GetBaseName().AsUTF8Unsafe();
+                request.browser = "Edge";
+                ImportBrowser(request, base::BindOnce(&EdgeImported, std::move(run)));
               },
               std::move(run)));
 }
 
 // --- import-dialog ----------------------------------------------------------------------------
 
+// The open dialog's rows, for a log line.
+std::string Rows(const std::optional<ImportDialogState>& state) {
+  std::vector<std::string> rows;
+  for (const std::u16string& row : state ? state->rows : std::vector<std::u16string>()) {
+    rows.push_back(base::UTF16ToUTF8(row));
+  }
+  return base::JoinString(rows, ", ");
+}
+
+// Goes through the dialog's two steps: the browsers, then each one's profiles or spaces.
+void CheckDialogSteps(Run& run) {
+  std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
+  run.Expect(state && state->step == 1 && state->can_accept && state->rows.size() == 5 &&
+                 std::ranges::count(state->rows, u"Edge") == 1 &&
+                 state->rows[3] == u"A Safari export file…" &&
+                 state->rows[4] == u"A bookmarks file…",
+             "step 1 lists three browsers, each once, and the two files: " + Rows(state));
+
+  // Chrome has one profile: none is listed, and Import can be pressed.
+  run.Expect(ImportDialogNextForTesting(u"Chrome"), "Chrome can be picked");
+  state = GetImportDialogStateForTesting();
+  run.Expect(state && state->step == 2 && state->can_accept && state->rows.empty(),
+             "Chrome's single profile isn't listed: " + Rows(state));
+
+  // Back, then Arc: its spaces, Work with its profile's name.
+  run.Expect(ImportDialogBackForTesting(), "Back goes to the browsers");
+  state = GetImportDialogStateForTesting();
+  run.Expect(state && state->step == 1, "Back shows the browsers");
+  run.Expect(ImportDialogNextForTesting(u"Arc"), "Arc can be picked");
+  state = GetImportDialogStateForTesting();
+  run.Expect(state && state->step == 2 && state->can_accept &&
+                 state->rows == std::vector<std::u16string>({u"Personal", u"Work — Client"}),
+             "Arc's spaces: " + Rows(state));
+
+  // Edge last: both its profiles, ticked; Import can be pressed.
+  ImportDialogBackForTesting();
+  run.Expect(ImportDialogNextForTesting(u"Edge"), "Edge can be picked");
+  state = GetImportDialogStateForTesting();
+  run.Expect(state && state->step == 2 && state->can_accept &&
+                 state->rows == std::vector<std::u16string>({u"Studio", u"Personal"}),
+             "Edge's profiles: " + Rows(state));
+}
+
+// After Import: waits for the summary, then checks the extensions list, grouped by the profile
+// each goes into (the snapshot shows it).
+// The import dialog's tallest: its body (at most 480) with the title, buttons and margins (about
+// 605 here; 740 without the cap).
+constexpr int kMaxDialogHeight = 640;
+
+void CheckExtensionsStep(std::unique_ptr<Run> run, int tries) {
+  std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
+  if ((!state || state->step != 3) && tries > 0) {
+    PostDemoTask(base::BindOnce(&CheckExtensionsStep, std::move(run), tries - 1),
+                 base::Milliseconds(500));
+    return;
+  }
+  std::vector<std::string> list;
+  for (const std::u16string& line : state ? state->extensions : std::vector<std::u16string>()) {
+    list.push_back(base::UTF16ToUTF8(line));
+  }
+  // Studio's "Made-up Paused" was turned off in Edge: it starts unticked.
+  std::vector<std::u16string> expected = {u"Studio:", u"Made-up Notes",
+                                          u"Made-up Paused (unticked)", u"Made-up Reader"};
+  for (int i = 1; i <= 6; ++i) {
+    expected.push_back(u"Made-up Tool " + base::NumberToString16(i));
+  }
+  expected.insert(expected.end(), {u"Personal:", u"Made-up Reader"});
+  for (int i = 1; i <= 5; ++i) {
+    expected.push_back(u"Made-up Tool " + base::NumberToString16(i));
+  }
+  run->Expect(state && state->step == 3 && state->extensions == expected,
+              "extensions grouped by profile: " + base::JoinString(list, ", "));
+  // Fifteen extensions don't fit: the body scrolls and the dialog keeps a bounded height.
+  run->Expect(state && state->scrolls && state->dialog_height <= kMaxDialogHeight,
+              "the long list scrolls inside a dialog " +
+                  base::NumberToString(state ? state->dialog_height : 0) + " high (at most " +
+                  base::NumberToString(kMaxDialogHeight) + ")");
+  Report(std::move(run),
+         "lists Arc, Chrome and Edge, then each one's profiles or spaces; Import works; the "
+         "extensions are grouped by profile and the long list scrolls (dialog " +
+             base::NumberToString(state ? state->dialog_height : 0) + " high)");
+}
+
+// Runs `then` once the dialog shows its browsers (it looks for them first), or gives up.
+void WhenBrowsersShown(std::unique_ptr<Run> run,
+                       base::OnceCallback<void(std::unique_ptr<Run>)> then,
+                       int tries = 100) {
+  std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
+  if ((!state || state->step != 1) && tries > 0) {
+    PostDemoTask(base::BindOnce(&WhenBrowsersShown, std::move(run), std::move(then), tries - 1),
+                 base::Milliseconds(100));
+    return;
+  }
+  std::move(then).Run(std::move(run));
+}
+
+// Opens the dialog and steps to Chrome's "what comes along" step, then holds it, so
+// --lb-ui-snapshot-dialog can capture the item rows (each with its icon).
+void RunChoices(std::unique_ptr<Run> run) {
+  FailDemoAfter(kChoicesMode, base::Seconds(20));
+  FindImportSources(base::BindOnce(
+      [](std::unique_ptr<Run> run, std::vector<ImportSource>) {
+        if (!run->browser) {
+          return;
+        }
+        chrome::ExecuteCommand(run->browser.get(), IDC_IMPORT_SETTINGS);
+        WhenBrowsersShown(std::move(run), base::BindOnce([](std::unique_ptr<Run> run) {
+                            const bool stepped = ImportDialogNextForTesting(u"Chrome");
+                            std::optional<ImportDialogState> state =
+                                GetImportDialogStateForTesting();
+                            Report(std::move(run), stepped && state && state->step == 2
+                                                       ? "the choices step is open"
+                                                       : "couldn't open the choices step");
+                          }));
+      },
+      std::move(run)));
+}
+
+// The items the importing page must report as it brings Edge's data over (cookies are off by
+// default, open tabs aren't a row).
+constexpr uint32_t kProgressItems = kImportSpaces | kImportBookmarks | kImportHistory |
+                                    kImportSearchShortcuts | kImportAddresses | kImportExtensions;
+
+// Whether the bookmarks bar of a loaded profile shown as `profile` holds `title`.
+bool BarHas(const std::u16string& profile, const std::u16string& title) {
+  for (Profile* p : g_browser_process->profile_manager()->GetLoadedProfiles()) {
+    const bookmarks::BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(p);
+    if (ProfileDisplayName(p->GetBaseName().AsUTF8Unsafe()) == profile && model &&
+        model->loaded() && Child(model->bookmark_bar_node(), title)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Waits until the importing page has reported every expected item (each spinner became a check),
+// then reports. A check means the item came over: from the moment Bookmarks is reported, both
+// Edge profiles' bookmarks must be in their profiles (`bookmarks_there` keeps what was seen).
+void CheckProgress(std::unique_ptr<Run> run, int tries, bool bookmarks_there) {
+  std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
+  const uint32_t seen = state ? state->imported_seen : 0;
+  if (seen & kImportBookmarks) {
+    bookmarks_there = bookmarks_there && BarHas(u"Studio", u"Edge notes") &&
+                      BarHas(u"Personal", u"Personal notes");
+  }
+  const bool all_reported = (seen & kProgressItems) == kProgressItems;
+  if (!all_reported && tries > 0) {
+    PostDemoTask(base::BindOnce(&CheckProgress, std::move(run), tries - 1, bookmarks_there),
+                 base::Milliseconds(20));
+    return;
+  }
+  run->Expect(all_reported,
+              "every item's spinner became a check (reported=" + base::NumberToString(seen) + ")");
+  run->Expect(
+      bookmarks_there,
+      std::string("Bookmarks was checked only once both profiles' bookmarks were in (now: ") +
+          "Studio " + (BarHas(u"Studio", u"Edge notes") ? "has" : "lacks") +
+          " its bookmark, Personal " + (BarHas(u"Personal", u"Personal notes") ? "has" : "lacks") +
+          " its bookmark; profiles: " + AllProfiles() + ")");
+  Report(std::move(run), "the importing page reported each item once it had come over");
+}
+
+void StartProgress(std::unique_ptr<Run> run);
+
+// A copy of the made-up home where Edge's "Studio" bookmarks file and its encrypted copy were saved
+// together (as a browser saves them), so the plain one is read; a checkout gives them any times.
+bool CopyHomeWithEdgeBookmarksFresh(const base::FilePath& home, const base::FilePath& copy) {
+  if (!base::CopyDirectory(home, copy, /*recursive=*/true)) {
+    return false;
+  }
+  const base::FilePath studio = copy.AppendASCII("Microsoft Edge/Profile 10");
+  const base::Time now = base::Time::Now();
+  return base::TouchFile(studio.AppendASCII("Bookmarks"), now, now) &&
+         base::TouchFile(studio.AppendASCII("EncryptedBookmarks2"), now, now);
+}
+
+// Opens the dialog and imports Edge's two profiles, checking each item's row is reported as it is
+// brought over (--lb-ui-snapshot-dialog captures the per-item rows while it runs).
+void RunProgress(std::unique_ptr<Run> run, const base::FilePath& home) {
+  FailDemoAfter(kProgressMode, base::Seconds(30));
+  if (!run->dir.CreateUniqueTempDir()) {
+    ReportDemo(kProgressMode, false, "no temporary folder");
+    return;
+  }
+  const base::FilePath copy = run->dir.GetPath().AppendASCII("home");
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock()}, base::BindOnce(&CopyHomeWithEdgeBookmarksFresh, home, copy),
+      base::BindOnce(
+          [](std::unique_ptr<Run> run, base::FilePath copy, bool ok) {
+            if (!ok) {
+              ReportDemo(kProgressMode, false, "couldn't make the copy");
+              return;
+            }
+            // Where FindImportSources looks; the switch's new value replaces the old.
+            base::CommandLine::ForCurrentProcess()->AppendSwitchPath(kHomeSwitch, copy);
+            StartProgress(std::move(run));
+          },
+          std::move(run), copy));
+}
+
+void StartProgress(std::unique_ptr<Run> run) {
+  FindImportSources(base::BindOnce(
+      [](std::unique_ptr<Run> run, std::vector<ImportSource>) {
+        if (!run->browser) {
+          return;
+        }
+        chrome::ExecuteCommand(run->browser.get(), IDC_IMPORT_SETTINGS);
+        WhenBrowsersShown(std::move(run), base::BindOnce([](std::unique_ptr<Run> run) {
+                            run->Expect(ImportDialogNextForTesting(u"Edge"), "Edge can be picked");
+                            run->Expect(ImportDialogImportForTesting(), "Import can be pressed");
+                            CheckProgress(std::move(run), 600, /*bookmarks_there=*/true);
+                          }));
+      },
+      std::move(run)));
+}
+
+// On the first run (run without --no-first-run) the dialog opens by itself on its first step,
+// with the introduction and "Not now", no question before it.
+void CheckFirstRun(std::unique_ptr<Run> run, int tries) {
+  std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
+  if ((!state || state->step != 1) && tries > 0) {
+    PostDemoTask(base::BindOnce(&CheckFirstRun, std::move(run), tries - 1),
+                 base::Milliseconds(250));
+    return;
+  }
+  run->Expect(state && state->step == 1, "the import dialog opened by itself on its first step");
+  run->Expect(state && state->title == u"Bring your tabs and bookmarks from another browser" &&
+                  state->cancel_label == u"Not now",
+              "it has the first-run title and Not now (" +
+                  base::UTF16ToUTF8(state ? state->title + u" / " + state->cancel_label : u"") +
+                  ")");
+  run->Expect(state && std::ranges::count(state->rows, u"Arc") == 1 &&
+                  std::ranges::count(state->rows, u"Chrome") == 1 &&
+                  std::ranges::count(state->rows, u"Edge") == 1,
+              "it lists the browsers: " + Rows(state));
+  run->Expect(!IsSearchChoiceOpenForTesting(), "the next question waits while it is open");
+  // Import asked for again (the command bar) while it is open waits for it to close too.
+  auto import_closed = std::make_shared<bool>(false);
+  if (run->browser) {
+    ShowImportDialog(
+        run->browser.get(),
+        base::BindOnce([](std::shared_ptr<bool> closed) { *closed = true; }, import_closed));
+  }
+  run->Expect(!*import_closed, "a second Import waits for the open dialog");
+  run->Expect(ImportDialogCancelForTesting(), "Not now closes it");
+  PostDemoTask(base::BindOnce(
+                   [](std::unique_ptr<Run> run, std::shared_ptr<bool> import_closed) {
+                     run->Expect(*import_closed, "closing it lets the second Import go on");
+                     run->Expect(IsSearchChoiceOpenForTesting(),
+                                 "then the search engine question comes");
+                     Report(std::move(run),
+                            "first run opens the import dialog itself, with its introduction; "
+                            "what waits for it goes on once it closes");
+                   },
+                   std::move(run), import_closed),
+               base::Seconds(2));
+}
+
 void RunDialog(std::unique_ptr<Run> run) {
-  FailDemoAfter(kDialogMode, base::Seconds(20));
+  FailDemoAfter(kDialogMode, base::Seconds(40));
   FindImportSources(base::BindOnce(
       [](std::unique_ptr<Run> run, std::vector<ImportSource> sources) {
         std::vector<std::string> labels;
         for (const ImportSource& s : sources) {
-          labels.push_back(base::UTF16ToUTF8(s.label));
+          labels.push_back(base::UTF16ToUTF8(s.browser));
         }
-        run->Expect(labels.size() == 3 && Contains(labels, "Arc") &&
-                        Contains(labels, "Chrome — Personal") && Contains(labels, "Dia — Studio"),
-                    "sources: " + base::JoinString(labels, ", "));
+        run->Expect(labels.size() == 3 && Contains(labels, "Arc") && Contains(labels, "Chrome") &&
+                        Contains(labels, "Edge"),
+                    "browsers: " + base::JoinString(labels, ", "));
         if (!run->browser) {
           return;
         }
         // The app menu's command, which Settings' row and the command bar run too.
         chrome::ExecuteCommand(run->browser.get(), IDC_IMPORT_SETTINGS);
-        PostDemoTask(base::BindOnce(
-                         [](std::unique_ptr<Run> run) {
-                           run->Expect(ImportDialogCanImportForTesting(),
-                                       "Import can be pressed with the first source picked");
-                           Report(std::move(run),
-                                  "lists Arc, Chrome — Personal and Dia — Studio; Import works");
-                         },
-                         std::move(run)),
-                     base::Seconds(2));
+        WhenBrowsersShown(std::move(run), base::BindOnce([](std::unique_ptr<Run> run) {
+                            CheckDialogSteps(*run);
+                            run->Expect(ImportDialogImportForTesting(), "Import can be pressed");
+                            CheckExtensionsStep(std::move(run), 40);
+                          }));
       },
       std::move(run)));
 }
@@ -636,6 +996,55 @@ bool MakeSafariExport(const base::FilePath& home, const base::FilePath& dir) {
          zip::Zip(contents, dir.AppendASCII("Safari Export.zip"), /*include_hidden_files=*/false);
 }
 
+// A bookmarks file of one bookmark in the bar.
+std::string OneBookmarkFile(const std::string& url, const std::string& title) {
+  return "<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<DL><p>\n"
+         "<DT><H3 PERSONAL_TOOLBAR_FOLDER=\"true\">Bookmarks bar</H3>\n<DL><p>\n"
+         "<DT><A HREF=\"" +
+         url + "\">" + title + "</A>\n</DL><p>\n</DL><p>\n";
+}
+
+// Several sources in one import (as Firefox's chosen profiles come), one after another: both of
+// two bookmarks files come in, and the summary counts both.
+void ImportTwoFiles(std::unique_ptr<Run> run) {
+  Profile* profile = run->profile.get();
+  BrowserWindowInterface* browser = run->browser.get();
+  const base::FilePath dir = run->dir.GetPath();
+  if (!profile || !browser ||
+      !base::WriteFile(dir.AppendASCII("one.html"),
+                       OneBookmarkFile("https://first-file.example/", "First file")) ||
+      !base::WriteFile(dir.AppendASCII("two.html"),
+                       OneBookmarkFile("https://second-file.example/", "Second file"))) {
+    ReportDemo(kFilesMode, false, "couldn't write the two bookmarks files");
+    return;
+  }
+  std::vector<user_data_importer::SourceProfile> sources(2);
+  for (size_t i = 0; i < sources.size(); ++i) {
+    sources[i].importer_type = user_data_importer::TYPE_BOOKMARKS_FILE;
+    sources[i].source_path = dir.AppendASCII(i == 0 ? "one.html" : "two.html");
+    sources[i].services_supported = user_data_importer::FAVORITES;
+  }
+  ImportWithChromiumImporter(
+      profile, std::move(sources), kImportBookmarks, browser->GetWindow()->GetNativeWindow(),
+      base::BindOnce(
+          [](std::unique_ptr<Run> run, ImportResult result) {
+            Profile* profile = run->profile.get();
+            if (!profile) {
+              return;
+            }
+            run->Expect(result.counts.bookmarks == 2 && result.problems.empty(),
+                        "two files at once: " + Counts(result));
+            const bookmarks::BookmarkNode* bar =
+                BookmarkModelFactory::GetForBrowserContext(profile)->bookmark_bar_node();
+            run->Expect(Child(bar, u"First file") && Child(bar, u"Second file"),
+                        "both files' bookmarks are in the bar");
+            Report(std::move(run),
+                   "a bookmarks file and Safari's export came in, merged; two files at once "
+                   "came in one after another");
+          },
+          std::move(run)));
+}
+
 void SafariExportImported(std::unique_ptr<Run> run, ImportResult result) {
   Profile* profile = run->profile.get();
   if (!profile) {
@@ -651,8 +1060,7 @@ void SafariExportImported(std::unique_ptr<Run> run, ImportResult result) {
                      [](std::unique_ptr<Run> run, history::QueryURLResult result) {
                        run->Expect(result.success && result.row.title() == u"Safari page",
                                    "Safari's history page is in history");
-                       Report(std::move(run),
-                              "a bookmarks file and Safari's export came in, merged");
+                       ImportTwoFiles(std::move(run));
                      },
                      std::move(run)),
                  tracker.get());
@@ -704,8 +1112,9 @@ void RunFiles(std::unique_ptr<Run> run, const base::FilePath& home) {
 }  // namespace
 
 bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode) {
-  if (mode != kFixtureMode && mode != kArcMode && mode != kDialogMode && mode != kFilesMode &&
-      mode != kDiaMode && mode != kImportMode) {
+  if (mode != kFixtureMode && mode != kArcMode && mode != kArcUnreadableMode &&
+      mode != kDialogMode && mode != kFilesMode && mode != kEdgeMode && mode != kChoicesMode &&
+      mode != kProgressMode && mode != kFirstRunMode && mode != kImportMode) {
     return false;
   }
   auto run = std::make_unique<Run>();
@@ -740,6 +1149,19 @@ bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode
     RunDialog(std::move(run));
     return true;
   }
+  if (mode == kChoicesMode) {
+    RunChoices(std::move(run));
+    return true;
+  }
+  if (mode == kProgressMode) {
+    RunProgress(std::move(run), home);
+    return true;
+  }
+  if (mode == kFirstRunMode) {
+    FailDemoAfter(kFirstRunMode, base::Seconds(30));
+    CheckFirstRun(std::move(run), 80);
+    return true;
+  }
   if (mode == kArcMode) {
     RunArc(std::move(run), home);
     return true;
@@ -752,8 +1174,12 @@ bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode
     RunFiles(std::move(run), home);
     return true;
   }
-  if (mode == kDiaMode) {
-    RunDia(std::move(run), home);
+  if (mode == kArcUnreadableMode) {
+    RunArcUnreadable(std::move(run), home);
+    return true;
+  }
+  if (mode == kEdgeMode) {
+    RunEdge(std::move(run), home);
     return true;
   }
   RunFixture(std::move(run), home);

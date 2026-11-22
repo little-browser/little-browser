@@ -5,6 +5,9 @@
 #include "lb/browser/importer/import_choices.h"
 
 #include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "base/test/icu_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -16,7 +19,7 @@ TEST(ImportChoicesTest, EachSourceOffersWhatItHas) {
   // docs/ux.md §13, "What comes along".
   EXPECT_EQ(OfferedImportItems(ImportSourceKind::kChromium),
             kImportBookmarks | kImportHistory | kImportSearchShortcuts | kImportAddresses |
-                kImportOpenTabs | kImportExtensions | kImportCookies);
+                kImportSpaces | kImportExtensions | kImportCookies);
   EXPECT_EQ(OfferedImportItems(ImportSourceKind::kArc),
             kImportBookmarks | kImportHistory | kImportSearchShortcuts | kImportAddresses |
                 kImportSpaces | kImportExtensions | kImportCookies);
@@ -44,14 +47,17 @@ TEST(ImportChoicesTest, EveryItemIsListedOnceWithALabel) {
     EXPECT_TRUE(seen.insert(item).second);
     EXPECT_FALSE(ImportItemLabel(item).empty());
   }
-  EXPECT_EQ(seen.size(), 8u);
+  EXPECT_EQ(seen.size(), 7u);
+  // Open tabs come with spaces, not on their own.
+  EXPECT_FALSE(seen.contains(kImportOpenTabs));
   EXPECT_EQ(ImportItemsInOrder().back(), kImportCookies);  // the opt-in comes last
   EXPECT_EQ(ImportItemLabel(kImportCookies), u"Stay signed in (cookies)");
 }
 
 TEST(ImportChoicesTest, Labels) {
-  EXPECT_EQ(ImportSourceLabel(u"Chrome", u"Work"), u"Chrome — Work");
-  EXPECT_EQ(ImportSourceLabel(u"Arc", u""), u"Arc");
+  EXPECT_EQ(NameWithProfile(u"Work", u"Client"), u"Work — Client");
+  EXPECT_EQ(NameWithProfile(u"Home", u""), u"Home");
+  EXPECT_EQ(NameWithProfile(u"", u"Client"), u"Untitled — Client");
   EXPECT_EQ(CookiesKeychainNote(u"Chrome Safe Storage"),
             u"macOS will ask to let Little Browser use “Chrome Safe Storage” from your "
             u"keychain.");
@@ -95,10 +101,66 @@ TEST(ImportChoicesTest, ImportOfferOnlyOnTheFirstRunAndOtherWindowsWait) {
             ImportOfferStep::kWait);
 }
 
-TEST(ImportChoicesTest, ExtensionLabelsNameTheProfileWhenThereAreSeveral) {
-  EXPECT_EQ(ExtensionLabel(u"uBlock Origin", u"Work", false), u"uBlock Origin");
-  EXPECT_EQ(ExtensionLabel(u"uBlock Origin", u"Work", true), u"uBlock Origin — Work");
-  EXPECT_EQ(ExtensionLabel(u"uBlock Origin", u"", true), u"uBlock Origin");
+TEST(ImportChoicesTest, BrowsersListProfilesOrSpaces) {
+  EXPECT_EQ(ImportChoicesHeading(ImportSourceKind::kChromium), u"Profiles");
+  EXPECT_EQ(ImportChoicesHeading(ImportSourceKind::kFirefox), u"Profiles");
+  EXPECT_EQ(ImportChoicesHeading(ImportSourceKind::kArc), u"Spaces");
+  for (ImportSourceKind kind : {ImportSourceKind::kSafari, ImportSourceKind::kSafariExport,
+                                ImportSourceKind::kBookmarksFile}) {
+    EXPECT_TRUE(ImportChoicesHeading(kind).empty());
+  }
+  // One profile isn't listed, only several.
+  EXPECT_FALSE(ShowsImportChoices(0));
+  EXPECT_FALSE(ShowsImportChoices(1));
+  EXPECT_TRUE(ShowsImportChoices(2));
+}
+
+TEST(ImportChoicesTest, ImportNeedsAnItemAndAProfileOrSpace) {
+  const uint32_t items = kImportBookmarks;
+  // Several profiles: at least one picked.
+  EXPECT_TRUE(CanImport(ImportSourceKind::kChromium, 3, 1, items));
+  EXPECT_FALSE(CanImport(ImportSourceKind::kChromium, 3, 0, items));
+  EXPECT_FALSE(CanImport(ImportSourceKind::kChromium, 3, 3, 0));
+  // A single profile isn't listed: it is taken.
+  EXPECT_TRUE(CanImport(ImportSourceKind::kFirefox, 1, 0, items));
+  // Arc with no space found (its sidebar couldn't be read) has nothing to import.
+  EXPECT_FALSE(CanImport(ImportSourceKind::kArc, 0, 0, kImportSpaces));
+  // Files and Safari have no profiles.
+  EXPECT_TRUE(CanImport(ImportSourceKind::kBookmarksFile, 0, 0, items));
+  EXPECT_FALSE(CanImport(ImportSourceKind::kSafari, 0, 0, 0));
+}
+
+ExtensionGroup Group(std::u16string profile, std::vector<size_t> extensions) {
+  ExtensionGroup group;
+  group.profile = std::move(profile);
+  group.extensions = std::move(extensions);
+  return group;
+}
+
+TEST(ImportChoicesTest, ProfilesAreListedByNameElseFolderElseBrowser) {
+  EXPECT_EQ(ProfileLabel(u"Work", "Profile 1", u"Chrome"), u"Work");
+  EXPECT_EQ(ProfileLabel(u"", "Profile 1", u"Chrome"), u"Profile 1");
+  // A profile in the data folder itself (Firefox's names, or a browser with one profile).
+  EXPECT_EQ(ProfileLabel(u"", "", u"Chrome"), u"Chrome");
+}
+
+TEST(ImportChoicesTest, ProblemsNameTheirProfileOnlyAmongSeveral) {
+  EXPECT_EQ(ProfileProblem("History: couldn't be read", "Work", true),
+            "Work: History: couldn't be read");
+  EXPECT_EQ(ProfileProblem("History: couldn't be read", "Work", false),
+            "History: couldn't be read");
+  EXPECT_EQ(ProfileProblem("History: couldn't be read", "", true), "History: couldn't be read");
+}
+
+TEST(ImportChoicesTest, ExtensionsAreGroupedByProfile) {
+  EXPECT_TRUE(GroupExtensionsByProfile({}).empty());
+  // One profile: one group with no heading.
+  EXPECT_EQ(GroupExtensionsByProfile({u"Work", u"Work"}),
+            std::vector<ExtensionGroup>({Group(u"", {0, 1})}));
+  // Several: one group each, in the order the profiles first come, even when they interleave.
+  EXPECT_EQ(GroupExtensionsByProfile({u"Default", u"Default", u"Work", u"Default", u"Home"}),
+            std::vector<ExtensionGroup>(
+                {Group(u"Default", {0, 1, 3}), Group(u"Work", {2}), Group(u"Home", {4})}));
 }
 
 }  // namespace

@@ -392,9 +392,12 @@ Two questions, once per profile, one after the other in dialogs over the first w
 opened meanwhile waits for them. "Not now" skips either one.
 
 Before them, on the browser's very first run only (not for each new profile), and only if another
-browser's data is on the Mac: **"Bring your tabs and bookmarks from ‹browser›?"** (the Mac's default
-browser if it is one of them, otherwise the first one found). **Import…** opens the import dialog
-(section 13) with that browser selected; **Not now** skips it. The two questions follow once the
+browser's data is on the Mac, the import dialog (section 13) opens by itself on its first step,
+titled **"Bring your tabs and bookmarks from another browser"**, with a short introduction above
+the list (it can bring tabs, bookmarks, history and more; pick a browser, then choose what comes
+along; import is also in the command bar later). The list starts with the Mac's default browser
+if it is one of those found; **Not now** (in place of Cancel) skips it. The two questions follow
+once the
 dialog closes and the extensions it installs are in, so spaces and extensions brought from Arc or
 Chrome are already there. A password manager installed by the import counts as installed. A
 window opened meanwhile waits for all of it, as for the two questions.
@@ -419,12 +422,14 @@ address chrome://settings/importData), which all open the same dialog over the w
 private window it opens over a normal window of the same profile, because what is imported is
 kept; guest windows import nothing.
 
-**Sources** — only those found on the Mac are listed, the default browser first:
+**Sources** — only browsers found on the Mac are listed, each once, the default browser first:
 
-- **Chrome-family browsers**: Brave, Chrome, Chromium, Dia, Edge, Opera, Vivaldi. Each of their
-  profiles is listed separately, under the name the browser gives it ("Chrome — Work").
-- **Arc**, once, with all its profiles: its spaces span profiles, so they come together.
-- **Firefox**, each profile.
+- **Chrome-family browsers**: Brave, Chrome, Chromium, Dia, Edge, Opera, Vivaldi, with their
+  profiles, under the names the browser gives them.
+- **Arc**, with its spaces. If its sidebar file can't be read (an Arc update changed it, or it is
+  cut short), it is listed with its profiles instead, as a Chrome-family browser, and the dialog
+  says its spaces couldn't be read.
+- **Firefox**, with its profiles.
 - **Safari**, when Little Browser has Full Disk Access, which reading its bookmarks needs. Without
   it Safari isn't listed, and the dialog says how to export from Safari instead (File → Export
   Browsing Data to File).
@@ -435,7 +440,7 @@ kept; guest windows import nothing.
 
 | | Chrome-family | Arc | Firefox | Safari | Safari export | Bookmarks file |
 |---|---|---|---|---|---|---|
-| Spaces and profiles | — | ✅ | — | — | — | — |
+| Spaces and profiles | ✅ | ✅ | — | — | — | — |
 | Open tabs | ✅ | ✅ | — | — | — | — |
 | Bookmarks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | History | ✅ | ✅ | ✅ | — | ✅ | — |
@@ -449,19 +454,37 @@ password manager's job (design.md §7.8), and its own import takes them.
 
 **The dialog**
 
-1. **From:** the list of sources, the first picked. Picking one shows what it has as checkboxes,
-   all ticked except **Stay signed in (cookies)**; for Arc, its spaces and tabs are one checkbox,
-   **Spaces, profiles and tabs**. Under **Stay signed in (cookies)** a line says that macOS will
-   ask to let Little Browser use "‹browser› Safe Storage" from the keychain.
-2. **Import.** "Importing from ‹source›…", then a summary ("812 bookmarks, 12,400 pages of
+1. **From:** the browsers, each with its own app icon, then the two file choices, the first
+   picked, and **Next**. Opened by itself on first run it has the introduction above the list
+   and **Not now** in place of Cancel (section 12).
+2. **Import from ‹browser›**, with **Back** to pick another:
+   - **Profiles** (Chrome-family browsers, Firefox) or **Spaces** (Arc), each a checkbox, all
+     ticked. An Arc space outside Arc's default profile shows its profile's name ("Work —
+     Client"), and an Arc profile with Favourites but no space is listed as its "Favourites"
+     space. A browser with only one profile or space lists none.
+   - What the browser has, as checkboxes, each with an icon, all ticked except **Stay signed in
+     (cookies)**. For
+     Chrome-family browsers and Arc, spaces, profiles and tabs are one checkbox, **Spaces,
+     profiles and tabs**. Under **Stay signed in (cookies)** a line says that macOS will ask to
+     let Little Browser use "‹browser› Safe Storage" from the keychain, once for all its
+     profiles.
+   - **Import** needs at least one profile or space and one item ticked. For the two file
+     choices it opens a file picker first.
+3. **Import.** "Importing from ‹browser›…": for a Chrome-family browser or Arc, the ticked items
+   each with a spinner that turns into a check as it comes over. Then a summary ("812 bookmarks, 12,400 pages of
    history, 3 spaces, 41 tabs"). Anything that couldn't be read is named with the reason, and the
    rest still imports.
-3. **Extensions**, when ticked: the source's extensions from the Chrome Web Store, each with a
-   checkbox, ticked (with the profile it goes into when there are several), and **Install** or
-   **Skip**. Extensions already installed aren't listed, and each comes once per profile; ones
-   not from the store are counted ("2 aren't from the Chrome Web Store"). Install goes through them
-   one after another, each with Chromium's install prompt and its permissions. Their settings and
-   data don't come along.
+4. **Extensions**, when ticked: the source's extensions from the Chrome Web Store, each with a
+   checkbox, ticked unless it was turned off in the other browser (by the user, or by the browser
+   when an update asked for more permissions), and **Install** or **Skip**. When they go into several profiles they are
+   grouped under each profile's name, in the order the profiles were imported. Extensions already installed aren't listed, and each comes once per profile; ones
+   not from the store are counted ("2 aren't from the Chrome Web Store"). Install adds them from
+   the store one after another without asking again: ticking them is the consent, as they were
+   already installed in the other browser (Chrome adds synced extensions the same way). A line
+   under the heading, above the list, says so. Their settings and data don't come along.
+
+A long step (many profiles, many extensions) scrolls inside the dialog, which keeps its title and
+buttons in view.
 
 The other browser can stay open: Little Browser reads copies of its files. Firefox is the
 exception, because it locks its profile, so Chromium's own prompt asks to close it first. If a
@@ -470,25 +493,29 @@ try again.
 
 **Where things go**
 
-- **Arc.** Each Arc space becomes a space with its name, its emoji (a space with a symbol icon gets
+- **Profiles.** With **Spaces, profiles and tabs** ticked, each source profile maps to a profile
+  here: the browser's default profile (Arc's, or a Chrome-family browser's "Default" folder) to
+  the default profile, each other one to the profile with the same name, made if there is none
+  (if the default profile was deleted, the current profile stands in for it). Its bookmarks,
+  history, search shortcuts, addresses, extensions and cookies go into that profile. Unticked, no
+  space or profile is made, no tabs come, and every ticked profile's data goes into the current
+  space's profile. Firefox's profiles, Safari and the two files always go into the current
+  space's profile.
+- **Arc.** Each ticked Arc space becomes a space with its name, its emoji (a space with a symbol icon gets
   the next of our icons, as a new space does) and the nearest of our colours. Its pinned tabs become pinned tabs in the same order, and its
   pinned folders become pinned groups in place, with their names, starting in the group colour
   nearest the space's colour. A folder inside a folder adds its tabs to the outer folder's group,
   in place, and its own name is dropped; a folder with no web pages is left out. Its
   unpinned tabs become today tabs, and its Favourites become pinned tabs at the top of the first
-  space of their profile. Arc's default profile maps to the default profile; each other Arc
-  profile becomes a profile with the same name, or uses one that already has it (if the default
-  profile was deleted, the current profile stands in for it). Each Arc profile's bookmarks,
-  history, search shortcuts, addresses, extensions and cookies go into its matching profile.
-  With **Spaces, profiles and tabs** unticked, no space or profile is made and every Arc
-  profile's data goes into the current space's profile.
-- **Open tabs from a Chrome-family browser** join the current space: pinned as pinned, the rest as
-  today tabs after the ones already there, and tab groups stay tab groups. Everything else from it
-  goes into the current space's profile, as do imports from every other source.
+  ticked space of their profile. An Arc profile's data comes along when one of its spaces is
+  ticked.
+- **A Chrome-family profile** becomes a space with the profile's name in its profile here,
+  holding its open tabs: pinned as pinned, the rest as today tabs, and tab groups stay tab groups.
 - **A space whose name is taken** gets a number ("Work 2"), except that an empty space with the
   same name and profile is filled instead. So Arc's "Personal" fills the empty first space at
   first run.
-- **Imported tabs sleep** until clicked, like tabs after a restart (section 6).
+- **Imported tabs sleep** until clicked, like tabs after a restart (section 6), and imported
+  tab groups, pinned or not, come collapsed, so a big import doesn't fill the sidebar.
 - **Bookmarks** keep the source's tree: its bookmarks bar, other bookmarks and mobile bookmarks
   go into the same places here, not into an "Imported" folder. A folder with the same name in the
   same place is merged into, and a link already in that folder isn't added again, so importing

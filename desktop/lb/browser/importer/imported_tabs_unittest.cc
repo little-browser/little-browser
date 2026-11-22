@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-#include "lb/browser/importer/arc_tabs.h"
+#include "lb/browser/importer/imported_tabs.h"
+
+#include <vector>
 
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -40,7 +42,10 @@ TEST(ArcTabsTest, FoldersBecomePinnedGroupsInPlace) {
   EXPECT_EQ(tabs[1].group_id, tabs[2].group_id);
   EXPECT_EQ(tabs[1].group_title, u"Docs");
   EXPECT_EQ(tabs[1].group_color, 4);
-  EXPECT_FALSE(tabs[1].group_collapsed);
+  // Imported groups come collapsed: a long import doesn't fill the sidebar.
+  EXPECT_TRUE(tabs[1].group_collapsed);
+  EXPECT_TRUE(tabs[2].group_collapsed);
+  EXPECT_TRUE(tabs[4].group_collapsed);
   EXPECT_TRUE(tabs[3].group_id.empty());
   // Another folder with the same name is a group of its own.
   EXPECT_FALSE(tabs[4].group_id.empty());
@@ -55,6 +60,28 @@ TEST(ArcTabsTest, FoldersBecomePinnedGroupsInPlace) {
 TEST(ArcTabsTest, EachImportMakesNewGroups) {
   const core::ArcSpace space = Space({Pinned("https://b.example/", 0, "Docs")}, {});
   EXPECT_NE(ArcSpaceTabs(space, 0)[0].group_id, ArcSpaceTabs(space, 0)[0].group_id);
+}
+
+TEST(OpenTabsTest, GroupsComeCollapsedWithTheSourcesTitleAndColour) {
+  rust::Vec<core::OpenTab> open;
+  open.push_back(core::OpenTab{0, "https://pinned.example/", "Pinned", true, "", "", 0});
+  open.push_back(core::OpenTab{0, "https://a.example/", "A", false, "g1", "Work", 3});
+  open.push_back(core::OpenTab{0, "https://b.example/", "B", false, "g1", "Work", 3});
+  open.push_back(core::OpenTab{0, "https://loose.example/", "Loose", false, "", "", 0});
+  open.push_back(core::OpenTab{0, "not a url", "Bad", false, "g1", "Work", 3});
+  const std::vector<SavedTab> tabs = OpenTabsAsSavedTabs(open);
+  ASSERT_EQ(tabs.size(), 4u);  // the invalid one is left out
+  EXPECT_TRUE(tabs[0].pinned);
+  EXPECT_TRUE(tabs[0].group_id.empty());
+  EXPECT_FALSE(tabs[0].group_collapsed);
+  EXPECT_EQ(tabs[1].group_id, "g1");
+  EXPECT_EQ(tabs[1].group_title, u"Work");
+  EXPECT_EQ(tabs[1].group_color, 3);
+  EXPECT_TRUE(tabs[1].group_collapsed);
+  EXPECT_TRUE(tabs[2].group_collapsed);
+  EXPECT_EQ(SavedTabGroups(tabs), (std::vector<std::vector<size_t>>{{1, 2}}));
+  EXPECT_FALSE(tabs[3].pinned);
+  EXPECT_TRUE(tabs[3].group_id.empty());
 }
 
 TEST(ArcTabsTest, InvalidAddressesAreLeftOut) {

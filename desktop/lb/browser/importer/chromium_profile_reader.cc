@@ -283,7 +283,9 @@ void ReadExtensions(const base::FilePath& profile_dir,
     data.extensions.push_back(std::move(e));
   }
   data.extensions = core::sort_store_extensions(std::move(data.extensions));
-  data.extensions_not_from_store = list.not_from_store;
+  for (const rust::String& id : list.not_from_store) {
+    data.extensions_not_from_store.push_back(std::string(id));
+  }
 }
 
 void ReadCookies(const base::FilePath& profile_dir,

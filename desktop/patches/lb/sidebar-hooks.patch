@@ -5,7 +5,7 @@
 # Peek, little window, import) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,71 @@
+@@ -537,7 +537,75 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -24,10 +24,14 @@
 +    "//lb/browser/demo/demo_report.h",
 +    "//lb/browser/extensions/extensions_demo.cc",
 +    "//lb/browser/extensions/extensions_demo.h",
-+    "//lb/browser/importer/arc_import.cc",
-+    "//lb/browser/importer/arc_import.h",
++    "//lb/browser/importer/browser_import.cc",
++    "//lb/browser/importer/browser_import.h",
 +    "//lb/browser/importer/chromium_import.cc",
 +    "//lb/browser/importer/chromium_import.h",
++    "//lb/browser/importer/extension_install.cc",
++    "//lb/browser/importer/import_app_icon.h",
++    "//lb/browser/importer/import_app_icon.mm",
++    "//lb/browser/importer/extension_install.h",
 +    "//lb/browser/importer/import_demo.cc",
 +    "//lb/browser/importer/import_demo.h",
 +    "//lb/browser/importer/import_keychain.mm",
@@ -78,7 +82,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +621,20 @@
+@@ -557,6 +625,20 @@
      "//ui/views",
    ]
    deps = [

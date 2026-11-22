@@ -22,14 +22,17 @@ pub struct StoreExtension {
     pub default_locale: Option<String>,
     /// Its folder under the profile's `Extensions` folder (`<id>/<version>`), if known.
     pub path: Option<String>,
+    /// False when it was turned off in the source browser, by the user or by the browser (as for
+    /// an update asking for more permissions): the dialog then offers it unticked.
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExtensionList {
     /// Store extensions not installed here yet, by name (unnamed ones last, by id).
     pub store: Vec<StoreExtension>,
-    /// Extensions the user installed some other way, which can't come along.
-    pub not_from_store: usize,
+    /// The ids of extensions the user installed some other way, which can't come along, sorted.
+    pub not_from_store: Vec<String>,
 }
 
 /// `Extension::FROM_WEBSTORE` in Chromium's creation flags.
@@ -91,13 +94,26 @@ pub fn extensions(
                 list.store.push(store_extension(id, entry))
             }
             LOCATION_INTERNAL | LOCATION_UNPACKED | LOCATION_COMMAND_LINE => {
-                list.not_from_store += 1
+                list.not_from_store.push(id.clone())
             }
             _ => {}
         }
     }
     sort_by_name(&mut list.store);
+    list.not_from_store.sort();
     Ok(list)
+}
+
+/// Whether an extension's settings say it is on. Chromium keeps why it is off in
+/// `disable_reasons`, a list of reasons (an older bitmask int), and once kept `state`: 0 for off.
+fn is_enabled(entry: &Value) -> bool {
+    let off_for_reasons = match entry.get("disable_reasons") {
+        Some(Value::Array(reasons)) => !reasons.is_empty(),
+        Some(Value::Number(bits)) => bits.as_i64().unwrap_or(0) != 0,
+        _ => false,
+    };
+    let off_by_state = entry.get("state").and_then(Value::as_i64) == Some(0);
+    !off_for_reasons && !off_by_state
 }
 
 /// Sorts extensions by name, ignoring case; unnamed ones last, by id. The shell sorts again
@@ -136,6 +152,7 @@ fn store_extension(id: &str, entry: &Value) -> StoreExtension {
             .and_then(Value::as_str)
             .filter(|p| !p.is_empty())
             .map(str::to_owned),
+        enabled: is_enabled(entry),
     }
 }
 
@@ -243,9 +260,10 @@ mod tests {
                 name_message: Some("appName".into()),
                 default_locale: Some("en".into()),
                 path: None,
+                enabled: true,
             }
         );
-        assert_eq!(list.not_from_store, 0);
+        assert!(list.not_from_store.is_empty());
     }
 
     #[test]
@@ -274,7 +292,7 @@ mod tests {
         ));
         let list = extensions(None, Some(&secure), &[A]).unwrap();
         assert!(list.store.is_empty());
-        assert_eq!(list.not_from_store, 0);
+        assert!(list.not_from_store.is_empty());
     }
 
     #[test]
@@ -289,7 +307,38 @@ mod tests {
         ));
         let list = extensions(None, Some(&secure), &[]).unwrap();
         assert!(list.store.is_empty());
-        assert_eq!(list.not_from_store, 3);
+        // Their ids, so the same one in two profiles can be counted once.
+        assert_eq!(list.not_from_store, [A, B, C]);
+    }
+
+    #[test]
+    fn extensions_turned_off_are_marked() {
+        let secure = prefs(&format!(
+            r#"{{
+            "{A}": {{"location": 1, "creation_flags": 8, "manifest": {{"name": "On"}}}},
+            "{B}": {{"location": 1, "creation_flags": 8, "disable_reasons": [1],
+                     "manifest": {{"name": "Off by the user"}}}},
+            "{C}": {{"location": 1, "creation_flags": 8, "disable_reasons": 4,
+                     "manifest": {{"name": "Off for permissions"}}}},
+            "{D}": {{"location": 1, "creation_flags": 8, "state": 0, "disable_reasons": [],
+                     "manifest": {{"name": "Off, older"}}}}
+        }}"#
+        ));
+        let list = extensions(None, Some(&secure), &[]).unwrap();
+        let enabled: Vec<(&str, bool)> = list
+            .store
+            .iter()
+            .map(|e| (e.name.as_str(), e.enabled))
+            .collect();
+        assert_eq!(
+            enabled,
+            [
+                ("Off by the user", false),
+                ("Off for permissions", false),
+                ("Off, older", false),
+                ("On", true)
+            ]
+        );
     }
 
     #[test]
@@ -325,6 +374,7 @@ mod tests {
                 name_message: None,
                 default_locale: None,
                 path: None,
+                enabled: true,
             }
         );
     }
@@ -337,6 +387,7 @@ mod tests {
             name_message: None,
             default_locale: None,
             path: None,
+            enabled: true,
         };
         let mut list = vec![
             named(B, "zeta"),

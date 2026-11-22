@@ -271,6 +271,45 @@ void ImportWithChromiumImporter(Profile* profile,
       ->Start(profile, source, chromium_items, items, parent);
 }
 
+namespace {
+
+// The next of `sources` from `next` on, then `done` with all they brought.
+void ImportNextSource(base::WeakPtr<Profile> profile,
+                      std::vector<user_data_importer::SourceProfile> sources,
+                      size_t next,
+                      uint32_t items,
+                      gfx::NativeWindow parent,
+                      ImportResult so_far,
+                      base::OnceCallback<void(ImportResult)> done) {
+  if (!profile || next >= sources.size()) {
+    std::move(done).Run(std::move(so_far));
+    return;
+  }
+  const user_data_importer::SourceProfile source = sources[next];
+  ImportWithChromiumImporter(
+      profile.get(), source, items, parent,
+      base::BindOnce(
+          [](base::WeakPtr<Profile> profile, std::vector<user_data_importer::SourceProfile> sources,
+             size_t next, uint32_t items, gfx::NativeWindow parent, ImportResult so_far,
+             base::OnceCallback<void(ImportResult)> done, ImportResult imported) {
+            so_far += imported;
+            ImportNextSource(profile, std::move(sources), next + 1, items, parent,
+                             std::move(so_far), std::move(done));
+          },
+          profile, std::move(sources), next, items, parent, std::move(so_far), std::move(done)));
+}
+
+}  // namespace
+
+void ImportWithChromiumImporter(Profile* profile,
+                                std::vector<user_data_importer::SourceProfile> sources,
+                                uint32_t items,
+                                gfx::NativeWindow parent,
+                                base::OnceCallback<void(ImportResult)> done) {
+  ImportNextSource(profile->GetWeakPtr(), std::move(sources), 0, items, parent, ImportResult(),
+                   std::move(done));
+}
+
 void ImportSafariExport(Profile* profile,
                         const base::FilePath& zip,
                         uint32_t items,

@@ -18,17 +18,22 @@ lb/browser/importer/                import from other browsers (docs/desktop-ui.
   cookie_decryptor.*                opens Chrome-family cookie values with the keychain key (tested)
   imported_bookmarks.*              Chromium importers' bookmarks as lb-core's list (unit tested)
   chromium_import.*                 imports a Chrome-family profile into a profile and space
-  arc_import.*                      imports Arc: profiles, spaces, tabs, then each profile's data
-  arc_tabs.*                        an Arc space's saved tabs, its pinned folders as pinned groups
-                                    (unit tested)
+  browser_import.*                  imports a Chrome-family browser's profiles or Arc's spaces:
+                                    profiles, spaces, tabs, then each profile's data
+  imported_tabs.*                   the saved tabs an import brings: an Arc space's (its pinned
+                                    folders as pinned groups) and a Chrome-family profile's open
+                                    tabs, groups collapsed (unit tested)
   other_import.*                    Firefox, Safari, bookmarks files, Safari's export, through
                                     Chromium's importers with our bookmark merge
   import_sources.*                  finds the browsers on the Mac, the default one first
+  extension_install.*               installs the ticked extensions from the store, no prompt
+  import_app_icon.mm                a browser's macOS app icon, from its bundle id
   import_keychain.mm                reads a "<browser> Safe Storage" keychain item
   import_text.*                     makes other browsers' bytes valid UTF-8 for lb-core (unit tested)
   import_demo.*                     --lb-sidebar-demo=import-* (below)
 lb/browser/prefs/pref_defaults.*    Chromium prefs whose default differs here (address autofill on)
-lb/test/data/import/home/           a made-up Application Support (Chrome, Arc, a bookmarks file)
+lb/test/data/import/home/           a made-up Application Support (Chrome, Arc, Edge, a bookmarks
+                                    file)
 lb/browser/spaces/space_model.*     Space type, saved form, new-space defaults, which space a window opens on
 lb/browser/spaces/swipe_tracker.*   two-finger swipe → one space switch per gesture
 lb/browser/command_bar/command_matching.*  command bar scoring and "is this an address?"
@@ -76,7 +81,7 @@ lb/browser/ui/
   views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / address pill / Cmd+Option+N)
-  views/importer/import_dialog.*       the import dialog and the first-run import offer
+  views/importer/import_dialog.*       the import dialog, also opened by itself on first run
   views/peek/peek.*                    Peek: the card over the dimmed window, its page, the buttons beside it
   views/little_window/little_window.*  the little window: opening one, its toolbar buttons, moving
                                        its page into a tab
@@ -157,6 +162,9 @@ on `chrome://extensions` (each must load a store page), `=password-manager`, on 
 opens a second window while the search choice is up, answers the search choice with "Not now",
 then picks Proton Pass in the password manager choice and accepts the install prompt (it must
 come after the search choice, never open at the same time, and install from the store),
+`=import-extensions`, on a profile without the extension, installs it as an import does, with any install prompt cancelled,
+after one with no profile and one the store doesn't have (it must install from the store all the
+same, as the import shows no prompt),
 `=ad-blocker`, on a fresh profile (it counts the first-run questions as answered), waits for the
 filter lists, then on example.com an ad script must be blocked and a CDN script load, no per-site
 record may be kept and the console must show none of Chrome's abusive-ads messages; with a
@@ -198,11 +206,16 @@ Import (a fresh `--user-data-dir`, `--use-mock-keychain`, and
 `--lb-sidebar-demo=import-fixture` imports its Chrome profile and checks bookmarks, history, the
 search shortcut, the address, open tabs (pinned, grouped), the cookie and the offered extension,
 then that a second import adds nothing; `import-arc` checks Arc's spaces, tabs, profiles and
-bookmarks; `import-dia` that a profile laid out as Dia keeps it, whose bookmarks and session files
-are saved with encrypted copies, still imports both; `import-files` a bookmarks file and a Safari
-export; `import-dialog` the dialog's sources and its Import button (`--lb-ui-snapshot-dialog=<png>`
-captures it). Run without `--no-first-run` and with `--lb-ui-snapshot-dialog=<png>` to capture the
-first-run import offer. `--lb-sidebar-demo=import --lb-import-source=<profile folder>` imports a
+bookmarks; `import-edge` that one picked profile of a two-profile Edge whose bookmarks and session
+files are saved with encrypted copies becomes a space and a profile with both, its tabs pinned and
+grouped as in Edge, the group collapsed;
+`import-files` a bookmarks file, a Safari export, then two bookmarks files in one import; `import-dialog` steps through the dialog: the
+browsers, Back, and each browser's profiles or spaces, then imports Edge's two profiles and checks
+the extensions list is grouped by profile, with one turned off in Edge unticked, and, at fifteen rows, scrolls in a dialog of bounded height (`--lb-ui-snapshot-dialog=<png>` captures that list). `import-choices` opens the choices step on Chrome and holds it (`--lb-ui-snapshot-dialog=<png>` captures the item rows, each with its icon). `import-progress` imports Edge through the dialog and checks the progress step reports each item (its spinner becoming a check). `import-first-run`, run without `--no-first-run`, checks that first run opens the dialog itself on
+its first step, with the introduction and "Not now", that the next question and a second Import
+wait for it, and go on once it closes (`--lb-ui-snapshot-dialog=<png>` captures it).
+`import-arc-unreadable` breaks a copy's Arc sidebar file: Arc must be listed with its profiles
+instead, with the problem named. `--lb-sidebar-demo=import --lb-import-source=<profile folder>` imports a
 real Chrome-family profile and logs only how many of each item came along. Each logs
 `lb demo: <mode> PASS` or `FAIL`.
 

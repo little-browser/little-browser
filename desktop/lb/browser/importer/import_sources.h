@@ -15,7 +15,23 @@
 
 namespace lb {
 
-// Something to import from (docs/ux.md §13).
+// A profile, or an Arc space, that the dialog's second step lists for a browser.
+struct ImportChoice {
+  ImportChoice();
+  ImportChoice(const ImportChoice&);
+  ImportChoice& operator=(const ImportChoice&);
+  ~ImportChoice();
+
+  // Chrome-family: the profile's folder in the browser's User Data (empty: User Data itself).
+  // Arc: the space's id.
+  std::string id;
+  std::u16string
+      label;  // "Work", or for an Arc space outside Arc's default profile "Work — Client"
+  // Firefox: the profile as Chromium's importer list found it.
+  user_data_importer::SourceProfile chromium_source;
+};
+
+// A browser to import from (docs/ux.md §13).
 struct ImportSource {
   ImportSource();
   ImportSource(const ImportSource&);
@@ -23,20 +39,24 @@ struct ImportSource {
   ~ImportSource();
 
   ImportSourceKind kind = ImportSourceKind::kChromium;
-  std::u16string label;    // "Chrome — Work"
-  std::u16string browser;  // "Chrome"
+  std::u16string browser;  // "Chrome", as the dialog lists it
   std::string bundle_id;   // its macOS bundle id, to put the default browser first
-  // Chrome-family: the profile folder. Arc: its folder in Application Support.
+  // Chrome-family: its User Data folder. Arc: its folder in Application Support.
   base::FilePath path;
   std::string keychain_service;
   std::string keychain_account;
-  // Firefox and Safari: as Chromium's importer list found them.
+  // Its profiles (Chrome-family, Firefox) or spaces (Arc), in the browser's order.
+  std::vector<ImportChoice> choices;
+  // Arc: why its spaces couldn't be listed; empty when they could.
+  std::string problem;
+  // Safari: as Chromium's importer list found it.
   user_data_importer::SourceProfile chromium_source;
 };
 
-// Finds what can be imported on this Mac: each Chrome-family browser's profiles, Arc, Firefox's
-// profiles and Safari, the default browser first. `done` runs on the UI thread. The two file
-// choices (a Safari export file, a bookmarks file) aren't in the list.
+// Finds the browsers that can be imported from on this Mac, each once with its profiles or
+// spaces: the Chrome-family browsers, Arc, Firefox and Safari, the default browser first. `done`
+// runs on the UI thread. The two file choices (a Safari export file, a bookmarks file) aren't in
+// the list.
 void FindImportSources(base::OnceCallback<void(std::vector<ImportSource>)> done);
 
 // The Application Support folder sources are read from; a demo can point it elsewhere with

@@ -54,6 +54,7 @@
 #include "content/public/browser/storage_partition.h"
 #include "extensions/browser/extension_registry.h"
 #include "lb/browser/importer/chromium_profile_reader.h"
+#include "lb/browser/importer/imported_tabs.h"
 #include "lb/browser/spaces/space_model.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "lb/core_bridge/lib.rs.h"
@@ -159,6 +160,15 @@ class AddPagesTask : public history::HistoryDBTask {
                base::OnceCallback<void(size_t)> done)
       : rows_(std::move(rows)), source_(source), done_(std::move(done)) {}
 
+  // History drops a task it can't run (its database didn't open) without
+  // DoneRunOnMainThread, deleting it on this, the UI thread: report nothing added then, so the
+  // import goes on.
+  ~AddPagesTask() override {
+    if (done_) {
+      std::move(done_).Run(0);
+    }
+  }
+
   bool RunOnDBThread(history::HistoryBackend* backend, history::HistoryDatabase* db) override {
     history::URLRows add;
     for (const history::URLRow& row : rows_) {
@@ -190,13 +200,18 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
                public autofill::AddressDataManager::Observer,
                public ProfileObserver {
  public:
+  // `on_written` reports each of `items` as it is written (ChromiumImportRequest::on_item_written).
   Writer(Profile* profile,
          ChromiumProfileData data,
          std::string space_id,
+         uint32_t items,
+         base::RepeatingCallback<void(uint32_t)> on_written,
          base::OnceCallback<void(ImportResult)> done)
       : profile_(profile),
         data_(std::move(data)),
         space_id_(std::move(space_id)),
+        items_(items),
+        on_written_(std::move(on_written)),
         done_(std::move(done)) {
     result_.problems = data_.problems;
     for (const core::StoreExtension& e : data_.extensions) {
@@ -204,12 +219,13 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
       extension.id = std::string(e.id);
       extension.name = base::UTF8ToUTF16(std::string(e.name));
       extension.profile = profile->GetWeakPtr();
-      extension.profile_name = profile->GetProfileUserName().empty()
-                                   ? base::UTF8ToUTF16(profile->GetBaseName().AsUTF8Unsafe())
-                                   : base::UTF8ToUTF16(profile->GetProfileUserName());
+      extension.profile_name = ProfileDisplayName(profile->GetBaseName().AsUTF8Unsafe());
+      extension.enabled = e.enabled;
       result_.extensions.push_back(std::move(extension));
     }
-    result_.extensions_not_from_store = data_.extensions_not_from_store;
+    for (const std::string& id : data_.extensions_not_from_store) {
+      result_.extensions_not_from_store.insert(profile->GetBaseName().AsUTF8Unsafe() + "/" + id);
+    }
     profile_observation_.Observe(profile);
   }
 
@@ -218,9 +234,20 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
  private:
   ~Writer() override = default;
 
+  // `item` is done: written, or nothing of it to write (a problem line says why).
+  void Written(uint32_t item) {
+    if ((items_ & item) && !(reported_ & item)) {
+      reported_ |= item;
+      if (on_written_) {
+        on_written_.Run(item);
+      }
+    }
+  }
+
   void WriteBookmarks() {
     BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile_);
     if (data_.bookmarks.empty() || !model) {
+      Written(kImportBookmarks);
       WriteHistory();
       return;
     }
@@ -230,6 +257,7 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
     }
     bookmark_observation_.Reset();
     result_.counts.bookmarks = MergeIntoBookmarks(profile_, data_.bookmarks);
+    Written(kImportBookmarks);
     WriteHistory();
   }
 
@@ -256,12 +284,14 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
 
   void HistoryWritten(size_t pages) {
     result_.counts.history = pages;
+    Written(kImportHistory);
     WriteSearchShortcuts();
   }
 
   void WriteSearchShortcuts() {
     TemplateURLService* service = TemplateURLServiceFactory::GetForProfile(profile_);
     if (data_.search_shortcuts.empty() || !service) {
+      Written(kImportSearchShortcuts);
       WriteAddresses();
       return;
     }
@@ -283,6 +313,7 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
     const size_t before = service->GetTemplateURLs().size();
     writer()->AddKeywords(std::move(urls), /*unique_on_host_and_path=*/true);
     result_.counts.search_shortcuts = service->GetTemplateURLs().size() - before;
+    Written(kImportSearchShortcuts);
     WriteAddresses();
   }
 
@@ -358,28 +389,17 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
 
   void AddressesDone() {
     addresses_done_ = true;
+    Written(kImportAddresses);
     WriteOpenTabs();
   }
 
   void WriteOpenTabs() {
     if (!data_.open_tabs.empty() && !space_id_.empty()) {
-      std::vector<SavedTab> tabs;
-      for (const core::OpenTab& t : data_.open_tabs) {
-        SavedTab tab;
-        tab.url = GURL(std::string(t.url));
-        if (!tab.url.is_valid()) {
-          continue;
-        }
-        tab.title = base::UTF8ToUTF16(std::string(t.title));
-        tab.pinned = t.pinned;
-        tab.group_id = std::string(t.group);
-        tab.group_title = base::UTF8ToUTF16(std::string(t.group_title));
-        tab.group_color = t.group_color;
-        tabs.push_back(std::move(tab));
-      }
+      const std::vector<SavedTab> tabs = OpenTabsAsSavedTabs(data_.open_tabs);
       result_.counts.tabs = tabs.size();
       SidebarController::AddImportedTabs(space_id_, tabs);
     }
+    Written(kImportOpenTabs);
     WriteCookies();
   }
 
@@ -427,6 +447,7 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
 
   void CookiesWritten(std::vector<bool> written) {
     result_.counts.cookies = std::ranges::count(written, true);
+    Written(kImportCookies);
     Finish();
   }
 
@@ -445,6 +466,11 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
   }
 
   void Finish() {
+    // The rest: nothing to write (no cookies), the extensions to offer, or the profile went away.
+    for (ImportItem item : ImportItemsInOrder()) {
+      Written(item);
+    }
+    Written(kImportOpenTabs);
     base::OnceCallback<void(ImportResult)> done = std::move(done_);
     ImportResult result = std::move(result_);
     delete this;
@@ -461,6 +487,9 @@ class Writer : public bookmarks::BaseBookmarkModelObserver,
   raw_ptr<Profile> profile_;
   ChromiumProfileData data_;
   std::string space_id_;
+  const uint32_t items_;
+  base::RepeatingCallback<void(uint32_t)> on_written_;
+  uint32_t reported_ = 0;
   base::OnceCallback<void(ImportResult)> done_;
   ImportResult result_;
   bool addresses_done_ = false;
@@ -498,7 +527,8 @@ ImportResult& ImportResult::operator+=(const ImportResult& other) {
       extensions.push_back(e);
     }
   }
-  extensions_not_from_store += other.extensions_not_from_store;
+  extensions_not_from_store.insert(other.extensions_not_from_store.begin(),
+                                   other.extensions_not_from_store.end());
   return *this;
 }
 
@@ -517,7 +547,7 @@ void AddHistoryPages(Profile* profile,
     std::move(done).Run(0);
     return;
   }
-  // Never cancelled: the task always reports back.
+  // Never cancelled: the task always reports back, also when history drops it.
   static base::NoDestructor<base::CancelableTaskTracker> tracker;
   history->ScheduleDBTask(FROM_HERE,
                           std::make_unique<AddPagesTask>(std::move(rows), source, std::move(done)),
@@ -569,7 +599,8 @@ void ImportChromiumProfile(Profile* profile,
               },
               request, std::move(options)),
           base::BindOnce(
-              [](base::WeakPtr<Profile> profile, std::string space_id,
+              [](base::WeakPtr<Profile> profile, std::string space_id, uint32_t items,
+                 base::RepeatingCallback<void(uint32_t)> on_written,
                  base::OnceCallback<void(ImportResult)> done, ChromiumProfileData data) {
                 if (!profile) {
                   ImportResult gone;
@@ -577,10 +608,12 @@ void ImportChromiumProfile(Profile* profile,
                   std::move(done).Run(std::move(gone));
                   return;
                 }
-                (new Writer(profile.get(), std::move(data), std::move(space_id), std::move(done)))
+                (new Writer(profile.get(), std::move(data), std::move(space_id), items,
+                            std::move(on_written), std::move(done)))
                     ->Start();
               },
-              profile->GetWeakPtr(), request.space_id, std::move(done)));
+              profile->GetWeakPtr(), request.space_id, request.items, request.on_item_written,
+              std::move(done)));
 }
 
 }  // namespace lb

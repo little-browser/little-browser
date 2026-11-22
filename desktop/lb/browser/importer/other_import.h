@@ -6,6 +6,7 @@
 #define LB_BROWSER_IMPORTER_OTHER_IMPORT_H_
 
 #include <cstdint>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/functional/callback_forward.h"
@@ -24,6 +25,14 @@ namespace lb {
 // kImportBookmarks and kImportHistory of `items` apply. `done` runs on the UI thread.
 void ImportWithChromiumImporter(Profile* profile,
                                 const user_data_importer::SourceProfile& source,
+                                uint32_t items,
+                                gfx::NativeWindow parent,
+                                base::OnceCallback<void(ImportResult)> done);
+
+// Imports several `sources` (Firefox's chosen profiles) into `profile`, one after another, and
+// adds up what they brought.
+void ImportWithChromiumImporter(Profile* profile,
+                                std::vector<user_data_importer::SourceProfile> sources,
                                 uint32_t items,
                                 gfx::NativeWindow parent,
                                 base::OnceCallback<void(ImportResult)> done);

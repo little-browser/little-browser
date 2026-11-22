@@ -324,7 +324,7 @@ TEST_F(ChromiumProfileReaderTest, ReadsStoreExtensionsWithTheirNames) {
   ASSERT_EQ(data.extensions.size(), 2u);
   EXPECT_EQ(std::string(data.extensions[0].name), "Dark Theme");
   EXPECT_EQ(std::string(data.extensions[1].name), "Reader");
-  EXPECT_EQ(data.extensions_not_from_store, 1u);
+  EXPECT_EQ(data.extensions_not_from_store.size(), 1u);
 
   options.installed_extensions = {b};
   data = ReadChromiumProfile(profile(), kImportExtensions, options);
@@ -452,7 +452,8 @@ TEST(PlainCopyIsStaleTest, OnlyAnEncryptedCopyFromALaterSaveMakesThePlainFileSta
   EXPECT_FALSE(PlainCopyIsStale(base::Time(), base::Time()));
   // Only an encrypted copy.
   EXPECT_TRUE(PlainCopyIsStale(base::Time(), t));
-  // Written in the same save (Dia writes the encrypted one up to some milliseconds later).
+  // Written in the same save (a browser may write the encrypted copy up to some milliseconds
+  // later).
   EXPECT_FALSE(PlainCopyIsStale(t, t));
   EXPECT_FALSE(PlainCopyIsStale(t, t + base::Milliseconds(30)));
   EXPECT_FALSE(PlainCopyIsStale(t, t + base::Minutes(1)));
@@ -471,7 +472,7 @@ void TouchFilesIn(const base::FilePath& dir, base::Time when) {
 }
 
 TEST_F(ChromiumProfileReaderTest, ReadsPlainSessionsWrittenWithAnEncryptedCopy) {
-  // Like Dia: Sessions_Encrypted is saved with Sessions, a few milliseconds after it, here in the
+  // Sessions_Encrypted is saved with Sessions, a few milliseconds after it, here in the
   // next second (folder times are read to the second).
   WriteSession(profile());
   const base::Time saved = base::Time::FromTimeT((base::Time::Now() - base::Hours(1)).ToTimeT()) +

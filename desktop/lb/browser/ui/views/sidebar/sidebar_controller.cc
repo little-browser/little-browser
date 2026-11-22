@@ -187,17 +187,6 @@ void NameInitialProfile(const base::FilePath& path) {
   }
 }
 
-std::u16string ProfileDisplayName(const std::string& base_name) {
-  ProfileManager* manager = g_browser_process->profile_manager();
-  if (!manager) {
-    return base::UTF8ToUTF16(base_name);
-  }
-  ProfileAttributesEntry* entry =
-      manager->GetProfileAttributesStorage().GetProfileAttributesWithPath(
-          manager->user_data_dir().AppendASCII(base_name));
-  return entry ? DisplayName(*entry) : base::UTF8ToUTF16(base_name);
-}
-
 // Saves tab groups in Chromium's saved tab groups once TabGroupSyncService is ready. A group whose
 // earlier saved entry still exists and isn't open elsewhere reconnects to it, as session restore
 // does, instead of being saved again as a new group. Deletes itself.
@@ -312,6 +301,17 @@ void DemoGroupColour(base::WeakPtr<SidebarController> self, bool close) {
 
 }  // namespace
 
+std::u16string ProfileDisplayName(const std::string& base_name) {
+  ProfileManager* manager = g_browser_process->profile_manager();
+  if (!manager) {
+    return base::UTF8ToUTF16(base_name);
+  }
+  ProfileAttributesEntry* entry =
+      manager->GetProfileAttributesStorage().GetProfileAttributesWithPath(
+          manager->user_data_dir().AppendASCII(base_name));
+  return entry ? DisplayName(*entry) : base::UTF8ToUTF16(base_name);
+}
+
 SkColor SpaceTint(int hue) {
   const SkScalar hsv[3] = {static_cast<SkScalar>(NormalizeHue(hue)), 0.55f, 0.85f};
   return SkHSVToColor(hsv);
@@ -387,7 +387,9 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
     SeedDemoData();
     const std::string mode =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
-    if (mode == "ad-blocker" || mode == "peek" || mode.starts_with("import")) {
+    // import-first-run is the one import demo that needs the first-run questions asked.
+    if (mode == "ad-blocker" || mode == "peek" ||
+        (mode.starts_with("import") && mode != "import-first-run")) {
       SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
   }
