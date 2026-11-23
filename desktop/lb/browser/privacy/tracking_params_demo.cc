@@ -37,11 +37,6 @@ constexpr char kFramePage[] =
     "data:text/html,<iframe src='https://example.com/?fbclid=frame'></iframe>";
 constexpr char kFrameUrl[] = "https://example.com/?fbclid=frame";
 
-content::WebContents* ActiveContents(BrowserWindowInterface* browser) {
-  tabs::TabInterface* tab = browser ? browser->GetActiveTabInterface() : nullptr;
-  return tab ? tab->GetContents() : nullptr;
-}
-
 void Load(content::WebContents* contents, const char* url) {
   contents->GetController().LoadURL(GURL(url), content::Referrer(), ui::PAGE_TRANSITION_TYPED,
                                     std::string());
@@ -53,7 +48,7 @@ std::string Flag(bool value) {
 
 // The iframe kept its address.
 void CheckFrame(base::WeakPtr<BrowserWindowInterface> browser, std::string detail, bool pass) {
-  content::WebContents* contents = ActiveContents(browser.get());
+  content::WebContents* contents = ActiveContentsForDemo(browser.get());
   if (!contents) {
     ReportDemo(kMode, false, "the tab went away");
     return;
@@ -69,7 +64,7 @@ void CheckFrame(base::WeakPtr<BrowserWindowInterface> browser, std::string detai
 
 // The redirect landed on the clean address. Then the iframe page.
 void CheckRedirect(base::WeakPtr<BrowserWindowInterface> browser, std::string detail, bool pass) {
-  content::WebContents* contents = ActiveContents(browser.get());
+  content::WebContents* contents = ActiveContentsForDemo(browser.get());
   if (!contents) {
     ReportDemo(kMode, false, "the tab went away");
     return;
@@ -83,7 +78,7 @@ void CheckRedirect(base::WeakPtr<BrowserWindowInterface> browser, std::string de
 
 // The page committed on its clean address, which the address bar shows. Then the redirect.
 void CheckPage(base::WeakPtr<BrowserWindowInterface> browser) {
-  content::WebContents* contents = ActiveContents(browser.get());
+  content::WebContents* contents = ActiveContentsForDemo(browser.get());
   if (!contents) {
     ReportDemo(kMode, false, "the tab went away");
     return;
@@ -99,7 +94,7 @@ void CheckPage(base::WeakPtr<BrowserWindowInterface> browser) {
 
 void RunTrackingParamsDemo(BrowserWindowInterface* browser) {
   FailDemoAfter(kMode, base::Seconds(40));
-  content::WebContents* contents = ActiveContents(browser);
+  content::WebContents* contents = ActiveContentsForDemo(browser);
   if (!contents) {
     ReportDemo(kMode, false, "no tab");
     return;

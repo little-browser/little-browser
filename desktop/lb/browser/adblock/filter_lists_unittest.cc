@@ -69,59 +69,99 @@ TEST(FilterListsTest, TheListsFromTheSpecOverHttps) {
                                              "Peter Lowe's list"}));
 }
 
+// Rules on disk and all in use.
+constexpr DownloadedFilterRules kInUse = {.on_disk = true, .indexed = true, .hiding_loaded = true};
+
 TEST(FilterListsTest, UpdateWhenNeverDownloaded) {
   const base::Time now = base::Time::Now();
-  EXPECT_TRUE(FilterListsNeedUpdate(std::nullopt, now, /*newest_rules_indexed=*/true));
-  EXPECT_TRUE(FilterListsNeedUpdate(base::Time(), now, /*newest_rules_indexed=*/true));
+  EXPECT_TRUE(FilterListsNeedUpdate(std::nullopt, now, kInUse));
+  EXPECT_TRUE(FilterListsNeedUpdate(base::Time(), now, kInUse));
+  EXPECT_TRUE(FilterListsNeedUpdate(std::nullopt, now, DownloadedFilterRules()));
 }
 
 TEST(FilterListsTest, UpdateWhenOld) {
   const base::Time now = base::Time::Now();
-  EXPECT_FALSE(FilterListsNeedUpdate(now - base::Hours(1), now, true));
-  EXPECT_FALSE(FilterListsNeedUpdate(now - kFilterListMaxAge + base::Minutes(1), now, true));
-  EXPECT_TRUE(FilterListsNeedUpdate(now - kFilterListMaxAge, now, true));
-  EXPECT_TRUE(FilterListsNeedUpdate(now - base::Days(30), now, true));
+  EXPECT_FALSE(FilterListsNeedUpdate(now - base::Hours(1), now, kInUse));
+  EXPECT_FALSE(FilterListsNeedUpdate(now - kFilterListMaxAge + base::Minutes(1), now, kInUse));
+  EXPECT_TRUE(FilterListsNeedUpdate(now - kFilterListMaxAge, now, kInUse));
+  EXPECT_TRUE(FilterListsNeedUpdate(now - base::Days(30), now, kInUse));
 }
 
 TEST(FilterListsTest, UpdateWhenTheClockWentBack) {
   const base::Time now = base::Time::Now();
-  EXPECT_TRUE(FilterListsNeedUpdate(now + base::Hours(1), now, true));
+  EXPECT_TRUE(FilterListsNeedUpdate(now + base::Hours(1), now, kInUse));
 }
 
 // The subresource filter never retries a version whose indexing was interrupted, so recent
 // lists that were never indexed are downloaded again as a new version.
 TEST(FilterListsTest, UpdateWhenTheNewestRulesWereNeverIndexed) {
   const base::Time now = base::Time::Now();
-  EXPECT_TRUE(FilterListsNeedUpdate(now - base::Hours(1), now, /*newest_rules_indexed=*/false));
+  DownloadedFilterRules rules = kInUse;
+  rules.indexed = false;
+  EXPECT_FALSE(FilterRulesInUse(rules));
+  EXPECT_TRUE(FilterListsNeedUpdate(now - base::Hours(1), now, rules));
+}
+
+// A version saved without element-hiding rules, or with a damaged file, is downloaded again.
+TEST(FilterListsTest, UpdateWhenTheHidingRulesDidntLoad) {
+  const base::Time now = base::Time::Now();
+  DownloadedFilterRules rules = kInUse;
+  rules.hiding_loaded = false;
+  EXPECT_FALSE(FilterRulesInUse(rules));
+  EXPECT_TRUE(FilterListsNeedUpdate(now - base::Hours(1), now, rules));
+  // Nothing on disk is nothing to redo: the update time decides.
+  EXPECT_TRUE(FilterRulesInUse(DownloadedFilterRules()));
+  EXPECT_FALSE(FilterListsNeedUpdate(now - base::Hours(1), now, DownloadedFilterRules()));
 }
 
 TEST(FilterListsTest, AllDownloadedIsUsedAndRecorded) {
-  for (bool have_rules : {false, true}) {
-    const FilterListsUpdate update = DecideFilterListsUpdate(true, true, have_rules);
+  for (const DownloadedFilterRules& rules : {DownloadedFilterRules(), kInUse}) {
+    const FilterListsUpdate update = DecideFilterListsUpdate(true, true, rules);
     EXPECT_TRUE(update.write);
     EXPECT_TRUE(update.stamp);
     EXPECT_FALSE(update.retry);
+    EXPECT_FALSE(update.forget_stamp);
   }
 }
 
 TEST(FilterListsTest, AFailedDownloadKeepsTheRulesAndRetries) {
-  const FilterListsUpdate update = DecideFilterListsUpdate(false, true, /*have_rules=*/true);
-  EXPECT_FALSE(update.write);
-  EXPECT_FALSE(update.stamp);
-  EXPECT_TRUE(update.retry);
+  for (bool indexed : {true, false}) {
+    DownloadedFilterRules rules = kInUse;
+    rules.indexed = indexed;
+    const FilterListsUpdate update = DecideFilterListsUpdate(false, true, rules);
+    EXPECT_FALSE(update.write);
+    EXPECT_FALSE(update.stamp);
+    EXPECT_TRUE(update.retry);
+    EXPECT_FALSE(update.forget_stamp);
+  }
 }
 
-// With no rules yet, three lists are better than none; it still isn't recorded as an update.
+// With no rules yet, three lists are better than none; it isn't recorded as an update, and the
+// retries keep downloading until every file comes.
 TEST(FilterListsTest, AFailedDownloadWithNoRulesUsesWhatArrived) {
-  const FilterListsUpdate update = DecideFilterListsUpdate(false, true, /*have_rules=*/false);
+  const FilterListsUpdate update = DecideFilterListsUpdate(false, true, DownloadedFilterRules());
   EXPECT_TRUE(update.write);
   EXPECT_FALSE(update.stamp);
   EXPECT_TRUE(update.retry);
+  EXPECT_TRUE(update.forget_stamp);
 
-  const FilterListsUpdate nothing = DecideFilterListsUpdate(false, false, /*have_rules=*/false);
+  const FilterListsUpdate nothing = DecideFilterListsUpdate(false, false, DownloadedFilterRules());
   EXPECT_FALSE(nothing.write);
   EXPECT_FALSE(nothing.stamp);
   EXPECT_TRUE(nothing.retry);
+  EXPECT_FALSE(nothing.forget_stamp);
+}
+
+// Rules on disk without their element-hiding rules count as none: what arrived fills them in,
+// rather than waiting for every file while nothing is hidden.
+TEST(FilterListsTest, AFailedDownloadFillsInMissingHidingRules) {
+  DownloadedFilterRules rules = kInUse;
+  rules.hiding_loaded = false;
+  const FilterListsUpdate update = DecideFilterListsUpdate(false, true, rules);
+  EXPECT_TRUE(update.write);
+  EXPECT_FALSE(update.stamp);
+  EXPECT_TRUE(update.retry);
+  EXPECT_TRUE(update.forget_stamp);
 }
 
 TEST(FilterListsTest, DownloadsGiveUpAndRetryInReasonableTime) {
@@ -179,13 +219,16 @@ TEST(FilterListsTest, MalformedConditionsDontHold) {
 TEST(FilterListsTest, KeepsUrlRulesAndCountsTheRest) {
   FilterRulesetStats stats;
   const std::optional<std::string> ruleset =
-      BuildUnindexedFilterRuleset({"[Adblock Plus 2.0]\n! Title: test\n||ads.example^\n##.banner\n",
+      BuildUnindexedFilterRuleset({"[Adblock Plus 2.0]\n! Title: test\n||ads.example^\n##.banner\n"
+                                   "example.com,~www.example.com##.slot\n",
                                    "@@||ads.example/allowed.js\r\n||x.example^$notanoption\n\n"},
                                   &stats);
   ASSERT_TRUE(ruleset);
   EXPECT_FALSE(ruleset->empty());
   EXPECT_EQ(stats.url_rules, 2);
-  EXPECT_EQ(stats.element_hiding_rules, 1);
+  // Element hiding takes rules Chromium's parser can't (one that excludes a site): they aren't
+  // counted as unsupported.
+  EXPECT_EQ(stats.element_hiding_rules, 2);
   EXPECT_EQ(stats.unsupported_rules, 1);
 }
 
@@ -334,6 +377,54 @@ TEST(FilterListsTest, LeavesOutRulesForOtherPlatforms) {
   ASSERT_TRUE(stray);
   EXPECT_EQ(stats.url_rules, 1);
   EXPECT_EQ(stats.other_platform_rules, 0);
+}
+
+// Element hiding keeps the lists' CSS rules and site switches, in the blocks that apply, and
+// nothing that needs script.
+TEST(FilterListsTest, ElementHidingRulesFromTheActiveLines) {
+  size_t count = 0;
+  const std::string rules = BuildElementHidingRules({"! Title: a list\n"
+                                                     "||ads.example^\n"
+                                                     "##.ad-box\n"
+                                                     "news.example##.slot\n"
+                                                     "news.example#@#.ad-box\n"
+                                                     "@@||shop.example^$generichide\n"
+                                                     "news.example##+js(set-constant, x, 1)\n"
+                                                     "news.example#?#.post:has-text(Sponsored)\n"
+                                                     "!#if env_firefox\n"
+                                                     "##.firefox-only\n"
+                                                     "!#endif\n",
+                                                     "!#if env_chromium\n"
+                                                     "##[data-ad]\n"
+                                                     "!#endif\n"},
+                                                    &count);
+  EXPECT_EQ(rules,
+            "##.ad-box\n"
+            "news.example##.slot\n"
+            "news.example#@#.ad-box\n"
+            "@@||shop.example^$generichide\n"
+            "##[data-ad]\n");
+  EXPECT_EQ(count, 5u);
+  EXPECT_EQ(BuildElementHidingRules({"||ads.example^\n"}, nullptr), "");
+}
+
+// A line that isn't UTF-8 (a stray Latin-1 byte, a proxy's page in another encoding) is left
+// out: lb-core takes only UTF-8, and cxx would abort the browser.
+TEST(FilterListsTest, ElementHidingLeavesOutLinesThatArentUtf8) {
+  size_t count = 0;
+  const std::string rules = BuildElementHidingRules(
+      {"! Title: Caf\xe9 list\n##.ad\nexample.com##.caf\xe9\n\xff\xfe##.x\n##.ok\n"}, &count);
+  EXPECT_EQ(rules, "##.ad\n##.ok\n");
+  EXPECT_EQ(count, 2u);
+}
+
+// "badfilter" cancels an exception across lists, as it cancels URL rules; neither line remains.
+TEST(FilterListsTest, ElementHidingAppliesBadfilter) {
+  const std::string rules = BuildElementHidingRules(
+      {"@@||news.example^$generichide\n@@||shop.example^$ehide\n##.ad\n",
+       "@@||news.example^$generichide,badfilter\n@@||other.example^$ghide,badfilter\n"},
+      nullptr);
+  EXPECT_EQ(rules, "@@||shop.example^$ehide\n##.ad\n");
 }
 
 }  // namespace

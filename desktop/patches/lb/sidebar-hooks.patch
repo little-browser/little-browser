@@ -2,11 +2,11 @@
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
 # snapshot tool, pinned tab sleep and pinned groups, extensions demo, first-run dialogs, ad blocker,
-# Peek, little window, import, the space avatar, the tracking-parameters demo) with the region
-# view's target.
+# Peek, little window, import, the space avatar, the tracking-parameters demo, element hiding)
+# with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,83 @@
+@@ -537,7 +537,87 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -19,6 +19,10 @@
 +    "//lb/browser/adblock/ad_blocker.h",
 +    "//lb/browser/adblock/ad_blocker_demo.cc",
 +    "//lb/browser/adblock/ad_blocker_demo.h",
++    "//lb/browser/adblock/element_hiding_demo.cc",
++    "//lb/browser/adblock/element_hiding_demo.h",
++    "//lb/browser/adblock/element_hiding_host.cc",
++    "//lb/browser/adblock/element_hiding_host.h",
 +    "//lb/browser/adblock/site_ads_row.cc",
 +    "//lb/browser/adblock/site_ads_row.h",
 +    "//lb/browser/demo/demo_report.cc",
@@ -91,11 +95,13 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +633,20 @@
+@@ -557,6 +637,22 @@
      "//ui/views",
    ]
    deps = [
 +    "//lb:model",  # Little Browser: view-free sidebar logic (desktop/lb/BUILD.gn)
++    "//lb:mojom",  # Little Browser: element hiding (lb/common/element_hiding.mojom)
++    "//lb:page_names",  # Little Browser: element hiding (what a page may send)
 +    "//chrome/browser/resource_coordinator:mojo_bindings",  # Little Browser: pinned tab sleep
 +    "//chrome/browser/extensions",  # Little Browser: extensions demo (lb/browser/extensions)
 +    "//components/update_client",  # Little Browser: extensions demo

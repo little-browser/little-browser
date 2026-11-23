@@ -1,13 +1,13 @@
 [package]
 name = "lb-core"
-description = "Little Browser shared core: data model, sync and import"
+description = "Little Browser shared core: data model, sync, import, privacy rules"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 # Only crates Chromium vendors, at its versions and features, so the desktop build compiles the
-# same code (docs/design.md §4.4). Not added yet: uniffi (Swift/Kotlin bindings), adblock
-# (Brave's adblock-rust), rusqlite, a CRDT library (Loro or Automerge), iroh (P2P).
+# same code (docs/design.md §4.4). Not added yet: uniffi (Swift/Kotlin bindings), rusqlite, a CRDT
+# library (Loro or Automerge), iroh (P2P).
 [dependencies]
 # Reads other browsers' JSON files for import.
 serde_json = { version = "=1.0.151", features = ["preserve_order"] }

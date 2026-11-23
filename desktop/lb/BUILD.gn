@@ -3,6 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import("//build/rust/rust_static_library.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
 import("//testing/test.gni")
 
 # lb-core, the shared Rust core (core/lb-core; fetch.sh links it at //lb_core), built with
@@ -13,6 +14,7 @@ rust_static_library("lb_core") {
   crate_root = "//lb_core/src/lib.rs"
   edition = "2021"
   sources = [
+    "//lb_core/src/element_hiding.rs",
     "//lb_core/src/import/addresses.rs",
     "//lb_core/src/import/arc.rs",
     "//lb_core/src/import/bookmarks.rs",
@@ -44,6 +46,41 @@ rust_static_library("core_bridge") {
   sources = [ "core_bridge/lib.rs" ]
   cxx_bindings = [ "core_bridge/lib.rs" ]
   deps = [ ":lb_core" ]
+}
+
+# Element hiding between a page and the browser (common/element_hiding.mojom).
+mojom("mojom") {
+  sources = [ "common/element_hiding.mojom" ]
+  public_deps = [ "//url/mojom:url_mojom_gurl" ]
+}
+
+# The class and id names a page sends for element hiding's generic rules, and what the browser
+# accepts: used by //lb:renderer and the browser side (unit tested; ../scripts/check_lb_tests.py
+# checks it like //lb:model).
+source_set("page_names") {
+  sources = [
+    "common/page_names.cc",
+    "common/page_names.h",
+  ]
+  deps = [ "//base" ]
+}
+
+# Our renderer-side code: element hiding in each frame. chrome/renderer depends on it and creates
+# the agent for each frame (patches/lb/element-hiding.patch).
+source_set("renderer") {
+  sources = [
+    "renderer/element_hiding_agent.cc",
+    "renderer/element_hiding_agent.h",
+  ]
+  deps = [
+    ":mojom",
+    ":page_names",
+    "//base",
+    "//content/public/renderer",
+    "//mojo/public/cpp/bindings",
+    "//third_party/blink/public:blink",
+    "//url",
+  ]
 }
 
 # Little Browser logic that doesn't need views or a browser window: unit tested by
@@ -186,11 +223,13 @@ test("lb_unittests") {
     "browser/tabs/restore_order_unittest.cc",
     "browser/tabs/tab_to_show_unittest.cc",
     "core_bridge/core_bridge_unittest.cc",
+    "common/page_names_unittest.cc",
     "browser/update/update_reminder_unittest.cc",
   ]
   deps = [
     ":core_bridge",
     ":model",
+    ":page_names",
     "//base",
     "//base/test:test_support",
     "//chrome/app:command_ids",

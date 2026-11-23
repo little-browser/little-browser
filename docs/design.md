@@ -141,9 +141,10 @@ Safari Web Inspector.
   for Firefox's shared components.
 - Content blocking: desktop (and Android) use Chromium's own **subresource filter**, fed the
   filter lists the browser downloads and parses itself (`desktop/lb/browser/adblock`); it blocks
-  network requests, not page elements. On iOS the core will convert the same lists into WebKit
-  content-blocker JSON. Brave's **adblock-rust** (MPL-2.0) is the candidate for element hiding,
-  which Chromium's filter doesn't do.
+  network requests, not page elements. Element hiding, which Chromium's filter doesn't do, is the
+  core's own (`element_hiding.rs`): it indexes the lists' CSS hiding rules, and the desktop
+  renderer inserts them into each page. On iOS the core will convert the same lists into WebKit
+  content-blocker JSON. Brave's adblock-rust isn't used: Chromium doesn't vendor it.
 - Storage: SQLite per profile.
 - **In the desktop build** the core is compiled by Chromium's own Rust toolchain as a GN
   `rust_static_library` (`fetch.sh` links `src/lb_core` to `core/lb-core`, as it links `src/lb`).
@@ -164,7 +165,7 @@ Safari Web Inspector.
 | Area | Default | Notes |
 |---|---|---|
 | Third-party cookies | **Blocked** | Plus Chromium's storage partitioning. Google abandoned its own plan to deprecate them, so this is on us. |
-| Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters and Peter Lowe's list, downloaded from their maintainers over HTTPS every 4 days (they aren't signed). Desktop: Chromium's subresource filter blocks matching requests on every site; element hiding isn't built yet. Ads can be allowed per site: the site-info panel's "Cookies and site data" has an Ads switch, the command bar has "Allow ads on this site", and Settings → Site settings → Ads lists those sites. No per-site record of the blocking is kept. |
+| Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters and Peter Lowe's list, downloaded from their maintainers over HTTPS every 4 days (they aren't signed). Desktop: Chromium's subresource filter blocks matching requests on every site, and element hiding hides what is left of an ad (an empty slot, an "Advertisement" label) with the lists' CSS rules: a site's own rules, and generic ones for the class and id names a page uses. Rules that need script (scriptlets, uBlock Origin's procedural operators) aren't applied, since a list could then run code in every page. Ads can be allowed per site, which turns off both: the site-info panel's "Cookies and site data" has an Ads switch, the command bar has "Allow ads on this site", and Settings → Site settings → Ads lists those sites. No per-site record of the blocking is kept. |
 | Tracking parameters | Stripped | A page navigation, and each redirect along the way, loses `utm_*`, `fbclid`, `gclid`, `mc_eid` and other parameters that only track (lb-core's built-in list, updated with each release); the address bar and history show the clean address. Iframes, a page's own requests and forms sent with POST keep theirs. There is no per-site exception: the list holds only parameters that don't change what a page shows. Bounce-tracking mitigations on. |
 | Fingerprinting | Reduce | Reduced user-agent (upstream), block known fingerprinting scripts via lists. Brave-style randomisation ("farbling") is a later, separate project. |
 | HTTPS | HTTPS-First, Balanced mode | Chromium's own default, kept. Pages load over HTTPS, with a warning before a site opens over plain HTTP, except where HTTPS can't be expected (local network names). Strict mode, which warns for every HTTP site, is in Settings → Privacy and security → Security. |
@@ -519,10 +520,10 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers, tracking-parameter stripping |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers, tracking-parameter stripping, element hiding |
 | Windows, Linux (x64, arm64) desktop | Not built: the platform recipes aren't wired up; the Linux build hosts for both architectures exist |
-| Element hiding, auto-PiP, on-demand Widevine | Specified, not built |
-| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers and the tracking-parameter rules; linked into the desktop build through a `cxx` bridge |
+| Auto-PiP, on-demand Widevine | Specified, not built |
+| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers, and the element-hiding and tracking-parameter rules; linked into the desktop build through a `cxx` bridge |
 | Sync, iOS, Android | Not started |
 
 The order of work is desktop, then iOS and sync, then Android. iOS comes before Android because a

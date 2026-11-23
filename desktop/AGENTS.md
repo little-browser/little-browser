@@ -52,7 +52,10 @@ Workflow for a patch:
 A new `.cc` or `.h` file under `lb/` has to be registered. View-free logic and its tests go in
 `lb/BUILD.gn` (`//lb:model`, `lb_unittests`), with no patch needed. View code goes in the sources
 list in `patches/lb/sidebar-hooks.patch` (the `vertical_tab_strip_region_view` target); regenerate
-that patch afterwards.
+that patch afterwards. Code that runs in a page's renderer process goes in `lb/BUILD.gn`'s
+`//lb:renderer`, which `chrome/renderer` depends on (`patches/lb/element-hiding.patch`), and talks
+to the browser over a Mojo interface in `lb/common` (`//lb:mojom`). View-free logic both sides
+share goes in `lb/common` too, in a tested target such as `//lb:page_names`.
 
 ## Build
 

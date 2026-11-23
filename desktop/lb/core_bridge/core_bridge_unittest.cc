@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <initializer_list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "lb/core_bridge/lib.rs.h"
@@ -175,6 +177,41 @@ TEST(CoreBridgeTest, TrackingParams) {
             "https://example.com/?a=1");
   // Nothing to strip is empty.
   EXPECT_TRUE(std::string(core::strip_tracking_params("https://example.com/?a=1")).empty());
+}
+
+TEST(CoreBridgeTest, ElementHiding) {
+  EXPECT_TRUE(core::is_element_hiding_line("example.com##.slot"));
+  EXPECT_FALSE(core::is_element_hiding_line("||ads.example^"));
+  rust::Box<core::ElementHiding> rules = core::element_hiding(
+      "example.com##.slot\n##[data-ad]\n##.ad\ngoogle.*##.promo\n@@||quiet.example^$elemhide");
+  EXPECT_EQ(rules->site_rule_count(), 2u);
+  EXPECT_EQ(rules->generic_rule_count(), 2u);
+  auto frames = [](std::initializer_list<std::pair<const char*, const char*>> list) {
+    rust::Vec<core::HidingFrame> frames;
+    for (const auto& [host, suffix] : list) {
+      frames.push_back(core::HidingFrame{rust::String(host), rust::String(suffix)});
+    }
+    return frames;
+  };
+  const core::PageStyle page = rules->page_style(frames({{"example.com", "com"}}));
+  EXPECT_EQ(std::string(page.css),
+            ".slot{display:none!important}\n[data-ad]{display:none!important}\n");
+  EXPECT_TRUE(page.generic);
+  rust::Vec<rust::String> classes;
+  classes.push_back("ad");
+  EXPECT_EQ(std::string(rules->generic_style(frames({{"example.com", "com"}}), classes, {})),
+            ".ad{display:none!important}\n");
+  // The public suffix decides what google.* matches.
+  EXPECT_EQ(std::string(rules->page_style(frames({{"www.google.co.uk", "co.uk"}})).css),
+            ".promo{display:none!important}\n[data-ad]{display:none!important}\n");
+  EXPECT_EQ(std::string(rules->page_style(frames({{"google.evil.com", "com"}})).css),
+            "[data-ad]{display:none!important}\n");
+  // A frame on a page with hiding off gets nothing.
+  EXPECT_TRUE(std::string(rules->page_style(frames({{"quiet.example", "example"}})).css).empty());
+  EXPECT_TRUE(
+      std::string(
+          rules->page_style(frames({{"ads.test", "test"}, {"quiet.example", "example"}})).css)
+          .empty());
 }
 
 TEST(CoreBridgeTest, Cookies) {

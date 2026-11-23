@@ -24,8 +24,9 @@ inline constexpr char kFilterListsUpdatedPref[] = "lb.filter_lists_updated";
 void RegisterAdBlockerLocalStatePrefs(PrefRegistrySimple* registry);
 
 // Keeps the filter lists fresh, from browser startup (patches/lb/ad-blocking.patch): hands the
-// newest downloaded ruleset to the subresource filter, and downloads the lists and the files they
-// include again when they are older than kFilterListMaxAge or were never indexed (checked soon
+// newest downloaded ruleset to the subresource filter and its element-hiding rules to
+// element_hiding_host.h, and downloads the lists and the files they include again when
+// FilterListsNeedUpdate says so: older than kFilterListMaxAge, or not all in use (checked soon
 // after startup and every few hours, and an hour after a failed download). Safe to call more than
 // once; UI thread only.
 void StartAdBlocker();

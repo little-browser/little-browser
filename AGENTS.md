@@ -35,7 +35,7 @@ Windows, Linux, iOS and Android don't exist yet.
 ```bash
 cd core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 core/scripts/coverage.sh                  # gate: lb-core line coverage of at least 95%
-desktop/scripts/check_lb_tests.py         # gate: every //lb:model source has unit tests
+desktop/scripts/check_lb_tests.py         # gate: unit tests for //lb:model and //lb:page_names
 shellcheck desktop/scripts/*.sh core/scripts/*.sh
 ```
 

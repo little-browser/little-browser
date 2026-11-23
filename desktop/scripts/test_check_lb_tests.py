@@ -1,7 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""Tests for check_lb_tests.py's lb_core check."""
+"""Tests for check_lb_tests.py's checks."""
 
 import sys
 import tempfile
@@ -53,6 +53,25 @@ class CoreSourcesTest(unittest.TestCase):
     def test_the_real_tree_passes(self):
         build_gn = (check_lb_tests.LB / "BUILD.gn").read_text()
         self.assertEqual(check_lb_tests.core_source_problems(build_gn, check_lb_tests.CORE_SRC), [])
+
+
+class TestedSourcesTest(unittest.TestCase):
+    def test_every_tested_target_counts(self):
+        build_gn = """
+source_set("model") {
+  sources = [ "a.cc", "a.h" ]
+}
+source_set("page_names") {
+  sources = [ "common/page_names.cc", "common/page_names.h" ]
+}
+"""
+        self.assertEqual(
+            check_lb_tests.tested_sources(build_gn), ["a.cc", "common/page_names.cc"]
+        )
+
+    def test_the_real_tree_has_page_names(self):
+        build_gn = (check_lb_tests.LB / "BUILD.gn").read_text()
+        self.assertIn("common/page_names.cc", check_lb_tests.tested_sources(build_gn))
 
 
 if __name__ == "__main__":

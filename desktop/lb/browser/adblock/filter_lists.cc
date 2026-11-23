@@ -16,6 +16,8 @@
 #include "components/subresource_filter/tools/rule_parser/rule.h"
 #include "components/subresource_filter/tools/rule_parser/rule_parser.h"
 #include "components/url_pattern_index/proto/rules.pb.h"
+#include "lb/browser/importer/import_text.h"
+#include "lb/core_bridge/lib.rs.h"
 #include "third_party/protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "url/gurl.h"
 
@@ -203,10 +205,14 @@ base::span<const FilterList> FilterLists() {
   return kFilterLists;
 }
 
+bool FilterRulesInUse(const DownloadedFilterRules& rules) {
+  return !rules.on_disk || (rules.indexed && rules.hiding_loaded);
+}
+
 bool FilterListsNeedUpdate(std::optional<base::Time> last_update,
                            base::Time now,
-                           bool newest_rules_indexed) {
-  if (!last_update || last_update->is_null() || !newest_rules_indexed) {
+                           const DownloadedFilterRules& rules) {
+  if (!last_update || last_update->is_null() || !FilterRulesInUse(rules)) {
     return true;
   }
   return *last_update > now || now - *last_update >= kFilterListMaxAge;
@@ -214,11 +220,12 @@ bool FilterListsNeedUpdate(std::optional<base::Time> last_update,
 
 FilterListsUpdate DecideFilterListsUpdate(bool all_downloaded,
                                           bool any_downloaded,
-                                          bool have_rules) {
+                                          const DownloadedFilterRules& rules) {
   if (all_downloaded) {
     return {.write = true, .stamp = true, .retry = false};
   }
-  return {.write = any_downloaded && !have_rules, .stamp = false, .retry = true};
+  const bool write = any_downloaded && !(rules.on_disk && rules.hiding_loaded);
+  return {.write = write, .stamp = false, .retry = true, .forget_stamp = write};
 }
 
 std::string FilterRulesetVersion(base::Time now) {
@@ -311,6 +318,23 @@ NormalizedFilterRule NormalizeFilterRule(std::string_view rule) {
   return normalized;
 }
 
+namespace {
+
+// The rules uBlock Origin's "badfilter" rules disable, from any of `lists` (normalized).
+std::set<std::string> DisabledRules(const std::vector<std::string>& lists) {
+  std::set<std::string> disabled;
+  for (const std::string& list : lists) {
+    ForEachActiveLine(list, [&](std::string_view line) {
+      if (NormalizedFilterRule rule = NormalizeFilterRule(line); rule.badfilter) {
+        disabled.insert(std::move(rule.text));
+      }
+    });
+  }
+  return disabled;
+}
+
+}  // namespace
+
 std::optional<std::string> BuildUnindexedFilterRuleset(const std::vector<std::string>& lists,
                                                        FilterRulesetStats* stats) {
   FilterRulesetStats counts;
@@ -319,18 +343,16 @@ std::optional<std::string> BuildUnindexedFilterRuleset(const std::vector<std::st
     google::protobuf::io::StringOutputStream output(&ruleset);
     subresource_filter::UnindexedRulesetWriter writer(&output);
     subresource_filter::RuleParser parser;
-    // uBlock Origin's "badfilter": a rule that disables another rule, from any list.
-    std::set<std::string> disabled;
-    for (const std::string& list : lists) {
-      ForEachActiveLine(list, [&](std::string_view line) {
-        if (NormalizedFilterRule rule = NormalizeFilterRule(line); rule.badfilter) {
-          disabled.insert(std::move(rule.text));
-        }
-      });
-    }
+    const std::set<std::string> disabled = DisabledRules(lists);
     bool written = true;
     for (const std::string& list : lists) {
       counts.other_platform_rules += ForEachActiveLine(list, [&](std::string_view line) {
+        // Element hiding takes these (BuildElementHidingRules); some, such as those excluding a
+        // site, Chromium's parser would count as unsupported.
+        if (IsElementHidingRule(line)) {
+          ++counts.element_hiding_rules;
+          return;
+        }
         const NormalizedFilterRule rule = NormalizeFilterRule(line);
         if (rule.badfilter || disabled.contains(rule.text)) {
           ++counts.disabled_rules;
@@ -363,6 +385,36 @@ std::optional<std::string> BuildUnindexedFilterRuleset(const std::vector<std::st
     *stats = counts;
   }
   return ruleset;
+}
+
+std::string BuildElementHidingRules(const std::vector<std::string>& lists, size_t* count) {
+  const std::set<std::string> disabled = DisabledRules(lists);
+  std::string rules;
+  size_t lines = 0;
+  for (const std::string& list : lists) {
+    ForEachActiveLine(list, [&](std::string_view line) {
+      // lb-core takes only UTF-8 (cxx aborts the browser on anything else).
+      if (!IsCoreText(line)) {
+        return;
+      }
+      // An exception that turns hiding off, and the "badfilter" rules that cancel one.
+      if (line.starts_with("@@")) {
+        if (const NormalizedFilterRule rule = NormalizeFilterRule(line);
+            rule.badfilter || disabled.contains(rule.text)) {
+          return;
+        }
+      }
+      if (core::is_element_hiding_line(rust::Str(line.data(), line.size()))) {
+        rules.append(line);
+        rules.push_back('\n');
+        ++lines;
+      }
+    });
+  }
+  if (count) {
+    *count = lines;
+  }
+  return rules;
 }
 
 }  // namespace lb

@@ -39,12 +39,27 @@ inline constexpr base::TimeDelta kFilterListDownloadTimeout = base::Minutes(5);
 // The most files one update downloads: the lists and the files they include.
 inline constexpr size_t kMaxFilterListFiles = 32;
 
+// The newest downloaded rules on disk.
+struct DownloadedFilterRules {
+  // There is a downloaded version.
+  bool on_disk = false;
+  // The subresource filter indexed its URL rules.
+  bool indexed = false;
+  // Its element-hiding rules loaded (the file may be missing, or damaged).
+  bool hiding_loaded = false;
+};
+
+// Whether all the newest downloaded rules are in use: indexed by the subresource filter, with
+// their element-hiding rules loaded. With none on disk there is nothing to redo.
+bool FilterRulesInUse(const DownloadedFilterRules& rules);
+
 // Whether to download the lists again: never downloaded, older than kFilterListMaxAge, downloaded
-// "in the future" (the clock was set back), or the newest downloaded rules were never indexed
-// (e.g. the browser crashed while the subresource filter indexed them, which it doesn't retry).
+// "in the future" (the clock was set back), or the newest downloaded rules aren't all in use:
+// never indexed (e.g. the browser crashed while the subresource filter indexed them, which it
+// doesn't retry), or their element-hiding rules didn't load.
 bool FilterListsNeedUpdate(std::optional<base::Time> last_update,
                            base::Time now,
-                           bool newest_rules_indexed);
+                           const DownloadedFilterRules& rules);
 
 // What to do once an update's downloads have finished.
 struct FilterListsUpdate {
@@ -54,13 +69,17 @@ struct FilterListsUpdate {
   bool stamp = false;
   // Try again after kFilterListRetryAfter.
   bool retry = false;
+  // Forget when the lists were last downloaded: what was written is partial, so the retries
+  // keep downloading until every file comes.
+  bool forget_stamp = false;
 };
 
-// All files downloaded: use them. Some failed: keep the rules there are, or, with no rules yet,
-// use what did download rather than block nothing; either way try again soon.
+// All files downloaded: use them. Some failed: keep the rules there are, or, with no rules yet in
+// full (none on disk, or their element-hiding rules didn't load), use what did download rather
+// than block or hide nothing, until every file comes; either way try again soon.
 FilterListsUpdate DecideFilterListsUpdate(bool all_downloaded,
                                           bool any_downloaded,
-                                          bool have_rules);
+                                          const DownloadedFilterRules& rules);
 
 // The content version of a ruleset built at `now`, for Chromium's ruleset service: unique,
 // readable and in time order when compared as strings, e.g. "lb-2026-11-21-150405".
@@ -89,7 +108,8 @@ NormalizedFilterRule NormalizeFilterRule(std::string_view rule);
 struct FilterRulesetStats {
   // URL rules added to the ruleset.
   int url_rules = 0;
-  // Element-hiding rules, which the subresource filter doesn't apply.
+  // Element-hiding rules, which the subresource filter doesn't apply (BuildElementHidingRules
+  // takes them).
   int element_hiding_rules = 0;
   // Lines the parser rejects (syntax Chromium's filter doesn't support).
   int unsupported_rules = 0;
@@ -105,6 +125,12 @@ struct FilterRulesetStats {
 // normalized first (NormalizeFilterRule). Returns nullopt if the ruleset can't be written.
 std::optional<std::string> BuildUnindexedFilterRuleset(const std::vector<std::string>& lists,
                                                        FilterRulesetStats* stats);
+
+// The lists' element-hiding rules (lb_core::element_hiding), one per line, outside "!#if" blocks
+// that don't apply, leaving out lines that aren't UTF-8, the exceptions a "badfilter" rule
+// disables and the "badfilter" rules themselves: the browser saves them next to the ruleset and
+// indexes them for pages. `count` (if given) gets how many there are.
+std::string BuildElementHidingRules(const std::vector<std::string>& lists, size_t* count);
 
 }  // namespace lb
 

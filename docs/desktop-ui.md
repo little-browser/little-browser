@@ -410,8 +410,26 @@ icon, which repeats the cookie switch on most sites, is hidden
 (`patches/lb/no-cookie-controls-icon.patch`), so that panel is the one place for both. Settings → Privacy and security → Site settings → Additional
 content settings → **Ads** lists the sites and can turn the blocker off for all of them;
 `patches/lb/ad-blocking-settings.patch` gives that page our wording instead of Chrome's ("Intrusive
-ads", blocking only on sites known for misleading ads). Element hiding is
-not done: Chromium's filter indexes element-hiding rules but nothing in Blink applies them yet.
+ads", blocking only on sites known for misleading ads).
+
+**Element hiding** hides what is left of a blocked ad. Each list update also saves the lists'
+hiding rules ("Hiding Rules", next to the ruleset; lines that aren't UTF-8 and exceptions a
+`badfilter` cancels are left out), which lb-core indexes in the browser process
+(`adblock/element_hiding_host.*`); they are read at startup without waiting for it to finish.
+Every frame gets an `ElementHidingAgent` (`lb/renderer/element_hiding_agent.*`, created by
+`patches/lb/element-hiding.patch`), which talks to the browser over
+`lb/common/element_hiding.mojom`; prerendered pages may ask too. When an http(s) document starts
+it asks for its site's rules plus the generic rules that name no class or id first, and inserts
+them as a user stylesheet, whose `display: none !important` wins over the page's styles. A
+document that asks before the rules are loaded gets its answer once they are. Where generic rules
+apply, it then sends the class and id names the document uses (each once, up to 20,000 names of
+up to 256 characters, `lb/common/page_names.*`) at DOMContentLoaded, at load and 1, 3 and 8
+seconds later, and inserts the generic rules for those names. A frame is answered by its own
+site's rules; the browser also passes the hosts of the pages that embed it, whose exceptions
+(`$elemhide`, `$document`, `$generichide`) apply in it too, and each host's public suffix, which
+`name.*` rules need. Where the top page allows ads nothing is hidden. A ruleset whose hiding
+rules didn't load (missing, or damaged) makes the next check download the lists again, and a
+partial download then fills them in.
 
 ## Peek and the little window
 

@@ -1,0 +1,22 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+module lb.mojom;
+
+import "url/mojom/url.mojom";
+
+// Element hiding (docs/design.md §5): a frame asks the browser for the stylesheets that hide what
+// is left of blocked ads. lb/renderer/element_hiding_agent.h asks; the browser answers from the
+// filter lists' rules (lb/browser/adblock/element_hiding_host.h). Every answer is empty where
+// ads are allowed.
+interface ElementHiding {
+  // When a document starts: its site's rules and the generic rules that name no class or id
+  // first, and whether generic rules apply there at all.
+  GetPageStyle(url.mojom.Url document_url) => (string css, bool generic);
+
+  // The generic rules that start with one of the class or id names the document uses (each name
+  // sent once per document).
+  GetGenericStyle(url.mojom.Url document_url, array<string> classes, array<string> ids)
+      => (string css);
+};

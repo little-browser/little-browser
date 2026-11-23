@@ -1,8 +1,8 @@
 # core/ — lb-core (Rust)
 
 The shared library for every platform: data model, sync, the readers for importing from other
-browsers, and the tracking-parameter rules (the content blocker is not built yet). Background: `docs/design.md` §4.4, §7.6
-and §8.
+browsers, and the element-hiding and tracking-parameter rules. Background: `docs/design.md` §4.4,
+§5, §7.6 and §8.
 
 ```bash
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test   # what CI runs
@@ -25,6 +25,10 @@ scripts/coverage.sh       # CI gate: line coverage of at least 95% (LB_MIN_LINE_
 - **Import.** `import/` mirrors `docs/ux.md` §13: it parses other browsers' files from their text
   and their SQLite rows as plain structs, and decides what comes along and where it goes. It does
   no file or SQLite access, so tests use inline strings; never put real browser data in a test.
+- **Element hiding.** `element_hiding.rs` parses the filter lists' CSS hiding rules and their
+  exceptions and answers which selectors a page on a site gets: its site's rules and the generic
+  rules with no class or id first up front, the other generic rules by the names the page uses.
+  Only plain CSS: never accept a rule that needs script or could break out of its CSS rule.
 - **Tracking parameters.** `tracking_params.rs` is the built-in list of parameters that only
   track and strips them from an address (`docs/design.md` §5). Add a parameter only if it never
   changes what a page shows: there is no per-site exception.

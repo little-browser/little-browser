@@ -18,6 +18,10 @@ class BrowserWindowInterface;
 class Profile;
 class TabView;
 
+namespace content {
+class WebContents;
+}  // namespace content
+
 namespace tabs {
 class TabInterface;
 }  // namespace tabs
@@ -65,6 +69,9 @@ std::vector<T*> FindViewsForDemo(views::View* root) {
 }
 // `browser`'s window as a view tree (its BrowserView), or null.
 views::View* WindowViewForDemo(BrowserWindowInterface* browser);
+
+// The page in `browser`'s active tab, or null (no window, no tab).
+content::WebContents* ActiveContentsForDemo(BrowserWindowInterface* browser);
 
 // The sidebar row of `tab`, or null.
 TabView* FindTabViewForDemo(BrowserWindowInterface* browser, const tabs::TabInterface* tab);

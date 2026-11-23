@@ -23,6 +23,7 @@
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
 #include "components/prefs/pref_service.h"
+#include "components/tabs/public/tab_interface.h"
 #include "lb/browser/ui/views/importer/import_dialog.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
@@ -84,6 +85,11 @@ std::vector<views::View*> ViewTreeForDemo(views::View* root) {
     }
   }
   return views;
+}
+
+content::WebContents* ActiveContentsForDemo(BrowserWindowInterface* browser) {
+  tabs::TabInterface* tab = browser ? browser->GetActiveTabInterface() : nullptr;
+  return tab ? tab->GetContents() : nullptr;
 }
 
 views::View* WindowViewForDemo(BrowserWindowInterface* browser) {

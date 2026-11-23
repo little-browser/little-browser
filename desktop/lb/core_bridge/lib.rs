@@ -26,6 +26,21 @@ mod ffi {
         mac_keychain_account: String,
     }
 
+    /// A document that asks for its hiding rules, or one that embeds it
+    /// (lb_core::element_hiding::Frame): its host and the public suffix it ends in (empty for
+    /// none).
+    struct HidingFrame {
+        host: String,
+        public_suffix: String,
+    }
+
+    /// What a page gets when its document starts (lb_core::element_hiding::PageStyle).
+    struct PageStyle {
+        css: String,
+        /// Whether generic rules apply: the page sends its class and id names.
+        generic: bool,
+    }
+
     /// A profile of the source browser; `dir` empty means the user data folder itself.
     struct SourceProfile {
         dir: String,
@@ -303,6 +318,26 @@ mod ffi {
         /// `url` without its tracking parameters; empty when it has none
         /// (lb_core::tracking_params).
         fn strip_tracking_params(url: &str) -> String;
+
+        /// The filter lists' element-hiding rules, indexed (lb_core::element_hiding).
+        type ElementHiding;
+        /// Whether element hiding uses this filter-list line.
+        fn is_element_hiding_line(line: &str) -> bool;
+        fn element_hiding(rules: &str) -> Box<ElementHiding>;
+        /// A page's stylesheet when its document starts: its site's rules and the generic
+        /// rules that name no class or id first. `frames`: the document, then the documents
+        /// that embed it.
+        fn page_style(self: &ElementHiding, frames: &Vec<HidingFrame>) -> PageStyle;
+        /// The generic rules that start with one of the page's `classes` or `ids`.
+        fn generic_style(
+            self: &ElementHiding,
+            frames: &Vec<HidingFrame>,
+            classes: &Vec<String>,
+            ids: &Vec<String>,
+        ) -> String;
+        /// How many rules there are for sites, and generic ones.
+        fn site_rule_count(self: &ElementHiding) -> usize;
+        fn generic_rule_count(self: &ElementHiding) -> usize;
     }
 }
 
@@ -836,4 +871,53 @@ fn sort_store_extensions(list: Vec<ffi::StoreExtension>) -> Vec<ffi::StoreExtens
 
 fn strip_tracking_params(url: &str) -> String {
     lb_core::tracking_params::strip_tracking_params(url).unwrap_or_default()
+}
+
+pub struct ElementHiding(lb_core::element_hiding::ElementHiding);
+
+fn is_element_hiding_line(line: &str) -> bool {
+    lb_core::element_hiding::is_element_hiding_line(line)
+}
+
+fn element_hiding(rules: &str) -> Box<ElementHiding> {
+    Box::new(ElementHiding(
+        lb_core::element_hiding::ElementHiding::parse(rules),
+    ))
+}
+
+fn hiding_frames(frames: &[ffi::HidingFrame]) -> Vec<lb_core::element_hiding::Frame> {
+    frames
+        .iter()
+        .map(|f| lb_core::element_hiding::Frame {
+            host: f.host.clone(),
+            public_suffix: f.public_suffix.clone(),
+        })
+        .collect()
+}
+
+impl ElementHiding {
+    fn page_style(&self, frames: &Vec<ffi::HidingFrame>) -> ffi::PageStyle {
+        let style = self.0.page_style(&hiding_frames(frames));
+        ffi::PageStyle {
+            css: style.css,
+            generic: style.generic,
+        }
+    }
+
+    fn generic_style(
+        &self,
+        frames: &Vec<ffi::HidingFrame>,
+        classes: &Vec<String>,
+        ids: &Vec<String>,
+    ) -> String {
+        self.0.generic_style(&hiding_frames(frames), classes, ids)
+    }
+
+    fn site_rule_count(&self) -> usize {
+        self.0.counts().0
+    }
+
+    fn generic_rule_count(&self) -> usize {
+        self.0.counts().1
+    }
 }

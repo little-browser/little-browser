@@ -10,6 +10,9 @@ build is in `../AGENTS.md`.
   `SidebarController::FromBrowser()`. Views observe it through `Observer`. Chromium code calls in
   through the small hooks in `patches/lb/*-hooks.patch` (for example `lb::HandleCommand` for
   ⌘T, ⌘L and ⌘W).
+- **Renderer code.** `renderer/` runs in each page's process (`//lb:renderer`), never with
+  browser-side code: it talks to the browser over `common/*.mojom` (`//lb:mojom`), whose browser
+  side is registered in the frame's interface binders. Element hiding is the example.
 - **Where state lives:**
 
   | State | Where |
@@ -63,6 +66,10 @@ build is in `../AGENTS.md`.
   `browser/password/`, `browser/search/`, `browser/peek/`, `browser/little_window/`,
   `browser/prefs/` and the rules and readers of `browser/importer/`). The sidebar's views target depends on it through
   `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this file.
+- **`//lb:page_names`**, view-free logic that the renderer and the browser share
+  (`common/page_names.*`: the names a page sends for element hiding); tested like `//lb:model`.
+- **`//lb:renderer`**, code that runs in each page's renderer process (`renderer/`), and
+  **`//lb:mojom`**, the interfaces it talks to the browser over (`common/*.mojom`).
 - **`lb_unittests`**, a gtest binary built from `*_unittest.cc` files next to the code they
   test.
 - **`lb_core`**, lb-core (`core/lb-core`, linked at `//lb_core`) built with Chromium's Rust
@@ -84,7 +91,8 @@ committing `lb/` changes.
   view, move it out when you change it, with a test.
 - **Add a test with every change** to model code. A bug fix gets a test that fails without the
   fix (see `SwipeTrackerTest.OneSwitchPerGestureIncludingMomentum` and
-  `PinnedCloseTest.BeforeUnloadHandlerWithoutTypingSleeps`). Every `.cc` in `//lb:model` needs a
+  `PinnedCloseTest.BeforeUnloadHandlerWithoutTypingSleeps`). Every `.cc` in `//lb:model` and
+  `//lb:page_names` needs a
   `<name>_unittest.cc` in `lb_unittests`; `../scripts/check_lb_tests.py` checks it (and that
   `lb_core` lists every lb-core file) on every push, and the release build runs both test
   binaries.

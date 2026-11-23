@@ -36,6 +36,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
+#include "lb/browser/adblock/element_hiding_host.h"
 #include "lb/browser/adblock/filter_lists.h"
 #include "lb/browser/adblock/site_ads.h"
 #include "net/base/load_flags.h"
@@ -55,6 +56,8 @@ namespace {
 constexpr char kFilterListsDir[] = "Filter Lists";
 constexpr char kRulesFile[] = "Filtering Rules";
 constexpr char kLicenseFile[] = "LICENSE";
+// The lists' element-hiding rules (BuildElementHidingRules), indexed when loaded.
+constexpr char kHidingFile[] = "Hiding Rules";
 constexpr char kLicenseText[] =
     "Built from these filter lists, downloaded from their maintainers:\n"
     "EasyList and EasyPrivacy (https://easylist.to/pages/licence.html),\n"
@@ -125,9 +128,12 @@ WriteRuleset(base::FilePath dir, std::string version, std::vector<std::string> l
     LOG(WARNING) << "lb: filter lists gave no rules";
     return std::nullopt;
   }
+  size_t hiding_rules = 0;
+  const std::string hiding = BuildElementHidingRules(lists, &hiding_rules);
   const base::FilePath version_dir = dir.AppendASCII(version);
   if (!base::CreateDirectory(version_dir) ||
       !base::WriteFile(version_dir.AppendASCII(kRulesFile), *ruleset) ||
+      !base::WriteFile(version_dir.AppendASCII(kHidingFile), hiding) ||
       !base::WriteFile(version_dir.AppendASCII(kLicenseFile), kLicenseText)) {
     LOG(WARNING) << "lb: could not write the filter rules";
     return std::nullopt;
@@ -139,10 +145,10 @@ WriteRuleset(base::FilePath dir, std::string version, std::vector<std::string> l
     }
   }
   LOG(WARNING) << "lb: filter lists " << version << " from " << lists.size()
-               << " files: " << stats.url_rules << " rules (" << stats.element_hiding_rules
-               << " element-hiding, " << stats.unsupported_rules << " unsupported, "
-               << stats.other_platform_rules << " for other platforms and " << stats.disabled_rules
-               << " disabled left out)";
+               << " files: " << stats.url_rules << " URL rules (" << stats.unsupported_rules
+               << " unsupported, " << stats.other_platform_rules << " for other platforms and "
+               << stats.disabled_rules << " disabled left out), " << hiding_rules
+               << " element-hiding rules";
   return RulesetInfo(version_dir);
 }
 
@@ -165,9 +171,11 @@ class FilterListUpdater {
       return;
     }
     started_ = true;
-    // The newest downloaded ruleset, in case it wasn't indexed before the browser quit.
+    // The newest downloaded ruleset, in case it wasn't indexed before the browser quit, and its
+    // element-hiding rules, which the first pages wait for (so not at BEST_EFFORT, which waits
+    // for startup to finish).
     base::ThreadPool::PostTaskAndReplyWithResult(
-        FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+        FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
         base::BindOnce(&FindRuleset, FilterListsDir()),
         base::BindOnce(&FilterListUpdater::OnFound, base::Unretained(this)));
     retry_.Start(FROM_HERE, kFirstCheckAfter,
@@ -178,19 +186,39 @@ class FilterListUpdater {
 
  private:
   void OnFound(const std::optional<subresource_filter::UnindexedRulesetInfo>& info) {
-    if (info) {
-      newest_version_ = info->content_version;
-    }
-    found_ = true;
     Publish(info);
+    if (!info) {
+      found_ = true;
+      return;
+    }
+    newest_version_ = info->content_version;
+    LoadHidingRules(
+        *info, base::BindOnce(&FilterListUpdater::OnStartupHidingLoaded, base::Unretained(this)));
   }
 
-  // Whether the subresource filter has indexed the newest downloaded rules.
-  bool NewestRulesIndexed() const {
+  void OnStartupHidingLoaded() { found_ = true; }
+
+  // Loads the element-hiding rules saved with `info`'s ruleset; a ruleset saved without them
+  // leaves `hiding_loaded_` false, which makes the next check download the lists again.
+  void LoadHidingRules(const subresource_filter::UnindexedRulesetInfo& info,
+                       base::OnceClosure done) {
+    LoadElementHidingRules(info.ruleset_path.DirName().AppendASCII(kHidingFile),
+                           base::BindOnce(
+                               [](FilterListUpdater* self, base::OnceClosure done, bool loaded) {
+                                 self->hiding_loaded_ = loaded;
+                                 std::move(done).Run();
+                               },
+                               base::Unretained(this), std::move(done)));
+  }
+
+  // The newest downloaded rules on disk, and whether they are in use.
+  DownloadedFilterRules Downloaded() const {
     subresource_filter::RulesetService* service =
         g_browser_process->subresource_filter_ruleset_service();
-    return newest_version_.empty() ||
-           (service && service->GetMostRecentlyIndexedVersion().content_version == newest_version_);
+    return {.on_disk = !newest_version_.empty(),
+            .indexed = service &&
+                       service->GetMostRecentlyIndexedVersion().content_version == newest_version_,
+            .hiding_loaded = hiding_loaded_};
   }
 
   void Check() {
@@ -204,7 +232,7 @@ class FilterListUpdater {
     }
     const base::Time last = g_browser_process->local_state()->GetTime(kFilterListsUpdatedPref);
     if (!FilterListsNeedUpdate(last.is_null() ? std::nullopt : std::make_optional(last),
-                               base::Time::Now(), NewestRulesIndexed())) {
+                               base::Time::Now(), Downloaded())) {
       return;
     }
     retry_.Stop();
@@ -266,7 +294,7 @@ class FilterListUpdater {
 
   void Finish() {
     const FilterListsUpdate update =
-        DecideFilterListsUpdate(!failed_, !texts_.empty(), !newest_version_.empty());
+        DecideFilterListsUpdate(!failed_, !texts_.empty(), Downloaded());
     std::vector<std::string> texts = std::move(texts_);
     texts_.clear();
     if (!update.write) {
@@ -291,8 +319,11 @@ class FilterListUpdater {
       newest_version_ = info->content_version;
       if (update.stamp) {
         g_browser_process->local_state()->SetTime(kFilterListsUpdatedPref, now);
+      } else if (update.forget_stamp) {
+        g_browser_process->local_state()->ClearPref(kFilterListsUpdatedPref);
       }
       Publish(info);
+      LoadHidingRules(*info, base::DoNothing());
     }
     Done(update);
   }
@@ -308,6 +339,8 @@ class FilterListUpdater {
   bool started_ = false;
   // Whether the startup search for downloaded rules has finished.
   bool found_ = false;
+  // Whether the newest version's element-hiding rules are loaded.
+  bool hiding_loaded_ = false;
   bool updating_ = false;
   // The newest downloaded version on disk; empty if there is none.
   std::string newest_version_;

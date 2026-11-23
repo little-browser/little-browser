@@ -59,8 +59,15 @@ lb/browser/adblock/
   site_ads_row.*                    the Ads switch in the site-info panel's "Cookies and site data"
   ad_blocker.*                      downloads the lists and hands the rules to Chromium's filter;
                                     the per-site setting
+  element_hiding_host.*             element hiding's browser side: loads the lists' hiding rules
+                                    (lb-core indexes them) and answers each frame
+  element_hiding_demo.*             --lb-sidebar-demo=element-hiding (below)
   ad_blocker_demo.*                 --lb-sidebar-demo=ad-blocker (below)
   ad_blocking_unittest.cc           Chromium's filter is on for every site
+lb/common/element_hiding.mojom      what a frame asks the browser for element hiding
+lb/common/page_names.*              the class and id names a page sends for element hiding, each
+                                    once, and what the browser accepts (unit tested)
+lb/renderer/element_hiding_agent.*  in each frame: inserts the hiding rules as a user stylesheet
 lb/browser/demo/demo_report.*       PASS/FAIL logging, deadlines and clicks for the demo modes
 lb/browser/keychain/
   keychain_key.*                    macOS: our own Safe Storage item's name, and when an existing
@@ -112,10 +119,10 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 (Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch`,
 `little-window-link-menu.patch` and `little-window-menu.patch` (the little window),
 `space-avatar.patch` (the space's emoji as the avatar), `tracking-params.patch` (tracking
-parameters);
+parameters), `element-hiding.patch` (element hiding's agent in each frame and its browser side);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
-Not built yet: element hiding, the Widevine consent prompt, and the link to `lb-core` (spaces are
+Not built yet: the Widevine consent prompt, and the link to `lb-core` (spaces are
 stored in C++ prefs).
 
 Unit tests (`*_unittest.cc` next to the code):
@@ -189,6 +196,12 @@ come after the search choice, never open at the same time, and install from the 
 `=import-extensions`, on a profile without the extension, installs it as an import does, with any install prompt cancelled,
 after one with no profile and one the store doesn't have (it must install from the store all the
 same, as the import shows no prompt),
+`=element-hiding` (needs the network) puts its own hiding rules in place of the downloaded ones,
+loads example.com and adds elements as a script would after the load: the site's rule and generic
+rules (with no class or id, by class, by id) must hide theirs, an exception must keep one, the
+page's paragraph and an element no rule names must show, and an example.org iframe must get
+example.org's rule, not example.com's; after allowing ads on the site and adding them again,
+nothing may be hidden;
 `=ad-blocker`, on a fresh profile (it counts the first-run questions as answered), waits for the
 filter lists, then on example.com an ad script must be blocked and a CDN script load, no per-site
 record may be kept and the console must show none of Chrome's abusive-ads messages; with a
