@@ -78,10 +78,14 @@ release builder. While those secrets are empty it falls back to an ad-hoc signat
 signature carries no signing options: the hardened runtime's library validation needs a Team ID.
 
 Local builds are ad-hoc signed and the signature changes with every rebuild, so macOS asks for
-the "Chromium Safe Storage" keychain item each time ("Always Allow" is tied to the signature).
-`run.sh` passes `--use-mock-keychain`; releases need Developer ID signing, and the keychain item
-is still named "Chromium Safe Storage" (not renamed yet). The flag covers only that item: importing
+the "Little Browser Safe Storage" keychain item each time ("Always Allow" is tied to the
+signature). `run.sh` passes `--use-mock-keychain`. The flag covers only that item: importing
 cookies still reads the other browser's real "‹browser› Safe Storage" key, and macOS asks.
+
+The item is Little Browser's own (`patches/lb/keychain-name.patch`, `lb/browser/keychain/`), not
+Chromium's default "Chromium Safe Storage", which real Chromium shares. An install whose profile
+already existed copies its password from "Chromium Safe Storage" once; a new install never reads
+that item.
 
 | Build | Folder | Use for |
 |---|---|---|

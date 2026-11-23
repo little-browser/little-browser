@@ -59,6 +59,10 @@ lb/browser/adblock/
   ad_blocker_demo.*                 --lb-sidebar-demo=ad-blocker (below)
   ad_blocking_unittest.cc           Chromium's filter is on for every site
 lb/browser/demo/demo_report.*       PASS/FAIL logging, deadlines and clicks for the demo modes
+lb/browser/keychain/
+  keychain_key.*                    macOS: our own Safe Storage item's name, and when an existing
+                                    install keeps the password from Chromium's item (unit tested)
+  keychain_password_unittest.mm     Chromium's KeychainPassword as keychain-name.patch changes it
 lb/browser/update/
   update_reminder.*                 when a found update is offered again after "Later"
   updater_mac.*                     macOS: loads Sparkle when the app is packaged with it, applies

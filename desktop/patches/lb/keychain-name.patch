@@ -1,0 +1,107 @@
+# Little Browser: its own Safe Storage item in the macOS keychain ("Little Browser Safe Storage"),
+# not Chromium's default "Chromium Safe Storage", which real Chromium and other Chromium browsers
+# share. Sharing it meant macOS asked for another browser's item, and both browsers' data was
+# encrypted with one password. An install that already had a profile copies the password from
+# Chromium's item once, so its saved cookies and passwords stay readable; a new install never
+# reads that item. The decision lives in desktop/lb/browser/keychain; the browser process records
+# at startup, before anything is written, whether a profile already existed.
+--- a/components/os_crypt/common/keychain_password_mac.mm
++++ b/components/os_crypt/common/keychain_password_mac.mm
+@@ -16,6 +16,7 @@
+ #include "base/strings/string_view_util.h"
+ #include "build/branding_buildflags.h"
+ #include "crypto/apple/keychain_v2.h"
++#include "lb/browser/keychain/keychain_key.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ 
+ using crypto::apple::KeychainV2;
+@@ -35,8 +36,9 @@
+ const char kDefaultServiceName[] = "Chrome Safe Storage";
+ const char kDefaultAccountName[] = "Chrome";
+ #else
+-const char kDefaultServiceName[] = "Chromium Safe Storage";
+-const char kDefaultAccountName[] = "Chromium";
++// Little Browser: its own item, not the one real Chromium uses (lb/browser/keychain).
++constexpr const char* kDefaultServiceName = lb::kKeychainServiceName;
++constexpr const char* kDefaultAccountName = lb::kKeychainAccountName;
+ #endif
+ 
+ // These values are persisted to logs. Entries should not be renumbered and
+@@ -105,6 +107,29 @@
+ 
+   if (password.error() == errSecItemNotFound) {
+     uma_result = FindGenericPasswordResult::kPasswordNotFound;
++    // Little Browser: an install from before it had its own item keeps the
++    // password its data is encrypted with, from Chromium's item; a new install
++    // never reads that item (lb/browser/keychain/keychain_key.h).
++    const bool profile_existed = lb::ProfileExistedAtStartup();
++    std::string legacy;
++    if (lb::ShouldReadLegacyKeychainItem(/*own_item_found=*/false,
++                                         profile_existed)) {
++      auto legacy_password = keychain_->FindGenericPassword(
++          lb::kLegacyKeychainServiceName, lb::kLegacyKeychainAccountName);
++      if (legacy_password.has_value()) {
++        legacy = std::string(base::as_string_view(*legacy_password));
++      }
++    }
++    if (lb::ChooseKeychainKeySource(/*own_item_found=*/false, profile_existed,
++                                    !legacy.empty()) ==
++        lb::KeychainKeySource::kLegacyItem) {
++      OSStatus error = keychain_->AddGenericPassword(
++          GetServiceName(), GetAccountName(), base::as_byte_span(legacy));
++      if (error != noErr) {
++        OSSTATUS_LOG(ERROR, error) << "Keychain add failed";
++      }
++      return legacy;
++    }
+     return AddRandomPasswordToKeychain(*keychain_, GetServiceName(),
+                                        GetAccountName());
+   }
+--- a/components/os_crypt/common/BUILD.gn
++++ b/components/os_crypt/common/BUILD.gn
+@@ -26,6 +26,7 @@
+       "//base",
+       "//build:branding_buildflags",
+       "//crypto",
++      "//lb:keychain",  # Little Browser: its own keychain item (lb/browser/keychain)
+     ]
+   }
+ }
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -48,6 +48,7 @@
+ #include "chrome/common/chrome_paths.h"
+ #include "chrome/common/chrome_paths_internal.h"
+ #include "chrome/common/chrome_result_codes.h"
++#include "lb/browser/keychain/keychain_key.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/chrome_version.h"
+ #include "chrome/common/crash_keys.h"
+@@ -1582,6 +1583,17 @@
+   // Initialize the user data dir for any process type that needs it.
+   if (chrome::ProcessNeedsProfileDir(process_type)) {
+     InitializeUserDataDir(base::CommandLine::ForCurrentProcess());
++  }
++
++  // Little Browser: whether a profile was already there, before anything is
++  // written to the data folder. Its keychain item depends on it
++  // (lb/browser/keychain/keychain_key.h).
++  if (process_type.empty()) {
++    base::FilePath user_data_dir;
++    if (base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir)) {
++      lb::SetProfileExistedAtStartup(base::PathExists(
++          user_data_dir.Append(chrome::kLocalStateFilename)));
++    }
+   }
+ 
+   // Register component_updater PathProvider after DIR_USER_DATA overridden by
+--- a/chrome/app/BUILD.gn
++++ b/chrome/app/BUILD.gn
+@@ -173,6 +173,7 @@
+     "//chrome/renderer",
+     "//chrome/utility",
+     "//components/crash/core/app",
++    "//lb:keychain",  # Little Browser: its own keychain item (lb/browser/keychain)
+     "//components/crash/core/app:test_support",
+     "//components/devtools/devtools_pipe",
+     "//components/memory_system",

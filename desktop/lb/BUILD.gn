@@ -125,6 +125,17 @@ source_set("model") {
 }
 
 if (is_mac) {
+  # Little Browser's own Safe Storage keychain item, and when an existing install keeps the
+  # password from Chromium's item (browser/keychain/keychain_key.h). Chromium's os_crypt and
+  # chrome/app depend on it (patches/lb/keychain-name.patch), so it depends on //base only.
+  source_set("keychain") {
+    sources = [
+      "browser/keychain/keychain_key.cc",
+      "browser/keychain/keychain_key.h",
+    ]
+    deps = [ "//base" ]
+  }
+
   # The updater: loads Sparkle when the app is packaged with it (browser/update/updater_mac.h).
   # chrome/browser's macOS code depends on it (patches/lb/updater.patch).
   source_set("updater") {
@@ -203,4 +214,14 @@ test("lb_unittests") {
     "//ui/gfx:test_support",  # gtest printers for gfx geometry
     "//url",
   ]
+  if (is_mac) {
+    sources += [
+      "browser/keychain/keychain_key_unittest.cc",
+      "browser/keychain/keychain_password_unittest.mm",
+    ]
+    deps += [
+      ":keychain",
+      "//components/os_crypt/common:keychain_password_mac",
+    ]
+  }
 }
