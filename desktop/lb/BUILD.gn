@@ -194,6 +194,7 @@ test("lb_unittests") {
     "//base",
     "//base/test:test_support",
     "//chrome/app:command_ids",
+    "//chrome/common:chrome_features",  # HTTPS-First's default
     "//components/component_updater",
     "//components/autofill/core/common",
     "//components/prefs:test_support",
