@@ -469,7 +469,7 @@ password manager's job (design.md §7.8), and its own import takes them.
      Client"), and an Arc profile with Favourites but no space is listed as its "Favourites"
      space. A browser with only one profile or space lists none.
    - What the browser has, as checkboxes, each with an icon, all ticked except **Stay signed in
-     (cookies)**. For
+     (cookies)**, which comes first so it isn't missed. For
      Chrome-family browsers and Arc, spaces, profiles and tabs are one checkbox, **Spaces,
      profiles and tabs**. Under **Stay signed in (cookies)** a line says that macOS will ask to
      let Little Browser use "‹browser› Safe Storage" from the keychain, once for all its

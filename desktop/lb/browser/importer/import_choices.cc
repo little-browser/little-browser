@@ -93,8 +93,9 @@ uint32_t DefaultImportItems(ImportSourceKind kind) {
 }
 
 std::vector<ImportItem> ImportItemsInOrder() {
-  return {kImportSpaces,    kImportBookmarks,  kImportHistory, kImportSearchShortcuts,
-          kImportAddresses, kImportExtensions, kImportCookies};
+  // Cookies first: the one item that starts unticked, so it is where it is seen.
+  return {kImportCookies,         kImportSpaces,    kImportBookmarks, kImportHistory,
+          kImportSearchShortcuts, kImportAddresses, kImportExtensions};
 }
 
 std::u16string ImportItemLabel(ImportItem item) {

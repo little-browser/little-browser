@@ -52,7 +52,7 @@ TEST(ImportChoicesTest, EveryItemIsListedOnceWithALabel) {
   EXPECT_EQ(seen.size(), 7u);
   // Open tabs come with spaces, not on their own.
   EXPECT_FALSE(seen.contains(kImportOpenTabs));
-  EXPECT_EQ(ImportItemsInOrder().back(), kImportCookies);  // the opt-in comes last
+  EXPECT_EQ(ImportItemsInOrder().front(), kImportCookies);  // the opt-in comes first, to be seen
   EXPECT_EQ(ImportItemLabel(kImportCookies), u"Stay signed in (cookies)");
 }
 
