@@ -1,7 +1,7 @@
 # core/ — lb-core (Rust)
 
-The shared library for every platform: data model, sync, and the readers for importing from
-other browsers (the content blocker is not built yet). Background: `docs/design.md` §4.4, §7.6
+The shared library for every platform: data model, sync, the readers for importing from other
+browsers, and the tracking-parameter rules (the content blocker is not built yet). Background: `docs/design.md` §4.4, §7.6
 and §8.
 
 ```bash
@@ -25,6 +25,9 @@ scripts/coverage.sh       # CI gate: line coverage of at least 95% (LB_MIN_LINE_
 - **Import.** `import/` mirrors `docs/ux.md` §13: it parses other browsers' files from their text
   and their SQLite rows as plain structs, and decides what comes along and where it goes. It does
   no file or SQLite access, so tests use inline strings; never put real browser data in a test.
+- **Tracking parameters.** `tracking_params.rs` is the built-in list of parameters that only
+  track and strips them from an address (`docs/design.md` §5). Add a parameter only if it never
+  changes what a page shows: there is no per-site exception.
 - **Dependencies.** Only `serde_json`, pinned to the version and features Chromium vendors,
   because the desktop build compiles the core with Chromium's crates. Any other crate (uniffi,
   adblock-rust, rusqlite, a CRDT library, iroh) needs a justification in `docs/design.md` before

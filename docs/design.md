@@ -131,8 +131,9 @@ isolation).
 
 Swift app, `WKWebView`, UIKit for the browser chrome (SwiftUI for settings). Key building blocks:
 `WKContentRuleList` (compiled from the same filter lists by the Rust core), `WKWebsiteDataStore`
-(persistent per profile / `nonPersistent()` for incognito), `WKUserScript` for tracking-parameter
-stripping and cosmetic tweaks, `isInspectable` for Safari Web Inspector.
+(persistent per profile / `nonPersistent()` for incognito), navigation policy decisions that strip
+tracking parameters with the core's rules, `WKUserScript` for cosmetic tweaks, `isInspectable` for
+Safari Web Inspector.
 
 ### 4.4 Rust core
 
@@ -164,7 +165,7 @@ stripping and cosmetic tweaks, `isInspectable` for Safari Web Inspector.
 |---|---|---|
 | Third-party cookies | **Blocked** | Plus Chromium's storage partitioning. Google abandoned its own plan to deprecate them, so this is on us. |
 | Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters and Peter Lowe's list, downloaded from their maintainers over HTTPS every 4 days (they aren't signed). Desktop: Chromium's subresource filter blocks matching requests on every site; element hiding isn't built yet. Ads can be allowed per site: the site-info panel's "Cookies and site data" has an Ads switch, the command bar has "Allow ads on this site", and Settings → Site settings → Ads lists those sites. No per-site record of the blocking is kept. |
-| Tracking parameters | Stripped | `utm_*`, `fbclid`, `gclid`, `mc_eid`, … — rule list updatable. Bounce-tracking mitigations on. |
+| Tracking parameters | Stripped | A page navigation, and each redirect along the way, loses `utm_*`, `fbclid`, `gclid`, `mc_eid` and other parameters that only track (lb-core's built-in list, updated with each release); the address bar and history show the clean address. Iframes, a page's own requests and forms sent with POST keep theirs. There is no per-site exception: the list holds only parameters that don't change what a page shows. Bounce-tracking mitigations on. |
 | Fingerprinting | Reduce | Reduced user-agent (upstream), block known fingerprinting scripts via lists. Brave-style randomisation ("farbling") is a later, separate project. |
 | HTTPS | HTTPS-First mode | Warn before HTTP. |
 | DNS | System resolver, with DNS-over-HTTPS upgrade when available | User can pick a provider. |
@@ -518,10 +519,10 @@ carrier networks.
 
 | Area | State |
 |---|---|
-| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers |
+| macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers, tracking-parameter stripping |
 | Windows, Linux (x64, arm64) desktop | Not built: the platform recipes aren't wired up; the Linux build hosts for both architectures exist |
-| Element hiding, tracking-parameter stripping, auto-PiP, on-demand Widevine | Specified, not built |
-| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, and the import readers; linked into the desktop build through a `cxx` bridge |
+| Element hiding, auto-PiP, on-demand Widevine | Specified, not built |
+| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers and the tracking-parameter rules; linked into the desktop build through a `cxx` bridge |
 | Sync, iOS, Android | Not started |
 
 The order of work is desktop, then iOS and sync, then Android. iOS comes before Android because a

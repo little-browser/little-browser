@@ -29,6 +29,7 @@ rust_static_library("lb_core") {
     "//lb_core/src/lib.rs",
     "//lb_core/src/model.rs",
     "//lb_core/src/sync.rs",
+    "//lb_core/src/tracking_params.rs",
   ]
   deps = [ "//third_party/rust/serde_json/v1:lib" ]
   build_native_rust_unit_tests = true
@@ -78,6 +79,8 @@ source_set("model") {
     "browser/peek/peek_rules.h",
     "browser/prefs/pref_defaults.cc",
     "browser/prefs/pref_defaults.h",
+    "browser/privacy/tracking_params.cc",
+    "browser/privacy/tracking_params.h",
     "browser/search/search_choice.cc",
     "browser/search/search_choice.h",
     "browser/spaces/space_model.cc",
@@ -98,6 +101,8 @@ source_set("model") {
   ]
   public_deps = [
     ":core_bridge",  # import: lb-core's types in the readers' results
+    "//services/network/public/cpp",  # tracking parameters: the navigation's request
+    "//third_party/blink/public/common",  # tracking parameters: the loader throttle
     "//components/security_state/core",  # Peek: the site label's warning
     "//components/tab_groups",
     "//components/user_data_importer/common",  # import: Chromium importers' bookmark entries
@@ -172,6 +177,7 @@ test("lb_unittests") {
     "browser/password/password_manager_choice_unittest.cc",
     "browser/peek/peek_rules_unittest.cc",
     "browser/prefs/pref_defaults_unittest.cc",
+    "browser/privacy/tracking_params_unittest.cc",
     "browser/search/search_choice_unittest.cc",
     "browser/spaces/space_model_unittest.cc",
     "browser/spaces/swipe_tracker_unittest.cc",
@@ -201,6 +207,8 @@ test("lb_unittests") {
     "//extensions/common",
     "//extensions/common:core_api_provider",
     "//extensions/common:mojom",
+    "//services/network/public/cpp",  # tracking parameters: requests and redirects
+    "//third_party/blink/public/common",  # tracking parameters: the loader throttle
     "//mojo/core/test:run_all_unittests",  # the update check test needs Mojo (network requests)
     "//net",
     "//components/sessions",

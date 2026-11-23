@@ -1,0 +1,27 @@
+# Little Browser: a page navigation loses its tracking parameters (utm_*, fbclid, gclid, ...)
+# before it loads, and so does each redirect (docs/design.md §5). The rules are lb-core's; the
+# loader throttle is desktop/lb/browser/privacy/tracking_params.h.
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/chrome_content_browser_client.h"
++
++#include "lb/browser/privacy/tracking_params.h"
+ 
+ #include <algorithm>
+ #include <iterator>
+@@ -6183,6 +6185,12 @@
+ 
+   ChromeNavigationUIData* chrome_navigation_ui_data =
+       static_cast<ChromeNavigationUIData*>(navigation_ui_data);
++
++  // Little Browser: a page navigation loses its tracking parameters.
++  if (auto tracking_params_throttle =
++          lb::MaybeCreateTrackingParamsThrottle(request)) {
++    result.push_back(std::move(tracking_params_throttle));
++  }
+ 
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+   if (auto safe_browsing_throttle = MaybeCreateSafeBrowsingURLLoaderThrottle(

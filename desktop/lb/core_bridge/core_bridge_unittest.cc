@@ -170,6 +170,13 @@ TEST(CoreBridgeTest, Extensions) {
   EXPECT_TRUE(std::string(core::localized_message("{}", "name")).empty());
 }
 
+TEST(CoreBridgeTest, TrackingParams) {
+  EXPECT_EQ(std::string(core::strip_tracking_params("https://example.com/?a=1&utm_source=x")),
+            "https://example.com/?a=1");
+  // Nothing to strip is empty.
+  EXPECT_TRUE(std::string(core::strip_tracking_params("https://example.com/?a=1")).empty());
+}
+
 TEST(CoreBridgeTest, Cookies) {
   std::vector<uint8_t> plaintext(32, 7);
   for (char c : std::string("abc")) {

@@ -86,6 +86,7 @@
 #include "lb/browser/importer/import_demo.h"
 #include "lb/browser/peek/peek_demo.h"
 #include "lb/browser/prefs/pref_defaults.h"
+#include "lb/browser/privacy/tracking_params_demo.h"
 #include "lb/browser/ui/lb_command_ids.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/views/importer/import_dialog.h"
@@ -393,6 +394,7 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
     // import-first-run(-close) are the import demos that need the first-run questions asked.
     if (mode == "ad-blocker" || mode == "peek" || mode == "space-avatar" ||
+        mode == "tracking-params" ||
         (mode.starts_with("import") && !mode.starts_with("import-first-run"))) {
       SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
@@ -1855,6 +1857,10 @@ void SidebarController::SeedDemoData() {
             }
             if (demo == "little-window-menu") {
               RunLittleWindowMenuDemo(self->browser());
+              return;
+            }
+            if (demo == "tracking-params") {
+              RunTrackingParamsDemo(self->browser());
               return;
             }
             if (demo == "space-avatar") {

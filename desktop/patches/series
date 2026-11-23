@@ -47,3 +47,4 @@ lb/pinned-groups.patch             # tab groups among the pinned tabs (ours: Chr
 lb/tab-search-always.patch           # tab search can't be unpinned: no Pin/Unpin in its menus or Settings
 lb/keychain-name.patch               # macOS: our own keychain item (Little Browser Safe Storage), keeping an existing install's password
 lb/space-avatar.patch                # the profile button and profile menu show the window's space emoji
+lb/tracking-params.patch             # a page navigation loses its tracking parameters (utm_*, fbclid, ...)

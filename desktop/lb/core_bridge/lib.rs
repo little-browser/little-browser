@@ -299,6 +299,10 @@ mod ffi {
             default_profile_id: &str,
             source_profiles: &Vec<ProfileName>,
         ) -> Vec<ProfileTarget>;
+
+        /// `url` without its tracking parameters; empty when it has none
+        /// (lb_core::tracking_params).
+        fn strip_tracking_params(url: &str) -> String;
     }
 }
 
@@ -828,4 +832,8 @@ fn sort_store_extensions(list: Vec<ffi::StoreExtension>) -> Vec<ffi::StoreExtens
             enabled: e.enabled,
         })
         .collect()
+}
+
+fn strip_tracking_params(url: &str) -> String {
+    lb_core::tracking_params::strip_tracking_params(url).unwrap_or_default()
 }

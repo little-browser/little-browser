@@ -32,6 +32,9 @@ lb/browser/importer/                import from other browsers (docs/desktop-ui.
   import_text.*                     makes other browsers' bytes valid UTF-8 for lb-core (unit tested)
   import_demo.*                     --lb-sidebar-demo=import-* (below)
 lb/browser/prefs/pref_defaults.*    Chromium prefs whose default differs here (address autofill on)
+lb/browser/privacy/tracking_params.*  a page navigation and its redirects lose their tracking
+                                    parameters (lb-core's list), through a loader throttle
+lb/browser/privacy/tracking_params_demo.*  --lb-sidebar-demo=tracking-params (below)
 lb/test/data/import/home/           a made-up Application Support (Chrome, Arc, Edge, a bookmarks
                                     file)
 lb/browser/spaces/space_model.*     Space type, saved form, new-space defaults, which space a window opens on
@@ -108,11 +111,12 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-groups.patch` (pinned groups), `peek-hooks.patch`
 (Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch`,
 `little-window-link-menu.patch` and `little-window-menu.patch` (the little window),
-`space-avatar.patch` (the space's emoji as the avatar);
+`space-avatar.patch` (the space's emoji as the avatar), `tracking-params.patch` (tracking
+parameters);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
-Not built yet: element hiding, tracking-parameter stripping, the
-Widevine consent prompt, and the link to `lb-core` (spaces are stored in C++ prefs).
+Not built yet: element hiding, the Widevine consent prompt, and the link to `lb-core` (spaces are
+stored in C++ prefs).
 
 Unit tests (`*_unittest.cc` next to the code):
 
@@ -159,6 +163,9 @@ button), runs the pin toggle (it must stay pinned), checks the window menu has n
 right-clicks the button (no menu may open);
 `=sidebar-header` checks the sidebar header holds the space name alone (no address field) and that
 ⌘L opens the command bar with the page's full address;
+`=tracking-params` (needs the network) loads a page whose address has tracking parameters (it
+must commit without them, other parameters and the fragment kept), a redirect to a tracked
+address (it must land on the clean one) and an iframe with one (it must keep it);
 `=space-avatar` checks the toolbar's profile button shows the first space's emoji, the second's
 after switching to it and the new one after that space's icon changes, then opens the profile menu
 (`--lb-ui-snapshot-dialog=<png>` captures it, the emoji in its header);
