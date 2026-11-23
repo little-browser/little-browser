@@ -79,7 +79,7 @@
   // every release (/downloads). The list is releases.json on downloads.littlebrowser.app, written
   // by the release pipeline:
   //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "beta",
-  //       "chromium": "157.0.8103.78", "files": [ { "platform": "macos", "arch": "arm64",
+  //       "chromium": "157.0.8103.78", "notes": [ "Peek opens faster." ], "files": [ { "platform": "macos", "arch": "arm64",
   //       "url": "https://downloads.littlebrowser.app/...dmg", "size": 123, "sha256": "..." } ] } ] }
   // Newest first. Next to it, stats.json (desktop/scripts/download_stats.py) counts each file's
   // completed downloads and the browser's updates to it, keyed by the file's path:
@@ -253,6 +253,15 @@
           const version = el('td', {}, el('b', {}, r.version));
           if (r.channel) version.append(el('span', { className: 'tag' }, r.channel));
           if (i === 0) version.append(el('span', { className: 'tag latest' }, 'latest'));
+          // What changed: open on the newest release, folded on the others.
+          const notes = Array.isArray(r.notes) ? r.notes.filter((n) => typeof n === 'string' && n) : [];
+          if (notes.length) {
+            const ul = el('ul');
+            for (const n of notes) ul.append(el('li', {}, n));
+            const summary = el('summary', {}, "What's new");
+            summary.setAttribute('aria-label', `What's new in ${r.version}`);
+            version.append(el('details', { className: 'notes', open: i === 0 }, summary, ul));
+          }
           tbody.append(el('tr', {}, version, el('td', {}, r.date || ''), el('td', {}, r.chromium || ''), files));
         });
       }

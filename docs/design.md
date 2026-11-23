@@ -604,8 +604,14 @@ on the macOS runner. A patch to a widely included header can cost almost as much
 7. **Publish (manual).** After internal testing, a person runs the `publish` job
    (`desktop/scripts/publish-release.sh`): it uploads the same file to
    `downloads.littlebrowser.app/<version>/` and adds it, with its size and SHA-256, to
-   `releases.json` in the `beta` channel. littlebrowser.app reads that file for its download button
-   and its list of releases, which shows each file's full SHA-256 with a button to copy it. The
+   `releases.json` in the `beta` channel, with the release's notes. littlebrowser.app reads that
+   file for its download button and its list of releases, which shows each release's notes and
+   each file's full SHA-256 with a button to copy it. The notes (`release_notes.py`) are the
+   `Release-note:` lines of the commits since the last published release, oldest first and
+   without those of commits reverted in the meantime, after a line naming the Chromium version
+   when it is new and saying when the release has security fixes; `LB_RELEASE_NOTES` on the job
+   (notes separated by `|`) replaces the commits' notes. Once the release is public, GitLab's
+   release for the tag gets the same notes. The update prompt doesn't show them (§7.13). The
    same file also goes to `updates/<version>/`, the updater's copy, and `updates/macos-arm64.xml`,
    the updater's feed, is rewritten to offer it (`update_feed.py`: only the newest release, marked
    critical for versions older than the newest security release). A release is a security release

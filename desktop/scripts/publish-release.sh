@@ -15,7 +15,7 @@
 #   updates/<version>/LittleBrowser-<version>-macos-arm64.dmg  the updater's copy
 # so the download counts (download-stats.sh) tell new downloads from updates. A version that is
 # already published stops the script. releases.json lists releases newest first:
-#   { "releases": [ { "version", "date", "channel", "chromium", "security",
+#   { "releases": [ { "version", "date", "channel", "chromium", "security", "notes": [ "…" ],
 #                     "files": [ { "platform", "arch", "url", "size", "sha256",
 #                                  "update": { "url", "bundle_version",
 #                                              "minimum_system_version", "ed_signature" } } ] } ] }
@@ -29,9 +29,14 @@
 # sooner. LB_SECURITY_RELEASE=1 or 0 decides; unset, a release on a new Chromium version (an
 # upstream security update) is one and a revision on the same Chromium version isn't.
 #
+# A new release's notes are the Release-note lines of the commits since the last published
+# release, after a line about Chromium (release_notes.py); LB_RELEASE_NOTES (one note per line,
+# or notes separated by "|") replaces the commits' notes. After publishing, the release's notes
+# also go to release-notes.md next to the disk image, for GitLab's release.
+#
 # Needs LB_DOWNLOADS_BUCKET, LB_DOWNLOADS_DISTRIBUTION and LB_DOWNLOADS_URL (CI/CD variables
-# written by the infrastructure repository), aws, jq and python3. LB_DRY_RUN=1 prints the new
-# releases.json and feed and uploads nothing.
+# written by the infrastructure repository), aws, jq, python3 and git with the release tags.
+# LB_DRY_RUN=1 prints the new releases.json, notes and feed and uploads nothing.
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -76,27 +81,44 @@ else
   UPDATE=null
 fi
 
+PUBLISHED="$(jq -r '.releases[0].version // ""' "$TMP/current.json")"
+PREVIOUS_CHROMIUM="$(jq -r '.releases[0].chromium // ""' "$TMP/current.json")"
 case "${LB_SECURITY_RELEASE:-}" in
   1) SECURITY=true ;;
   0) SECURITY=false ;;
-  "") SECURITY="$(jq --arg c "$CHROMIUM_VERSION" \
-        '(.releases[0].chromium // "") != $c' "$TMP/current.json")" ;;
+  "") if [ "$PREVIOUS_CHROMIUM" != "$CHROMIUM_VERSION" ]; then SECURITY=true; else SECURITY=false; fi ;;
   *) die "LB_SECURITY_RELEASE is 1, 0 or unset, not $LB_SECURITY_RELEASE" ;;
 esac
+
+# A later platform joins its release, which keeps the notes it has.
+if jq -e --arg v "$VERSION" 'any(.releases[]; .version == $v)' "$TMP/current.json" >/dev/null; then
+  NOTES=null
+else
+  HEAD_REF="v$VERSION"
+  if [ "$DRY" = 1 ] && ! git -C "$DESKTOP" rev-parse --verify --quiet "$HEAD_REF^{commit}" >/dev/null; then
+    echo "dry run: no tag $HEAD_REF here, so the notes run up to HEAD" >&2
+    HEAD_REF=HEAD
+  fi
+  NOTES="$(python3 -I "$DESKTOP/scripts/release_notes.py" notes --head "$HEAD_REF" \
+    --published "$PUBLISHED" --previous-chromium "$PREVIOUS_CHROMIUM" \
+    --chromium "$CHROMIUM_VERSION" --security "$SECURITY")"
+fi
 
 # Add the file to its release (a later platform joins the same version), or the release
 # itself at the top of the list.
 jq --arg v "$VERSION" --arg d "$DATE" --arg c "$CHROMIUM_VERSION" \
    --arg u "$LB_DOWNLOADS_URL/$KEY" --arg h "$SHA256" --argjson s "$SIZE" \
-   --argjson update "$UPDATE" --argjson security "$SECURITY" '
+   --argjson update "$UPDATE" --argjson security "$SECURITY" --argjson notes "$NOTES" '
   ({ platform: "macos", arch: "arm64", url: $u, size: $s, sha256: $h }
    + (if $update then { update: $update } else {} end)) as $file
   | if any(.releases[]; .version == $v)
     then .releases |= map(if .version == $v then .files += [$file] else . end)
     else .releases = [ { version: $v, date: $d, channel: "beta", chromium: $c,
-                         security: $security, files: [ $file ] } ] + .releases
+                         security: $security, notes: $notes, files: [ $file ] } ] + .releases
     end' "$TMP/current.json" > "$TMP/releases.json"
 python3 -I "$DESKTOP/scripts/update_feed.py" "$TMP/releases.json" macos arm64 > "$TMP/feed.xml"
+python3 -I "$DESKTOP/scripts/release_notes.py" markdown "$TMP/releases.json" "$VERSION" \
+  > "$TMP/release-notes.md"
 
 echo "publishing $NAME ($SIZE bytes, SHA-256 $SHA256, security release: $SECURITY)"
 if [ "$DRY" = 1 ]; then
@@ -104,6 +126,8 @@ if [ "$DRY" = 1 ]; then
   [ "$UPDATE" = null ] || echo "dry run: and to s3://$LB_DOWNLOADS_BUCKET/updates/$KEY"
   echo "dry run: this releases.json:"
   cat "$TMP/releases.json"
+  echo "dry run: these release notes for GitLab's release:"
+  cat "$TMP/release-notes.md"
   echo "dry run: this $FEED:"
   cat "$TMP/feed.xml"
   exit 0
@@ -125,3 +149,5 @@ aws cloudfront create-invalidation --distribution-id "$LB_DOWNLOADS_DISTRIBUTION
   --paths /releases.json "/$FEED" --query 'Invalidation.Id' --output text >/dev/null
 echo "published $LB_DOWNLOADS_URL/$KEY"
 [ "$UPDATE" = null ] || echo "offered as an update: $LB_DOWNLOADS_URL/$FEED"
+# For GitLab's release (the `release` job reads it), only once the release is public.
+cp "$TMP/release-notes.md" "$(dirname "$FILE")/release-notes.md"

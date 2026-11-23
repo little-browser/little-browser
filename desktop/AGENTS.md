@@ -89,6 +89,8 @@ once. Machines that share a cache need the same checkout path, or the keys won't
   --package` runs it without `--release` (ad-hoc). With a version and an update key it also adds
   the updater (Sparkle) and writes the `.dmg`'s update signature to a `.update.json`; to try an
   update locally, give it `LB_UPDATE_KEY_FILE` and `LB_UPDATE_FEED_URL` (see its header).
+- `scripts/release_notes.py notes …` prints a release's notes from the commits' `Release-note:`
+  lines, and `markdown …` a release in `releases.json` as Markdown; safe to run locally.
 - `scripts/publish-release.sh <version> <file.dmg>` and `scripts/deploy-site.sh` are CI-only:
   they put a release on downloads.littlebrowser.app (in `releases.json` and the update feed,
   written by `scripts/update_feed.py`) and upload `site/` to littlebrowser.app.

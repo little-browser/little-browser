@@ -46,6 +46,8 @@ Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
 - Sign off every commit with `git commit -s` (DCO, see `CONTRIBUTING.md`).
 - New source files start with the MPL-2.0 header (text in `CONTRIBUTING.md`).
 - One concern per commit. Say what changed and why.
+- A change people using the browser would notice gets a `Release-note:` line next to the sign-off:
+  one sentence, written for them (`CONTRIBUTING.md`).
 - Don't push unless asked.
 
 ## Good practice here

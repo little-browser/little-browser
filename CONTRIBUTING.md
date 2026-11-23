@@ -19,6 +19,25 @@ git commit -s
 By signing off you confirm you wrote the change (or have the right to submit it) under the
 project's licence, MPL-2.0.
 
+## Release notes
+
+A commit that people using the browser would notice gets a `Release-note:` line, next to its
+sign-off: one sentence, written for them, saying what changed for them. It may wrap onto the
+following lines; it ends at a blank line or the next `Key: value` line such as the sign-off.
+
+```
+Strip tracking parameters from page navigations
+
+…what changed and why, for reviewers…
+
+Release-note: Links lose their utm_*, fbclid and other tracking parameters.
+Signed-off-by: …
+```
+
+A release's notes are these lines from the commits since the last release, leaving out commits
+that were reverted (`desktop/scripts/release_notes.py`). Commits nobody using the browser would
+notice (CI, tests, refactors, docs) have none.
+
 ## Licence headers
 
 New source files start with the MPL-2.0 header:

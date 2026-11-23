@@ -76,11 +76,13 @@ lb-tests:
   script:
     - python3 -I desktop/scripts/check_lb_tests.py
 
-# Unit tests of the release scripts' Python (download counts, the update feed).
+# Unit tests of the release scripts' Python (download counts, the update feed, release notes).
 script-tests:
   extends: .check
   tags: [lb-linux]
   image: python:3-slim
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git   # release_notes.py's tests
   script:
     - python3 -I -m unittest discover -s desktop/scripts -p 'test_*.py'
 
@@ -192,7 +194,9 @@ macos-arm64:
 # After internal testing, a person runs the manual `publish` job: it puts the same .dmg on
 # downloads.littlebrowser.app, lists it in releases.json, which the website reads, and offers it
 # in the updater's feed. Set LB_SECURITY_RELEASE=1 or 0 when running it to say whether it is a
-# security release (unset: a new Chromium version is one).
+# security release (unset: a new Chromium version is one). The release notes come from the
+# commits' Release-note lines; set LB_RELEASE_NOTES to replace them, with the notes separated by
+# "|" (the form for running a job takes one line).
 
 macos-arm64-package:
   stage: package
@@ -227,10 +231,15 @@ publish:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
       when: manual               # a person publishes after internal testing; nothing is rebuilt
+  variables:
+    GIT_DEPTH: 0                 # the release notes read the commits since the last release
+    GIT_FETCH_EXTRA_FLAGS: --tags --prune --quiet   # and need its tag
   before_script:
-    - yum install -y -q jq python3
+    - yum install -y -q jq python3 git
   script:
     - desktop/scripts/publish-release.sh "${CI_COMMIT_TAG#v}" desktop/build/*.dmg
+  artifacts:
+    paths: [desktop/build/release-notes.md]
 
 # GitLab's own record of the release, once it is public.
 release:
@@ -241,10 +250,13 @@ release:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
   script:
+    # Without publish's notes (a dry run, or its artifacts expired) release-cli would take the
+    # path below as the description itself.
+    - test -f desktop/build/release-notes.md || { echo "no release-notes.md from publish" >&2; exit 1; }
     - echo "Released $CI_COMMIT_TAG"
   release:
     tag_name: $CI_COMMIT_TAG
-    description: "Little Browser $CI_COMMIT_TAG: https://littlebrowser.app/#download"
+    description: ./desktop/build/release-notes.md   # written by publish
 
 # Scheduled, daily: downloads and updates of each release file, counted from the downloads
 # host's logs (no IP addresses or user agents in them), published as stats.json for the website.
