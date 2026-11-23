@@ -93,6 +93,8 @@
 #include "lb/browser/ui/views/little_window/little_window_menu.h"
 #include "lb/browser/ui/views/password/password_manager_choice_dialog.h"
 #include "lb/browser/ui/views/peek/peek.h"
+#include "lb/browser/ui/views/profiles/space_avatar.h"
+#include "lb/browser/ui/views/profiles/space_avatar_demo.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "lb/browser/ui/views/sidebar/pinned_groups_demo.h"
@@ -390,7 +392,7 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
     const std::string mode =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
     // import-first-run(-close) are the import demos that need the first-run questions asked.
-    if (mode == "ad-blocker" || mode == "peek" ||
+    if (mode == "ad-blocker" || mode == "peek" || mode == "space-avatar" ||
         (mode.starts_with("import") && !mode.starts_with("import-first-run"))) {
       SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
@@ -497,6 +499,11 @@ std::string SidebarController::GetProfileBaseName() const {
 void SidebarController::NotifyChanged() {
   for (Observer& observer : observers_) {
     observer.OnSidebarModelChanged();
+  }
+  // The toolbar's profile button shows the space's emoji: redraw it when that changes.
+  if (std::string icon = ActiveSpaceIcon(); icon != avatar_icon_) {
+    avatar_icon_ = std::move(icon);
+    UpdateSpaceAvatar(browser_);
   }
 }
 
@@ -666,11 +673,17 @@ std::optional<int> SidebarController::ActiveSpaceHue() const {
     return std::nullopt;
   }
   const std::vector<Space> spaces = GetSpaces();
-  if (spaces.empty()) {
-    return std::nullopt;
+  const Space* space = FindActiveSpace(spaces, active_id_);
+  return space ? std::optional<int>(space->hue) : std::nullopt;
+}
+
+std::string SidebarController::ActiveSpaceIcon() const {
+  if (is_private_) {
+    return std::string();
   }
-  const auto it = std::ranges::find(spaces, active_id_, &Space::id);
-  return (it != spaces.end() ? *it : spaces.front()).hue;  // as GetActiveIndex(): the first
+  const std::vector<Space> spaces = GetSpaces();
+  const Space* space = FindActiveSpace(spaces, active_id_);
+  return space ? space->icon : std::string();
 }
 
 std::string SidebarController::GetActiveSpaceId() const {
@@ -1842,6 +1855,10 @@ void SidebarController::SeedDemoData() {
             }
             if (demo == "little-window-menu") {
               RunLittleWindowMenuDemo(self->browser());
+              return;
+            }
+            if (demo == "space-avatar") {
+              RunSpaceAvatarDemo(self->browser());
               return;
             }
             self->SwitchTo(1);

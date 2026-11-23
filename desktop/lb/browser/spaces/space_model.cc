@@ -71,6 +71,14 @@ const char* NextSpaceIcon(const std::vector<Space>& spaces) {
   return kSpaceIcons[spaces.size() % std::size(kSpaceIcons)];
 }
 
+const Space* FindActiveSpace(const std::vector<Space>& spaces, std::string_view active_id) {
+  if (spaces.empty()) {
+    return nullptr;
+  }
+  const auto it = std::ranges::find(spaces, active_id, &Space::id);
+  return it != spaces.end() ? &*it : &spaces.front();
+}
+
 std::string NextSpaceName(const std::vector<Space>& spaces) {
   return "Space " + base::NumberToString(spaces.size() + 1);
 }

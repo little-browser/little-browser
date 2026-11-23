@@ -75,6 +75,17 @@ TEST(SpaceModelTest, NextSpaceDefaults) {
   EXPECT_EQ(NextSpaceName(spaces), "Space 2");
 }
 
+TEST(SpaceModelTest, FindActiveSpace) {
+  EXPECT_EQ(FindActiveSpace({}, "a"), nullptr);
+  std::vector<Space> spaces = {MakeSpace("a", "Default"), MakeSpace("b", "Default")};
+  spaces[1].icon = kSpaceIcons[1];
+  EXPECT_EQ(FindActiveSpace(spaces, "b"), &spaces[1]);
+  EXPECT_EQ(FindActiveSpace(spaces, "a"), &spaces[0]);
+  // A window whose space is gone (or not chosen yet) shows the first.
+  EXPECT_EQ(FindActiveSpace(spaces, "gone"), &spaces[0]);
+  EXPECT_EQ(FindActiveSpace(spaces, ""), &spaces[0]);
+}
+
 TEST(SpaceModelTest, NextSpaceIconCycles) {
   std::vector<Space> spaces;
   for (size_t i = 0; i < std::size(kSpaceIcons); ++i) {

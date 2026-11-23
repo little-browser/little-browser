@@ -57,6 +57,9 @@ std::optional<Space> SpaceFromDict(const base::DictValue& dict, std::string_view
 
 // Defaults for the next new space, given the existing ones: colours step around the wheel so
 // neighbours differ, icons cycle through kSpaceIcons, names count up ("Space 3").
+// The space a window shows: the one with `active_id`, else the first; null when there are none.
+const Space* FindActiveSpace(const std::vector<Space>& spaces, std::string_view active_id);
+
 int NextSpaceHue(const std::vector<Space>& spaces);
 const char* NextSpaceIcon(const std::vector<Space>& spaces);
 std::string NextSpaceName(const std::vector<Space>& spaces);

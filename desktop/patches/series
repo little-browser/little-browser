@@ -46,3 +46,4 @@ lb/import-settings-row.patch         # Settings' import route opens our import d
 lb/pinned-groups.patch             # tab groups among the pinned tabs (ours: Chromium cannot group pinned tabs)
 lb/tab-search-always.patch           # tab search can't be unpinned: no Pin/Unpin in its menus or Settings
 lb/keychain-name.patch               # macOS: our own keychain item (Little Browser Safe Storage), keeping an existing install's password
+lb/space-avatar.patch                # the profile button and profile menu show the window's space emoji

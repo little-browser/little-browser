@@ -169,6 +169,9 @@ class SidebarController : public TabStripModelObserver {
   std::string GetActiveSpaceId() const;
   // The colour (hue) of the space this window shows; null for private windows.
   std::optional<int> ActiveSpaceHue() const;
+  // The icon (emoji) of the space this window shows; empty for private windows. The window's
+  // profile button and profile menu show it (lb/browser/ui/views/profiles/space_avatar.h).
+  std::string ActiveSpaceIcon() const;
   // A tab row was clicked (lb::OnTabClicked): a click on a New Tab Group placeholder opens the
   // command bar.
   void OnTabClicked(const tabs::TabInterface& tab);
@@ -288,6 +291,8 @@ class SidebarController : public TabStripModelObserver {
   // Active space of this window (each window has its own; new windows start on the profile's
   // last active space).
   std::string active_id_;
+  // The emoji the window's profile button last showed (see NotifyChanged).
+  std::string avatar_icon_;
   // Live tabs of inactive spaces in this window, by space id.
   std::map<std::string, ParkedSpace> detached_;
   // The blank tabs a new tab group starts with. One goes away once another tab joins its group

@@ -2,10 +2,10 @@
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
 # snapshot tool, pinned tab sleep and pinned groups, extensions demo, first-run dialogs, ad blocker,
-# Peek, little window, import) with the region view's target.
+# Peek, little window, import, the space avatar) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,77 @@
+@@ -537,7 +537,81 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -55,6 +55,10 @@
 +    "//lb/browser/ui/views/little_window/little_window_menu.mm",
 +    "//lb/browser/ui/views/peek/peek.cc",
 +    "//lb/browser/ui/views/peek/peek.h",
++    "//lb/browser/ui/views/profiles/space_avatar.cc",
++    "//lb/browser/ui/views/profiles/space_avatar.h",
++    "//lb/browser/ui/views/profiles/space_avatar_demo.cc",
++    "//lb/browser/ui/views/profiles/space_avatar_demo.h",
 +    "//lb/browser/ui/lb_ui_snapshot.h",
 +    "//lb/browser/ui/views/sidebar/new_tab_row_view.cc",
 +    "//lb/browser/ui/views/sidebar/new_tab_row_view.h",
@@ -84,7 +88,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +627,20 @@
+@@ -557,6 +631,20 @@
      "//ui/views",
    ]
    deps = [

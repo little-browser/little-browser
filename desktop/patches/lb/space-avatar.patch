@@ -1,0 +1,51 @@
+# Little Browser: a window's avatar, the toolbar's profile button and the profile menu's header,
+# is the emoji of the space the window shows (docs/ux.md §5; desktop/lb/browser/ui/views/profiles/
+# space_avatar.h), so it matches the space highlighted in the sidebar's footer. Windows without a
+# space (private windows, pop-ups, apps) keep Chromium's avatar.
+--- a/chrome/browser/ui/views/profiles/avatar_toolbar_button.cc
++++ b/chrome/browser/ui/views/profiles/avatar_toolbar_button.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
+ 
++#include "lb/browser/ui/views/profiles/space_avatar.h"
++
+ #include "base/check.h"
+ #include "base/check_is_test.h"
+ #include "base/feature_list.h"
+@@ -115,6 +117,12 @@
+   auto [icon, icon_type] = state_provider->GetAvatarIcon(
+       icon_size, GetForegroundColor(ButtonState::STATE_NORMAL),
+       *color_provider);
++  // Little Browser: the emoji of the space the window shows.
++  if (std::optional<ui::ImageModel> space_icon =
++          lb::SpaceAvatarImage(state_manager_.browser(), icon_size)) {
++    icon = *space_icon;
++    icon_type = AvatarIconType::kNonPlaceholder;
++  }
+ 
+   SetImageModel(ButtonState::STATE_NORMAL, icon);
+   SetImageModel(ButtonState::STATE_DISABLED,
+--- a/chrome/browser/ui/views/profiles/profile_menu_view.cc
++++ b/chrome/browser/ui/views/profiles/profile_menu_view.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/profiles/profile_menu_view.h"
+ 
++#include "lb/browser/ui/views/profiles/space_avatar.h"
++
+ #include <algorithm>
+ #include <optional>
+ #include <string>
+@@ -666,6 +668,11 @@
+       primary_extended_account_info.GetAvatarImage().value_or(
+           entry.GetAvatarIcon(kIdentityInfoImageSize,
+                               /*use_high_res_file=*/true, icon_params)));
++  // Little Browser: the emoji of the space the window shows.
++  if (std::optional<ui::ImageModel> space_icon =
++          lb::SpaceAvatarImage(&browser(), kIdentityInfoImageSize)) {
++    params.profile_image = *space_icon;
++  }
+   if (ShouldShowAvatarGradientRing(&profile())) {
+     params.avatar_ring = AvatarRingType::kGradient;
+   }

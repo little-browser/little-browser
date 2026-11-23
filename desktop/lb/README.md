@@ -94,6 +94,8 @@ lb/browser/ui/
   lb_command_ids.h                     our command ids (Cmd+Option+N, the link menu's little window)
   views/search/search_choice_dialog.*  first-run search engine choice
   views/password/password_manager_choice_dialog.*  first-run password manager choice
+  views/profiles/space_avatar.*        the profile button's and profile menu's avatar: the space's emoji
+  views/profiles/space_avatar_demo.*   --lb-sidebar-demo=space-avatar (below)
   views/browser_modal_dialog.*      base for our browser-modal dialogs (deletes itself when closed)
   views/frame/contents_card.h       the page as an inset rounded card next to the sidebar
 ```
@@ -105,7 +107,8 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker),
 `pinned-groups.patch` (pinned groups), `peek-hooks.patch`
 (Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch`,
-`little-window-link-menu.patch` and `little-window-menu.patch` (the little window);
+`little-window-link-menu.patch` and `little-window-menu.patch` (the little window),
+`space-avatar.patch` (the space's emoji as the avatar);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
 
 Not built yet: element hiding, tracking-parameter stripping, the
@@ -156,6 +159,9 @@ button), runs the pin toggle (it must stay pinned), checks the window menu has n
 right-clicks the button (no menu may open);
 `=sidebar-header` checks the sidebar header holds the space name alone (no address field) and that
 ⌘L opens the command bar with the page's full address;
+`=space-avatar` checks the toolbar's profile button shows the first space's emoji, the second's
+after switching to it and the new one after that space's icon changes, then opens the profile menu
+(`--lb-ui-snapshot-dialog=<png>` captures it, the emoji in its header);
 `=little-window-menu` checks the File menu has "New little window" after "New Incognito window"
 with ⌥⌘N, that the window enables it, and that choosing it opens the command bar for a little
 window, where an address opens one;

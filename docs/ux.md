@@ -131,6 +131,9 @@ The centre of the browser. A floating palette in the middle of the window.
 - A **profile** is one set of logins, cookies and history. Every space uses a
   profile; several spaces can share one. Everyone starts with just the **default profile**, named
   **Personal** like its first space, so the concept stays out of sight until it's needed.
+- The toolbar's profile button and the profile menu's header show the emoji of the space the
+  window is on, so they match the space highlighted in the footer. Private windows keep their own
+  icon.
 - Space menu (right-click its dot or header) → **Profile ▸** Personal / Work / … / New profile. A space
   outside the default profile shows a small 🔒 badge with the profile's name, so it's clear its logins
   are separate. Moving a space or tab to another profile reloads it in that profile's cookie jar.
