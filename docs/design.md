@@ -197,7 +197,9 @@ magic. Targets must be measured, not promised.
   (configurable), pinned tabs keep only their state.
 - Lazy session restore: restore tabs as placeholders, load on first focus.
 - Freeze background tabs that are not playing media or holding a WebRTC/WebSocket connection.
-- Preloading limited to "standard" (no aggressive prerendering of search results).
+- Preloading off by default (ungoogled-chromium's default): a page loads only when it is opened,
+  so no site is contacted, and no hidden page runs, ahead of a click. Settings → Performance →
+  Preload pages can turn on standard preloading.
 
 **Measure**
 - Benchmarks in CI on every rebase: Speedometer 3, memory at idle / 10 tabs / 50 tabs, startup time,
