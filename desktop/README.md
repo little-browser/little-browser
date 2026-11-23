@@ -85,7 +85,8 @@ cookies still reads the other browser's real "‹browser› Safe Storage" key, a
 The item is Little Browser's own (`patches/lb/keychain-name.patch`, `lb/browser/keychain/`), not
 Chromium's default "Chromium Safe Storage", which real Chromium shares. An install whose profile
 already existed copies its password from "Chromium Safe Storage" once; a new install never reads
-that item.
+that item. A release's designated requirement pins our Team ID, because macOS lets whatever meets
+it read the item without asking.
 
 | Build | Folder | Use for |
 |---|---|---|

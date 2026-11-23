@@ -83,6 +83,7 @@ fi
 
 IDENTITY=-   # ad-hoc
 IDENTITY_NAME=""
+TEAM_ID=""
 KEYCHAIN=""
 NOTARY=()
 ORIGINAL_KEYCHAINS=()
@@ -156,6 +157,10 @@ if [ "$RELEASE" = 1 ]; then
     IDENTITY="$(awk '{print $2}' <<<"$identity_line")"   # SHA-1 fingerprint
     IDENTITY_NAME="${identity_line#*\"}"
     IDENTITY_NAME="${IDENTITY_NAME%\"}"
+    # "Developer ID Application: <name> (<Team ID>)": the team the designated requirement pins.
+    [[ "$IDENTITY_NAME" =~ \(([A-Z0-9]{10})\)$ ]] ||
+      die "no Team ID in the signing identity's name: $IDENTITY_NAME"
+    TEAM_ID="${BASH_REMATCH[1]}"
     echo "signing as: $IDENTITY_NAME ($IDENTITY)"
 
     # An App Store Connect API key: notarytool reads it from a file, so no secret ever appears in
@@ -277,11 +282,18 @@ fi
 if [ "$IDENTITY" = - ]; then
   sign "$APP_ID" restrict,library,runtime,kill "$ENT/app-entitlements.plist" "$APP"
 else
-  # The designated requirement pins the app to a Developer ID certificate, as Chrome's does.
+  # The designated requirement pins the app to our team's Developer ID certificate, as Chrome's
+  # does. macOS trusts whatever meets it with the app's keychain items, such as its Safe Storage
+  # password, so without the team any Developer ID could sign an app that passes for ours.
+  team_requirement="certificate leaf[subject.OU] = \"$TEAM_ID\""
   codesign --sign "$IDENTITY" --force --timestamp --keychain "$KEYCHAIN" --identifier "$APP_ID" \
     --options restrict,library,runtime,kill --entitlements "$ENT/app-entitlements.plist" \
-    --requirements "=designated => identifier \"$APP_ID\" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */" \
+    --requirements "=designated => identifier \"$APP_ID\" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] /* exists */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* exists */ and $team_requirement" \
     "$APP"
+  # codesign prints the team without its quotes.
+  codesign -d -r- "$APP" 2>&1 | grep -qE "certificate leaf\[subject\.OU\] = \"?$TEAM_ID\"?( |$)" ||
+    die "the app's designated requirement doesn't pin team $TEAM_ID"
+  codesign --verify -R="$team_requirement" "$APP" || die "the app isn't signed by team $TEAM_ID"
 fi
 codesign --verify --deep --strict "$APP"
 
