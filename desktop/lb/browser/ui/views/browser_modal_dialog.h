@@ -43,6 +43,10 @@ class BrowserModalDialog : public views::DialogDelegate, public views::WidgetObs
   base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
 };
 
+// Whether a first-run question may open over `browser` now: not while the window closes or the app
+// quits (CanAskFirstRunQuestion in lb/browser/first_run/first_run_questions.h).
+bool CanAskFirstRunQuestionIn(BrowserWindowInterface* browser);
+
 }  // namespace lb
 
 #endif  // LB_BROWSER_UI_VIEWS_BROWSER_MODAL_DIALOG_H_

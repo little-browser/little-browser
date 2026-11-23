@@ -854,6 +854,11 @@ bool ImportDialogBackForTesting() {
 }
 
 void MaybeShowImportOffer(BrowserWindowInterface* browser, base::OnceClosure then) {
+  // The window is closing or the app quits: nothing more is asked here (`then` asks in this
+  // window too).
+  if (!CanAskFirstRunQuestionIn(browser)) {
+    return;
+  }
   PrefService* local_state = g_browser_process->local_state();
   switch (NextImportOfferStep({.offered = local_state->GetBoolean(kImportOfferedPref),
                                .first_run = first_run::IsChromeFirstRun(),
@@ -873,7 +878,7 @@ void MaybeShowImportOffer(BrowserWindowInterface* browser, base::OnceClosure the
   FindImportSources(base::BindOnce(
       [](base::WeakPtr<BrowserWindowInterface> browser, base::OnceClosure over,
          std::vector<ImportSource> sources) {
-        if (!browser || sources.empty()) {
+        if (!browser || sources.empty() || !CanAskFirstRunQuestionIn(browser.get())) {
           std::move(over).Run();
           return;
         }

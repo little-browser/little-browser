@@ -37,6 +37,7 @@
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
@@ -100,6 +101,7 @@ constexpr char kDialogMode[] = "import-dialog";
 constexpr char kChoicesMode[] = "import-choices";
 constexpr char kProgressMode[] = "import-progress";
 constexpr char kFirstRunMode[] = "import-first-run";
+constexpr char kFirstRunCloseMode[] = "import-first-run-close";
 constexpr char kImportMode[] = "import";
 constexpr sql::Database::Tag kTag = "FirefoxImporter";
 constexpr char kFilesMode[] = "import-files";
@@ -952,6 +954,59 @@ void CheckFirstRun(std::unique_ptr<Run> run, int tries) {
                base::Seconds(2));
 }
 
+// A window that closes while the first-run import dialog is open over it closes the dialog too,
+// from inside the window's teardown. The next question must not open over that window then; a
+// second window waiting for the offer gets its question. The demo then quits with that question
+// open, which must not open the one after it either: the run passes if it also exits with 0.
+void CheckFirstRunClose(std::unique_ptr<Run> run, int tries) {
+  std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
+  if ((!state || state->step != 1) && tries > 0) {
+    PostDemoTask(base::BindOnce(&CheckFirstRunClose, std::move(run), tries - 1),
+                 base::Milliseconds(250));
+    return;
+  }
+  run->Expect(state && state->step == 1, "the import dialog opened by itself");
+  if (!run->browser || !run->profile) {
+    Report(std::move(run), "");
+    return;
+  }
+  // The second window asks its first-run questions a second after it opens: by then the offer is
+  // in progress in the first, so it waits for it.
+  chrome::NewEmptyWindow(run->profile.get());
+  PostDemoTask(
+      base::BindOnce(
+          [](std::unique_ptr<Run> run) {
+            if (!run->browser) {
+              run->Expect(false, "the first window is still open");
+              Report(std::move(run), "");
+              return;
+            }
+            run->Expect(GetImportDialogStateForTesting().has_value(),
+                        "the import dialog is still open when its window closes");
+            run->browser->GetWindow()->Close();
+            PostDemoTask(
+                base::BindOnce(
+                    [](std::unique_ptr<Run> run) {
+                      run->Expect(!run->browser, "the first window closed");
+                      run->Expect(!GetImportDialogStateForTesting(),
+                                  "the import dialog closed with it");
+                      run->Expect(IsSearchChoiceOpenForTesting(),
+                                  "the second window, which waited for the offer, asks the "
+                                  "search engine question");
+                      Report(std::move(run),
+                             "closing the window under the first-run import dialog asks "
+                             "nothing more there; the waiting window goes on; quitting now");
+                      // With the search engine question open: it closes during the quit, and
+                      // the password manager question must not open after it.
+                      PostDemoTask(base::BindOnce(&chrome::AttemptExit), base::Seconds(1));
+                    },
+                    std::move(run)),
+                base::Seconds(3));
+          },
+          std::move(run)),
+      base::Seconds(3));
+}
+
 void RunDialog(std::unique_ptr<Run> run) {
   FailDemoAfter(kDialogMode, base::Seconds(40));
   FindImportSources(base::BindOnce(
@@ -1114,7 +1169,8 @@ void RunFiles(std::unique_ptr<Run> run, const base::FilePath& home) {
 bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode) {
   if (mode != kFixtureMode && mode != kArcMode && mode != kArcUnreadableMode &&
       mode != kDialogMode && mode != kFilesMode && mode != kEdgeMode && mode != kChoicesMode &&
-      mode != kProgressMode && mode != kFirstRunMode && mode != kImportMode) {
+      mode != kProgressMode && mode != kFirstRunMode && mode != kFirstRunCloseMode &&
+      mode != kImportMode) {
     return false;
   }
   auto run = std::make_unique<Run>();
@@ -1160,6 +1216,11 @@ bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode
   if (mode == kFirstRunMode) {
     FailDemoAfter(kFirstRunMode, base::Seconds(30));
     CheckFirstRun(std::move(run), 80);
+    return true;
+  }
+  if (mode == kFirstRunCloseMode) {
+    FailDemoAfter(kFirstRunCloseMode, base::Seconds(40));
+    CheckFirstRunClose(std::move(run), 80);
     return true;
   }
   if (mode == kArcMode) {

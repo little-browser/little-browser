@@ -177,7 +177,9 @@ class PasswordManagerChoiceDialog : public BrowserModalDialog {
 }  // namespace
 
 void MaybeShowPasswordManagerChoice(BrowserWindowInterface* browser) {
-  if (!browser) {
+  // The window is closing or the app quits (the question before closed with it): not now, and not
+  // recorded as asked.
+  if (!CanAskFirstRunQuestionIn(browser)) {
     return;
   }
   Profile* profile = browser->GetProfile();

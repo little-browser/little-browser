@@ -403,6 +403,11 @@ dialog closes and the extensions it installs are in, so spaces and extensions br
 Chrome are already there. A password manager installed by the import counts as installed. A
 window opened meanwhile waits for all of it, as for the two questions.
 
+Closing the window, or quitting, while one of these is open closes it and ends the questions in
+that window: none of the rest opens over a closing window or while the app quits. A question not
+yet asked comes the next time a window opens; the import offer doesn't, as it is only made on the
+very first run. A window that was waiting goes on with its own questions.
+
 1. **Search engine.** There's no default; the user picks one (design.md §5). Until they do, a
    search from the command bar brings the choice back.
 2. **Password manager.** Little Browser has no password manager of its own (design.md §7.8), so

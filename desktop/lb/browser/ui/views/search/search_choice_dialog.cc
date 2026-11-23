@@ -266,6 +266,11 @@ bool IsSearchChoiceOpenForTesting() {
 }
 
 void MaybeShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure then) {
+  // The window is closing or the app quits (the question before closed with it): nothing more is
+  // asked here, and this one isn't recorded as asked. `then` asks in this window too.
+  if (!CanAskFirstRunQuestionIn(browser)) {
+    return;
+  }
   Profile* profile = browser->GetProfile();
   TemplateURLService* service =
       profile->IsOffTheRecord() ? nullptr : TemplateURLServiceFactory::GetForProfile(profile);

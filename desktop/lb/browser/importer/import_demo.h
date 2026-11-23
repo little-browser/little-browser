@@ -40,6 +40,11 @@ namespace lb {
 //   import-first-run run without --no-first-run: the dialog must open by itself on its first
 //                   step, with the first-run title, the introduction and "Not now"; the next
 //                   question and a second Import wait for it and go on once it closes.
+//   import-first-run-close  run without --no-first-run: opens a second window while the
+//                   dialog is open, then closes the first. The dialog closes with its window
+//                   and nothing more is asked there; the second window, which waited for the
+//                   offer, asks the search engine question. Then it quits with that question
+//                   open: the run passes only if the process also exits with 0.
 //   import-arc-unreadable  with a copy whose Arc sidebar file is broken: Arc is listed with its
 //                   profiles instead, as a Chrome-family browser, the problem named.
 //   import-edge     imports one of a two-profile Edge's profiles ("Profile 10", "Studio"; this

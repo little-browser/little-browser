@@ -259,6 +259,13 @@ Browser-modal dialogs don't own their `DialogDelegate` (only allow-listed classe
 widget to), so ours derive from `BrowserModalDialog` (`browser_modal_dialog.*`), which deletes the
 dialog when its widget is destroyed.
 
+The first-run questions (the import offer, the search engine, the password manager) each open
+when the one before closes. Closing the window or quitting closes the open one from inside the
+window's teardown (`~Browser` has already reset its window), so each question first asks
+`CanAskFirstRunQuestionIn` (`browser_modal_dialog.*`, the rule in `//lb:model`'s
+`browser/first_run/first_run_questions.*`) and opens nothing over a closing window or while the
+app quits.
+
 ## Import
 
 Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell in
@@ -363,10 +370,10 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
 - **Address autofill** is on by default (`browser/prefs/pref_defaults.*`); ungoogled-chromium
   turns it off, and Chromium then drops imported addresses.
 - **Check.** The `import-fixture`, `import-arc`, `import-arc-unreadable`, `import-edge`,
-  `import-files`, `import-dialog`, `import-choices`, `import-progress` and `import-first-run` demos
-  import the made-up sources in `lb/test/data/import/home`, and `import-extensions` installs a store
-  extension as an import does (`lb/README.md`); `import` with a real profile folder logs only how
-  many of each item came along.
+  `import-files`, `import-dialog`, `import-choices`, `import-progress`, `import-first-run` and
+  `import-first-run-close` demos import the made-up sources in `lb/test/data/import/home`, and
+  `import-extensions` installs a store extension as an import does (`lb/README.md`); `import` with
+  a real profile folder logs only how many of each item came along.
 
 ## Ad blocker
 

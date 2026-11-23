@@ -389,9 +389,9 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
     SeedDemoData();
     const std::string mode =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
-    // import-first-run is the one import demo that needs the first-run questions asked.
+    // import-first-run(-close) are the import demos that need the first-run questions asked.
     if (mode == "ad-blocker" || mode == "peek" ||
-        (mode.starts_with("import") && mode != "import-first-run")) {
+        (mode.starts_with("import") && !mode.starts_with("import-first-run"))) {
       SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
   }

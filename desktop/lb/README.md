@@ -222,6 +222,10 @@ browsers, Back, and each browser's profiles or spaces, then imports Edge's two p
 the extensions list is grouped by profile, with one turned off in Edge unticked, and, at fifteen rows, scrolls in a dialog of bounded height (`--lb-ui-snapshot-dialog=<png>` captures that list). `import-choices` opens the choices step on Chrome and holds it (`--lb-ui-snapshot-dialog=<png>` captures the item rows, each with its icon). `import-progress` imports Edge through the dialog and checks the progress step reports each item (its spinner becoming a check). `import-first-run`, run without `--no-first-run`, checks that first run opens the dialog itself on
 its first step, with the introduction and "Not now", that the next question and a second Import
 wait for it, and go on once it closes (`--lb-ui-snapshot-dialog=<png>` captures it).
+`import-first-run-close`, also without `--no-first-run`, closes the window under the first-run
+dialog while a second window waits for it: nothing more may open over the closing window, and the
+second window asks the next question; it then quits with that question open, and passes only if
+the process exits with 0.
 `import-arc-unreadable` breaks a copy's Arc sidebar file: Arc must be listed with its profiles
 instead, with the problem named. `--lb-sidebar-demo=import --lb-import-source=<profile folder>` imports a
 real Chrome-family profile and logs only how many of each item came along. Each logs

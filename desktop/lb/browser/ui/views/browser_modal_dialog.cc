@@ -6,8 +6,10 @@
 
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/constrained_window/constrained_window_views.h"
+#include "lb/browser/first_run/first_run_questions.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "ui/base/base_window.h"
 
@@ -34,6 +36,15 @@ void BrowserModalDialog::OnWidgetDestroyed(views::Widget* widget) {
   observation_.Reset();
   OnClosed();
   base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE, this);
+}
+
+bool CanAskFirstRunQuestionIn(BrowserWindowInterface* browser) {
+  // ~Browser resets its window (GetWindow() is null from then on) before the window's widget
+  // closes the dialogs over it.
+  return CanAskFirstRunQuestion(
+      {.closing = !browser || !browser->GetWindow() || browser->IsDeleteScheduled(),
+       .app_quitting =
+           browser_shutdown::IsTryingToQuit() || browser_shutdown::HasShutdownStarted()});
 }
 
 }  // namespace lb
