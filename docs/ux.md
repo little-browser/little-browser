@@ -225,7 +225,7 @@ Named, collapsible runs of tabs — Arc-style folders — among today's tabs or 
 **Living with groups**
 - **New Tab Group** (the footer's ＋ menu) makes a group with one blank placeholder tab; clicking it opens the command bar, and the chosen page opens in the placeholder, inside the group. The placeholder closes by itself when another tab joins the group.
 - Click the header to collapse / expand; double-click (or its ⋯ menu) to rename; the menu also has
-  Ungroup and Close group. Closing a group closes its tabs for good: it doesn't stay behind as a
+  Ungroup and Delete group. Deleting a group closes its tabs for good: it doesn't stay behind as a
   hidden saved group, and nothing reopens it. Tabs removed from a group are never auto-grouped again.
 - Collapsed groups' tabs **sleep sooner**: after a third of the normal sleep time, at least
   1 minute.

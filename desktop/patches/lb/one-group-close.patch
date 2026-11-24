@@ -2,11 +2,20 @@
 # which keeps the group as a saved group to reopen from the saved groups menus (none exist here:
 # no-saved-groups-button.patch, no-app-menu-tab-groups.patch), and "Delete group", which removes
 # it. The menu is built as for a profile without saved groups: New tab in group, Move group to new
-# window, Ungroup, Close group. The sidebar deletes the saved copy Close group leaves
-# (SidebarController::OnTabGroupWillBeRemoved).
+# window, Ungroup, and the close item, labelled "Delete group" as the group is gone for good. The
+# sidebar deletes the saved copy closing leaves (SidebarController::OnTabGroupWillBeRemoved).
 --- a/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
 +++ b/chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.cc
-@@ -507,9 +507,8 @@
+@@ -501,15 +501,14 @@
+     return l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_DELETE_GROUP);
+   }
+ 
+-  // The UI updates now just name this "Close group" instead of "Delete Group"
+-  // Since delete group is separate if the group is saved.
+-  return l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_CLOSE_GROUP);
++  // Little Browser: closing a group closes its tabs for good (no saved groups
++  // to reopen it from), so the one item says "Delete group".
++  return l10n_util::GetStringUTF16(IDS_TAB_GROUP_HEADER_CXMENU_DELETE_GROUP);
  }
  
  bool TabGroupEditorBubbleView::CanSaveGroups() const {

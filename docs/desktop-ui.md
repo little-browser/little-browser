@@ -46,8 +46,9 @@ space hue, mapped to the nearest Chromium group colour by `TabGroupColorForHue` 
 Restored groups and groups moved between windows keep their own colour. Chromium keeps every group
 as a saved group (`TabGroupSyncService`); Little Browser shows none of them. The group menu is
 Chromium's editor bubble built as if saved groups were off (`patches/lb/one-group-close.patch`), so
-it has one Close group and no Delete group, and the app menu has no Tab groups submenu
-(`patches/lb/no-app-menu-tab-groups.patch`). Close group is the one way a group ends that Chromium
+it has one close item, labelled Delete group (it is Chromium's Close group), and no separate Delete
+group; the app menu has no Tab groups submenu (`patches/lb/no-app-menu-tab-groups.patch`). That
+close item is the one way a group ends that Chromium
 keeps as a closed saved group, so `SidebarController::OnTabGroupWillBeRemoved` deletes that group's
 saved copy; groups that end otherwise (last tab closed, ungrouped) are deleted by Chromium, and
 groups closed with their window stay with their space. `lb::RegisterProfilePrefs` turns off
