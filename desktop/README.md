@@ -38,8 +38,11 @@ See [docs/design.md §4.1](../docs/design.md#41-desktop-how-we-fork-chromium).
 - Homebrew tools:
 
 ```bash
-brew install ninja coreutils esbuild typescript go
+brew install ninja coreutils esbuild typescript go python
 ```
+
+- Python 3.10 or newer as `python3`: macOS's own `/usr/bin/python3` (3.9) fails Chromium's build
+  scripts, so `/opt/homebrew/bin` has to come before `/usr/bin` in `PATH`
 
 ## Build
 
