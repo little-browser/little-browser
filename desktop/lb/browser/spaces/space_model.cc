@@ -10,17 +10,15 @@
 #include <utility>
 #include <vector>
 
-#include "base/strings/string_number_conversions.h"
+#include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
+#include "lb/core_bridge/rules.rs.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
 
 namespace lb {
 
 namespace {
-
-// Golden-angle-ish step: consecutive spaces get clearly different colours.
-constexpr int kHueStep = 137;
 
 // The hue of each Chromium tab group colour (grey has none).
 struct GroupColourHue {
@@ -34,7 +32,61 @@ constexpr GroupColourHue kGroupColourHues[] = {
     {tab_groups::TabGroupColorId::kPurple, 270}, {tab_groups::TabGroupColorId::kPink, 330},
 };
 
+// The rules' view of a list of saved tabs.
+template <typename Field>
+rust::Vec<Field> Column(const std::vector<SavedTab>& tabs, Field SavedTab::* field) {
+  rust::Vec<Field> column;
+  column.reserve(tabs.size());
+  for (const SavedTab& tab : tabs) {
+    column.push_back(tab.*field);
+  }
+  return column;
+}
+
+rust::Vec<rust::String> Ids(const std::vector<SavedTab>& tabs, std::string SavedTab::* id) {
+  rust::Vec<rust::String> ids;
+  ids.reserve(tabs.size());
+  for (const SavedTab& tab : tabs) {
+    ids.push_back(rust::String(tab.*id));
+  }
+  return ids;
+}
+
+std::vector<std::vector<size_t>> ToRuns(const rust::Vec<core::TabRun>& runs) {
+  std::vector<std::vector<size_t>> out;
+  for (const core::TabRun& run : runs) {
+    out.emplace_back(run.indexes.begin(), run.indexes.end());
+  }
+  return out;
+}
+
 }  // namespace
+
+const std::vector<std::string>& SpaceIcons() {
+  static const base::NoDestructor<std::vector<std::string>> icons([] {
+    std::vector<std::string> list;
+    for (const rust::String& icon : core::space_icons()) {
+      list.push_back(std::string(icon));
+    }
+    return list;
+  }());
+  return *icons;
+}
+
+const std::vector<SpaceColour>& SpaceColours() {
+  static const base::NoDestructor<std::vector<SpaceColour>> colours([] {
+    std::vector<SpaceColour> list;
+    for (const core::SpaceColour& colour : core::space_colours()) {
+      list.push_back({base::UTF8ToUTF16(std::string(colour.name)), colour.hue});
+    }
+    return list;
+  }());
+  return *colours;
+}
+
+int FirstSpaceHue() {
+  return core::first_space_hue();
+}
 
 base::DictValue SpaceToDict(const Space& space) {
   base::DictValue dict;
@@ -57,18 +109,18 @@ std::optional<Space> SpaceFromDict(const base::DictValue& dict, std::string_view
   Space space;
   space.id = *id;
   space.name = name ? *name : "Space";
-  space.icon = icon ? *icon : kSpaceIcons[0];
-  space.hue = dict.FindInt("hue").value_or(kFirstSpaceHue);
+  space.icon = icon ? *icon : SpaceIcons()[0];
+  space.hue = dict.FindInt("hue").value_or(FirstSpaceHue());
   space.profile = profile && !profile->empty() ? *profile : std::string(fallback_profile);
   return space;
 }
 
 int NextSpaceHue(const std::vector<Space>& spaces) {
-  return spaces.empty() ? kFirstSpaceHue : (spaces.back().hue + kHueStep) % 360;
+  return core::next_space_hue(!spaces.empty(), spaces.empty() ? 0 : spaces.back().hue);
 }
 
-const char* NextSpaceIcon(const std::vector<Space>& spaces) {
-  return kSpaceIcons[spaces.size() % std::size(kSpaceIcons)];
+std::string NextSpaceIcon(const std::vector<Space>& spaces) {
+  return std::string(core::next_space_icon(spaces.size()));
 }
 
 const Space* FindActiveSpace(const std::vector<Space>& spaces, std::string_view active_id) {
@@ -80,28 +132,29 @@ const Space* FindActiveSpace(const std::vector<Space>& spaces, std::string_view 
 }
 
 std::string NextSpaceName(const std::vector<Space>& spaces) {
-  return "Space " + base::NumberToString(spaces.size() + 1);
+  return std::string(core::next_space_name(spaces.size()));
 }
 
 int NormalizeHue(int hue) {
-  return ((hue % 360) + 360) % 360;
+  return core::normalize_hue(hue);
 }
 
 int HueDistance(int a, int b) {
-  const int d = std::abs(NormalizeHue(a) - NormalizeHue(b));
-  return std::min(d, 360 - d);
+  return core::hue_distance(a, b);
 }
 
 size_t NearestSpaceColour(int hue) {
-  const auto it = std::ranges::min_element(
-      kSpaceColours, {}, [hue](const SpaceColour& c) { return HueDistance(c.hue, hue); });
-  return static_cast<size_t>(it - std::begin(kSpaceColours));
+  return core::nearest_space_colour(hue);
 }
 
 tab_groups::TabGroupColorId TabGroupColorForHue(int hue) {
-  return std::ranges::min(kGroupColourHues, {},
-                          [hue](const GroupColourHue& g) { return HueDistance(g.hue, hue); })
-      .colour;
+  std::vector<int32_t> hues;
+  for (const GroupColourHue& g : kGroupColourHues) {
+    hues.push_back(g.hue);
+  }
+  const int64_t nearest =
+      core::nearest_hue(rust::Slice<const int32_t>(hues.data(), hues.size()), hue);
+  return kGroupColourHues[nearest < 0 ? 0 : static_cast<size_t>(nearest)].colour;
 }
 
 std::optional<std::string> ChooseSpaceForWindow(
@@ -110,24 +163,17 @@ std::optional<std::string> ChooseSpaceForWindow(
     std::string_view last_active_id,
     base::FunctionRef<bool(const std::string& id)> is_shown,
     bool restoring_session) {
+  rust::Vec<core::WindowSpace> list;
   for (const Space& s : spaces) {
-    if (s.id == last_active_id && s.profile == profile && !is_shown(s.id)) {
-      return s.id;
-    }
+    list.push_back({rust::String(s.id), rust::String(s.profile), is_shown(s.id)});
   }
-  for (const Space& s : spaces) {
-    if (s.profile == profile && !is_shown(s.id)) {
-      return s.id;
-    }
+  const rust::String id = core::choose_space_for_window(
+      list, rust::Str(profile.data(), profile.size()),
+      rust::Str(last_active_id.data(), last_active_id.size()), restoring_session);
+  if (id.empty()) {
+    return std::nullopt;
   }
-  if (restoring_session) {
-    for (const Space& s : spaces) {
-      if (s.profile == profile) {
-        return s.id;
-      }
-    }
-  }
-  return std::nullopt;
+  return std::string(id);
 }
 
 bool IsBlankTabUrl(const GURL& url) {
@@ -207,58 +253,34 @@ std::vector<SavedTab> SavedTabsFromList(const base::ListValue& list) {
   return tabs;
 }
 
-namespace {
-
-// Runs of neighbouring tabs with the same non-empty id.
-std::vector<std::vector<size_t>> Runs(const std::vector<SavedTab>& tabs,
-                                      std::string SavedTab::* id) {
-  std::vector<std::vector<size_t>> runs;
-  for (size_t i = 0; i < tabs.size(); ++i) {
-    if ((tabs[i].*id).empty()) {
-      continue;
-    }
-    if (i > 0 && tabs[i - 1].*id == tabs[i].*id) {
-      runs.back().push_back(i);
-    } else {
-      runs.push_back({i});
-    }
-  }
-  return runs;
-}
-
-}  // namespace
-
 std::vector<std::vector<size_t>> SavedTabGroups(const std::vector<SavedTab>& tabs) {
-  return Runs(tabs, &SavedTab::group_id);
+  return ToRuns(core::tab_runs(Ids(tabs, &SavedTab::group_id)));
 }
 
 std::vector<std::vector<size_t>> SavedTabSplits(const std::vector<SavedTab>& tabs) {
-  std::vector<std::vector<size_t>> splits = Runs(tabs, &SavedTab::split_id);
-  std::erase_if(splits, [](const std::vector<size_t>& run) { return run.size() != 2; });
-  return splits;
+  return ToRuns(core::split_runs(Ids(tabs, &SavedTab::split_id)));
 }
 
 std::vector<SavedTab> MergeSavedTabs(std::vector<SavedTab> existing, std::vector<SavedTab> added) {
+  const rust::Vec<bool> existing_pinned = Column(existing, &SavedTab::pinned);
+  const rust::Vec<bool> added_pinned = Column(added, &SavedTab::pinned);
   std::vector<SavedTab> merged;
   merged.reserve(existing.size() + added.size());
-  for (bool pinned : {true, false}) {
-    for (std::vector<SavedTab>* list : {&existing, &added}) {
-      for (SavedTab& tab : *list) {
-        if (tab.pinned == pinned) {
-          if (list == &added) {
-            tab.active = false;
-          }
-          merged.push_back(std::move(tab));
-        }
-      }
+  for (const core::MergeSlot& slot :
+       core::merge_order(rust::Slice<const bool>(existing_pinned.data(), existing_pinned.size()),
+                         rust::Slice<const bool>(added_pinned.data(), added_pinned.size()))) {
+    SavedTab& tab = slot.added ? added[slot.index] : existing[slot.index];
+    if (slot.added) {
+      tab.active = false;  // the space's active tab stays the active one
     }
+    merged.push_back(std::move(tab));
   }
   return merged;
 }
 
 size_t ActiveSavedTab(const std::vector<SavedTab>& tabs) {
-  const auto it = std::ranges::find_if(tabs, &SavedTab::active);
-  return it == tabs.end() ? 0 : static_cast<size_t>(it - tabs.begin());
+  const rust::Vec<bool> active = Column(tabs, &SavedTab::active);
+  return core::active_tab(rust::Slice<const bool>(active.data(), active.size()));
 }
 
 }  // namespace lb

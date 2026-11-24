@@ -39,6 +39,10 @@ void AddElementHidingPrerenderPolicy(content::MojoBinderPolicyMap& map);
 // loaded (the file may be missing, or damaged: not valid UTF-8). UI thread.
 void LoadElementHidingRules(const base::FilePath& file, base::OnceCallback<void(bool)> done);
 
+// For --lb-sidebar-demo=element-hiding: drops the loaded rules, so that frames wait as they do
+// at startup, and keeps the downloaded ones from replacing them. UI thread.
+void WithholdElementHidingRulesForDemo();
+
 // Indexes `rules` (filter-list lines) at once, for --lb-sidebar-demo=element-hiding; the
 // downloaded rules then don't replace them. UI thread.
 void SetElementHidingRulesForDemo(const std::string& rules);

@@ -19,25 +19,3 @@
    // For most sites, this returns a human-friendly string based on site origin,
    // without scheme, the username and password, the path or trivial subdomains.
    //
---- a/chrome/browser/ui/views/page_info/page_info_cookies_content_view.cc
-+++ b/chrome/browser/ui/views/page_info/page_info_cookies_content_view.cc
-@@ -31,6 +31,7 @@
- #include "ui/views/metadata/view_factory.h"
- #include "ui/views/vector_icons.h"
- #include "ui/views/view_class_properties.h"
-+#include "lb/browser/adblock/site_ads_row.h"
- 
- #if BUILDFLAG(IS_CHROMEOS)
- #include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
-@@ -164,6 +165,11 @@
- 
-   AddThirdPartyCookiesContainer();
- 
-+  // Little Browser: the built-in ad blocker's per-site switch (desktop/lb/browser/adblock).
-+  if (std::unique_ptr<views::View> ads = lb::MakeSiteAdsRow(presenter_)) {
-+    AddChildView(std::move(ads));
-+  }
-+
- #if BUILDFLAG(IS_CHROMEOS)
-   MaybeAddSyncDisclaimer();
- #endif

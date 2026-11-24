@@ -32,6 +32,8 @@
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/infobars/content/content_infobar_manager.h"
+#include "components/infobars/core/infobar.h"
+#include "components/infobars/core/infobar_delegate.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/reload_type.h"
@@ -266,8 +268,15 @@ class AdBlockerDemo : public content::WebContentsObserver {
       case Stage::kAllowedBySwitch:
         Check("ad_loads_when_allowed", ad_loaded);
         // The switch's reload applied the cookie switch too: no "reload this page" prompt.
-        Check("no_reload_prompt",
-              infobars::ContentInfoBarManager::FromWebContents(tab_.get())->infobars().empty());
+        {
+          const auto& infobars =
+              infobars::ContentInfoBarManager::FromWebContents(tab_.get())->infobars();
+          for (const infobars::InfoBar* infobar : infobars) {
+            LOG(WARNING) << "lb demo: ad-blocker infobar "
+                         << static_cast<int>(infobar->delegate()->GetIdentifier());
+          }
+          Check("no_reload_prompt", infobars.empty());
+        }
         OpenCommandBar();
         return;
       case Stage::kBlockedByCommandBar:

@@ -4,13 +4,13 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Checks that our patch series applies to a clean tree, without re-fetching it.
 
-    desktop/scripts/check_patches.py [--keep DIR]
+    desktop/scripts/check_patches.py [--platform NAME] [--keep DIR]
 
 For every file our series (desktop/patches/series) touches, rebuilds the file as fetch.sh sees it
 just before our patches: taken from the pinned Chromium tarball in build/download_cache, then
-patched by ungoogled-chromium's core and macOS series (minus patches/ungoogled-exclude.txt). Then
-applies our series with the same `patch` flags as ungoogled's patches.py and fails on any rejected
-hunk, fuzz or offset.
+patched by ungoogled-chromium's core series and the platform's (minus patches/ungoogled-exclude.txt).
+Then applies our series for that platform (default mac; desktop/platforms/) with the same `patch`
+flags as ungoogled's patches.py and fails on any rejected hunk, fuzz or offset.
 
 This is the check for a new or regenerated patch: `git apply --check -R` against build/src can't
 catch a patch made from the wrong base, because build/src already has every patch in it.
@@ -43,6 +43,39 @@ def read_list(path):
             if line:
                 entries.append(line)
     return entries
+
+
+PLATFORM_TAG = re.compile(r"#\s*\[([A-Za-z0-9_-]+)\]")
+
+
+def read_series(path, platform=None):
+    """(patch path, platform tag or None) for each entry of a series, in order. With a platform,
+    only the entries for it: untagged ones and those tagged with it (as desktop/scripts/lib.sh's
+    series_for)."""
+    entries = []
+    with open(path) as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            name = stripped.split("#", 1)[0].strip()
+            tag = PLATFORM_TAG.search(stripped)
+            tag = tag.group(1) if tag else None
+            if platform is None or tag in (None, platform):
+                entries.append((name, tag))
+    return entries
+
+
+def platform_repo(platform):
+    """The platform's ungoogled-chromium repo (PLATFORM_REPO in desktop/platforms/<name>.sh)."""
+    path = os.path.join(DESKTOP, "platforms", f"{platform}.sh")
+    if not os.path.exists(path):
+        sys.exit(f"no desktop platform {platform!r} ({path})")
+    with open(path) as f:
+        match = re.search(r'^PLATFORM_REPO="([^"]+)"', f.read(), re.MULTILINE)
+    if not match:
+        sys.exit(f"{path} doesn't set PLATFORM_REPO")
+    return match.group(1)
 
 
 def versions():
@@ -114,11 +147,13 @@ def apply_series(tree, patches_dir, series, wanted, excluded, strict):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--platform", default="mac", help="the desktop platform (default: mac)")
     parser.add_argument("--keep", help="keep the clean bases and the result in this folder")
     args = parser.parse_args()
 
     ours_dir = os.path.join(DESKTOP, "patches")
-    ours = read_list(os.path.join(ours_dir, "series"))
+    ours = [name for name, _ in read_series(os.path.join(ours_dir, "series"), args.platform)]
+    repo = platform_repo(args.platform)
     wanted = set()
     for name in ours:
         wanted.update(t for t, _ in file_chunks(open(os.path.join(ours_dir, name)).read()))
@@ -130,7 +165,7 @@ def main():
 
     work = args.keep or tempfile.mkdtemp(prefix="lb-check-patches-")
     try:
-        check(work, ours_dir, ours, wanted, tarball, version)
+        check(work, ours_dir, ours, wanted, tarball, version, repo)
     finally:
         if not args.keep:
             shutil.rmtree(work, ignore_errors=True)
@@ -155,7 +190,7 @@ def tar_members(tarball):
             proc.wait()
 
 
-def check(work, ours_dir, ours, wanted, tarball, version):
+def check(work, ours_dir, ours, wanted, tarball, version, platform_repo_name):
     base = os.path.join(work, "base")
     shutil.rmtree(base, ignore_errors=True)
     os.makedirs(base)
@@ -171,10 +206,10 @@ def check(work, ours_dir, ours, wanted, tarball, version):
                 with tar.extractfile(member) as src, open(dest, "wb") as out:
                     shutil.copyfileobj(src, out)
 
-    # 2. ungoogled-chromium's core and macOS series, as fetch.sh applies them.
+    # 2. ungoogled-chromium's core and platform series, as fetch.sh applies them.
     excluded = set(read_list(os.path.join(ours_dir, "ungoogled-exclude.txt")))
     errors = []
-    for repo in ("ungoogled-chromium", "ungoogled-chromium-macos"):
+    for repo in ("ungoogled-chromium", platform_repo_name):
         patches_dir = os.path.join(DESKTOP, "third_party", repo, "patches")
         series = read_list(os.path.join(patches_dir, "series"))
         errors += apply_series(base, patches_dir, series, wanted, excluded, strict=False)

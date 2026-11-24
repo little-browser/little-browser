@@ -1,0 +1,24 @@
+# Little Browser (Android): the new tab page doesn't download Google's doodle or logo when Google
+# is the search engine (www.google.com/async/ddljson on every new tab); it shows the built-in
+# Google logo.
+
+diff --git a/components/search_provider_logos/logo_service_impl.cc b/components/search_provider_logos/logo_service_impl.cc
+index 3dc91cd48..6ede8838b 100644
+--- a/components/search_provider_logos/logo_service_impl.cc
++++ b/components/search_provider_logos/logo_service_impl.cc
+@@ -253,12 +253,9 @@ void LogoServiceImpl::GetLogo(LogoCallbacks callbacks,
+   is_google_ = template_url->url_ref().HasGoogleBaseURLs(
+       template_url_service_->search_terms_data());
+   if (is_google_) {
+-    // Note: Ideally the Google doodle URL would be specified in
+-    // prepopulated_engines.json, but there is some custom logic in
+-    // `GetGoogleDoodleURL()` that can't be represented in the static file.
+-    base_url =
+-        GURL(template_url_service_->search_terms_data().GoogleBaseURLValue());
+-    doodle_url = search_provider_logos::GetGoogleDoodleURL(base_url);
++    // Little Browser: no logo or doodle downloads from Google.
++    RunCallbacksWithDisabled(std::move(callbacks));
++    return;
+   } else {
+     if (command_line->HasSwitch(switches::kThirdPartyDoodleURL)) {
+       doodle_url = GURL(

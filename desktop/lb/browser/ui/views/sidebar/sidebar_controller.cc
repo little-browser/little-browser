@@ -79,6 +79,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/referrer.h"
 #include "lb/browser/adblock/ad_blocker.h"
 #include "lb/browser/adblock/ad_blocker_demo.h"
 #include "lb/browser/adblock/element_hiding_demo.h"
@@ -304,6 +305,31 @@ void DemoGroupColour(base::WeakPtr<SidebarController> self, bool close) {
         FROM_HERE, base::BindOnce(&DemoCloseGroup, self, group), base::Seconds(3));
   }
 }
+
+// --lb-sidebar-demo=inactive-space-load: a page of an inactive space loads while its tab is parked
+// (detached from every window, as an inactive space's tabs are). Chromium's tab helpers that look
+// up a tab's window when a navigation finishes must cope with there being none.
+constexpr char kInactiveSpaceLoadDemo[] = "inactive-space-load";
+
+void LoadInParkedTab(base::WeakPtr<content::WebContents> page) {
+  if (!page) {
+    ReportDemo(kInactiveSpaceLoadDemo, false, "the parked tab is gone");
+    return;
+  }
+  page->GetController().LoadURL(GURL("data:text/html,<title>loaded</title>loaded"),
+                                content::Referrer(), ui::PAGE_TRANSITION_LINK, std::string());
+  PostDemoTask(base::BindOnce(
+                   [](base::WeakPtr<content::WebContents> page) {
+                     const bool loaded =
+                         page && !page->IsLoading() && page->GetTitle() == u"loaded";
+                     ReportDemo(kInactiveSpaceLoadDemo, loaded,
+                                loaded ? "a parked tab loaded a page"
+                                       : "the parked tab didn't load the page");
+                   },
+                   page),
+               base::Seconds(3));
+}
+
 
 }  // namespace
 
@@ -1805,7 +1831,7 @@ void SidebarController::SeedDemoData() {
   if (GetSpaces().size() == 1 && !import_demo) {
     Space work{base::Uuid::GenerateRandomV4().AsLowercaseString(),
                "Work",
-               kSpaceIcons[1],
+               SpaceIcons()[1],
                28,
                GetProfileBaseName(),
                u""};
@@ -1884,7 +1910,7 @@ void SidebarController::SeedDemoData() {
             } else if (demo == "new-profile") {
               // What the dialog's Create does with "New profile…": a new profile and a space in
               // it, which opens that profile's window in place of this one.
-              self->CreateSpace("Client", kSpaceIcons[2], 330, std::string(), u"Client");
+              self->CreateSpace("Client", SpaceIcons()[2], 330, std::string(), u"Client");
             } else if (demo == "reopen-window") {
               // Open a second window (it takes the free Personal space), give it a page, close
               // it and reopen it through tab restore, as an extension can: it must come back on
@@ -2291,6 +2317,14 @@ void SidebarController::SeedDemoData() {
                       },
                       self),
                   base::Seconds(2));
+            } else if (demo == kInactiveSpaceLoadDemo) {
+              // A page in this space; then back to the first space, which parks it.
+              content::WebContents* page = chrome::AddAndReturnTabAt(
+                  self->browser(), GURL("data:text/html,<title>parked</title>parked"), -1,
+                  /*foreground=*/false);
+              base::WeakPtr<content::WebContents> weak_page = page->GetWeakPtr();
+              self->SwitchTo(0);
+              PostDemoTask(base::BindOnce(&LoadInParkedTab, weak_page), base::Seconds(2));
             } else if (demo == "search-again") {
               // "Not now", then a search: the choice must come back.
               ShowSearchChoice(self->browser(), base::OnceClosure());

@@ -1,0 +1,25 @@
+# Little Browser (Android): the new tab page doesn't download Google's "popular sites" list from
+# www.gstatic.com; its tiles come from the user's own history only.
+
+diff --git a/chrome/browser/ntp_tiles/chrome_most_visited_sites_factory.cc b/chrome/browser/ntp_tiles/chrome_most_visited_sites_factory.cc
+index e97af3e79..f1214447e 100644
+--- a/chrome/browser/ntp_tiles/chrome_most_visited_sites_factory.cc
++++ b/chrome/browser/ntp_tiles/chrome_most_visited_sites_factory.cc
+@@ -37,16 +37,8 @@
+ namespace {
+ 
+ bool ShouldCreatePopularSites(Profile* profile) {
+-#if BUILDFLAG(IS_ANDROID)
+-  if (search::IsWebUiNtpEnabledForDesktopAndroid() &&
+-      base::FeatureList::IsEnabled(chrome::android::kUseWebUiNtp3PDSE)) {
+-    // TODO(crbug.com/572038495): Remove Popular Sites for 1P NTPs.
+-    return search::DefaultSearchProviderIsGoogle(profile);
+-  }
+-  return true;
+-#else
++  // Little Browser: no popular-sites download.
+   return false;
+-#endif
+ }
+ 
+ bool ShouldCreateCustomLinksManager() {

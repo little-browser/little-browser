@@ -140,6 +140,8 @@ The centre of the browser. A floating palette in the middle of the window.
 - **New space** (the footer's ＋ menu, or the command bar) opens a small dialog: **name**, **profile**
   (an existing one, preselected to the current space's, or **New profile…** with its name) and
   **theme** (colour and icon); **Cancel** or **Create**.
+- The search engine belongs to the profile: spaces that share a profile share it. A new profile
+  asks for its search engine the first time it opens, as first run does.
 - Spaces are browser-wide. A Chromium window belongs to one profile, so switching to a space in
   another profile brings that profile's window up in the same place and hides the current one.
 - Each space keeps its tabs across restarts: the browser continues where you left off by default,

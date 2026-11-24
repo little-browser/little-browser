@@ -6,7 +6,7 @@
 # infrastructure repository. Shared and group runners are disabled for this project.
 #   lb-linux                small Linux Spot: quick checks, patch-check, release bot
 #   lb-linux-protected      small Linux Spot, protected refs only; its role controls the Mac host
-#   lb-linux-build          64 vCPU x86_64 Linux Spot, 300 GB: Chromium builds for merge requests (later)
+#   lb-linux-build          64 vCPU x86_64 Linux Spot, 300 GB: merge-request builds, Android    (later)
 #   lb-linux-release        same, protected refs only: release builds, signing secrets            (later)
 #   lb-linux-arm64-build    64 vCPU Graviton Linux Spot, 300 GB: arm64 builds for merge requests  (later)
 #   lb-linux-arm64-release  same, protected refs only                                             (later)
@@ -91,24 +91,52 @@ scripts:
   tags: [lb-linux]
   image: koalaman/shellcheck-alpine:stable
   script:
-    - shellcheck desktop/scripts/*.sh core/scripts/*.sh   # also reports syntax errors; the image has no bash
+    - shellcheck desktop/scripts/*.sh desktop/platforms/*.sh core/scripts/*.sh android/scripts/*.sh   # also reports syntax errors; the image has no bash
+
+# Gate: no patch for every platform mixes engine and view code, and platform-only patches are
+# tagged (desktop/patches/README.md).
+patch-layers:
+  extends: .check
+  tags: [lb-linux]
+  image: python:3-slim
+  script:
+    - python3 -I desktop/scripts/check_series.py
 
 # Every patch still applies: ungoogled-chromium, platform and our series on a fresh
-# Chromium tarball. No compile, so it is cheap enough for every bump or patch merge request.
+# Chromium tarball, for each desktop platform. No compile, so it is cheap enough for every bump or
+# patch merge request.
 patch-check:
   stage: check
   tags: [lb-linux]
   image: python:3-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: [desktop/VERSIONS, desktop/patches/**/*]
+      changes: [desktop/VERSIONS, desktop/patches/**/*, desktop/platforms/**/*]
   before_script:
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends git patch xz-utils ca-certificates
   script:
-    - desktop/scripts/fetch.sh --patches-only
+    - |
+      for entry in desktop/platforms/*.sh; do
+        desktop/scripts/fetch.sh --patches-only --platform "$(basename "$entry" .sh)"
+        desktop/scripts/check_patches.py --platform "$(basename "$entry" .sh)"   # ours: no fuzz or offset
+        rm -rf desktop/build/src
+      done
   cache:
     key: chromium-download-cache
     paths: [desktop/build/download_cache]
+
+# The same for the Android patches, on a sparse checkout of just the files they touch: seconds.
+android-patch-check:
+  stage: check
+  tags: [lb-linux]
+  image: alpine:3
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [desktop/VERSIONS, android/patches/**/*, android/scripts/fetch.sh]
+  before_script:
+    - apk add --no-cache bash git
+  script:
+    - android/scripts/fetch.sh --patches-only
 
 # ------------------------------------------------------------------ release automation
 
@@ -185,6 +213,57 @@ macos-arm64:
     - desktop/scripts/fetch.sh arm64
     - desktop/scripts/build.sh arm64
     - (cd desktop/build/src && ninja -C out/Default lb_unittests lb_core_unittests && out/Default/lb_unittests && out/Default/lb_core_unittests)
+
+# Chromium builds on the Linux build runners, for every Linux-hosted platform (Android now, Linux
+# desktop later): a fresh ubuntu:24.04 container per job on a 64 vCPU spot host, the tools and
+# sccache from desktop/scripts/linux-build-host.sh, and the compiler cache in S3 under the prefix
+# the host's role may write. Merge requests and manual runs use lb-linux-build (sccache/mr/);
+# release builds on protected refs extend .linux-chromium-release (lb-linux-release,
+# sccache/release/), so a merge request can never plant objects a signed release links in. The
+# -arm64 templates are the same on the Graviton runners, for builds made natively on arm64.
+.linux-chromium:
+  extends: .chromium
+  tags: [lb-linux-build]
+  image: ubuntu:24.04
+  variables:
+    GIT_DEPTH: 1
+    LB_CC_WRAPPER: sccache
+    SCCACHE_BUCKET: $LB_SCCACHE_BUCKET
+    SCCACHE_REGION: $LB_AWS_REGION
+    SCCACHE_S3_KEY_PREFIX: sccache/mr/
+    SCCACHE_S3_SERVER_SIDE_ENCRYPTION: "true"
+  before_script:
+    - desktop/scripts/linux-build-host.sh
+
+.linux-chromium-release:
+  extends: .linux-chromium
+  tags: [lb-linux-release]
+  variables:
+    SCCACHE_S3_KEY_PREFIX: sccache/release/
+
+.linux-chromium-arm64:
+  extends: .linux-chromium
+  tags: [lb-linux-arm64-build]
+
+.linux-chromium-arm64-release:
+  extends: .linux-chromium-release
+  tags: [lb-linux-arm64-release]
+
+# Android: Chromium's own app (ChromePublic.apk, app ID app.littlebrowser.browser) with our privacy
+# patches, on a Linux x86_64 build host, the only one Chromium builds Android on. Manual for now:
+# there is no lb-linux-build runner yet, and nothing ships the APK.
+android-arm64:
+  extends: .linux-chromium
+  rules:
+    - when: manual
+      allow_failure: true
+  script:
+    - android/scripts/fetch.sh
+    - android/build/src/build/install-build-deps.sh --android --no-prompt --no-chromeos-fonts
+    - android/scripts/build.sh arm64
+  artifacts:
+    paths: [android/build/src/out/arm64/apks/ChromePublic.apk]
+    expire_in: 30 days
 
 # macos-x64, linux-x64, linux-arm64, windows-x64: added when their platform recipes are wired up
 # (desktop/README.md). linux-x64, linux-arm64 and windows-x64 also get a merge_request_event rule.

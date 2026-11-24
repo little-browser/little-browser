@@ -105,6 +105,13 @@ same UI concepts, the same Rust core and the same sync.
   safe for App Store distribution.
 - Our code lives in a **separate source tree** (`lb/`) that hooks into Chromium through as few
   and as small patches as possible (Brave's `brave-core` model: override files + thin patches).
+  A patch changes engine code or view code, never both, so the engine half can serve Linux,
+  Windows and Android as it is; patches for one platform's files are tagged for it
+  (`desktop/patches/README.md`). Data-model rules every platform needs live in `lb-core`.
+- Each desktop platform is one entry (`desktop/platforms/<name>.sh`): its ungoogled-chromium
+  platform repo, tarball and toolchain download, icons, pre-build tools and packaging. Fetching,
+  patching, domain substitution and the GN/Ninja build are shared, so a new platform is one more
+  entry plus its args file and CI job.
 - Release cadence: follow Chromium stable (new major every 4 weeks); ship security point releases
   within **days** of upstream, because Chromium security fixes become public in the source tree.
 
@@ -127,6 +134,14 @@ interim System WebView app: a WebView app can't keep the privacy promise (reques
 through `shouldInterceptRequest`, no cosmetic filtering at engine level, weaker incognito
 isolation).
 
+The Android build today is Chromium's own `chrome_public_apk` from a gclient checkout (the source
+tarball has no Android SDK or NDK), at the Chromium version pinned for desktop, with our app ID
+and our own Android privacy patches (`android/patches/`): no automatic requests to Google and the
+desktop's privacy defaults. It is not based on ungoogled-chromium, which has no maintained Android
+platform repo and tests its patches on desktop only. It builds on Linux x86_64 only. Where it
+falls short of section 5 (Safe Browsing) is listed in
+`android/README.md`.
+
 ### 4.3 iOS
 
 Swift app, `WKWebView`, UIKit for the browser chrome (SwiftUI for settings). Key building blocks:
@@ -140,11 +155,18 @@ Safari Web Inspector.
 - Exposed through **UniFFI** (Swift/Kotlin) and **cxx** (C++). This is the same pattern Mozilla uses
   for Firefox's shared components.
 - Content blocking: desktop (and Android) use Chromium's own **subresource filter**, fed the
-  filter lists the browser downloads and parses itself (`desktop/lb/browser/adblock`); it blocks
-  network requests, not page elements. Element hiding, which Chromium's filter doesn't do, is the
-  core's own (`element_hiding.rs`): it indexes the lists' CSS hiding rules, and the desktop
+  filter lists the browser downloads itself; it blocks network requests, not page elements. Which
+  lists, when to download them, which lines apply and how uBlock Origin's syntax is read are the
+  core's (`adblock.rs`); each shell turns the prepared rules into its engine's format
+  (desktop: `desktop/lb/browser/adblock`). Element hiding, which Chromium's filter doesn't do, is
+  the core's own (`element_hiding.rs`): it indexes the lists' CSS hiding rules, and the desktop
   renderer inserts them into each page. On iOS the core will convert the same lists into WebKit
   content-blocker JSON. Brave's adblock-rust isn't used: Chromium doesn't vendor it.
+- The rules every shell shares are the core's too: a new space's defaults and colours, which
+  space a window opens on and how saved tabs are ordered (`spaces.rs`), the command bar's ranking
+  (`command_bar.rs`) and the search engine choice (`search_choice.rs`). Shells keep their saved
+  forms and their own types around them; desktop reaches them through
+  `desktop/lb/core_bridge/rules.rs`.
 - Storage: SQLite per profile.
 - **In the desktop build** the core is compiled by Chromium's own Rust toolchain as a GN
   `rust_static_library` (`fetch.sh` links `src/lb_core` to `core/lb-core`, as it links `src/lb`).
@@ -525,8 +547,9 @@ carrier networks.
 | macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers, tracking-parameter stripping, element hiding |
 | Windows, Linux (x64, arm64) desktop | Not built: the platform recipes aren't wired up; the Linux build hosts for both architectures exist |
 | Auto-PiP, on-demand Widevine | Specified, not built |
-| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers, and the element-hiding and tracking-parameter rules; linked into the desktop build through a `cxx` bridge |
-| Sync, iOS, Android | Not started |
+| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers, and the rules every platform shares (spaces, the command bar, filter lists and element hiding, tracking parameters, the search engine choice); linked into the desktop build through `cxx` bridges |
+| Android | Chromium with our privacy patches and app ID: build scripts, a patch check and a manual build job in CI; not built yet (no Linux build runner), none of our UI |
+| Sync, iOS | Not started |
 
 The order of work is desktop, then iOS and sync, then Android. iOS comes before Android because a
 WKWebView app is far less work than an Android Chromium fork.
@@ -553,7 +576,7 @@ Little Browser is open source. What that means in practice:
 |---|---|
 | Licence | Our code: **MPL-2.0**. Chromium: BSD-3 (its third-party notices are generated into `about:credits`). Each file carries the MPL header. |
 | Repository | Hosted on **GitLab**, which runs CI and releases. A **read-only mirror on GitHub** (`github.com/little-browser/little-browser`) carries the protected branches (`main`) and release tags; feature, fix and `bump/*` branches stay on GitLab. GitHub pull requests are off, because the next push would overwrite a merge there; GitHub Issues are on for bug reports. |
-| Name and IDs | **Little Browser**; site **littlebrowser.app**. App IDs use its reverse: macOS `app.littlebrowser.LittleBrowser`; iOS and Android take the same `app.littlebrowser.` prefix. An app ID can't change after release without breaking updates and store listings. Logo and usage rules: `branding/`. |
+| Name and IDs | **Little Browser**; site **littlebrowser.app**. App IDs use its reverse: macOS `app.littlebrowser.LittleBrowser`, Android `app.littlebrowser.browser`; iOS takes the same `app.littlebrowser.` prefix. An app ID can't change after release without breaking updates and store listings. Logo and usage rules: `branding/`. |
 | Contributions | **DCO** sign-off (`git commit -s`) rather than a CLA — lighter for contributors; see `CONTRIBUTING.md`. |
 | Trademark | MPL grants no rights to the name or logo. Forks must rebrand (Firefox model). |
 | What stays private | Code-signing keys, update-feed signing keys, app-store accounts, the Widevine licence and VMP certificate (forks need their own). |
@@ -568,10 +591,11 @@ Little Browser is open source. What that means in practice:
 
 | Job | Runs on | When |
 |---|---|---|
-| Fast checks: Rust core, script lint, `patch-check`, release bot | `lb-linux`: small AWS Linux spot | Every push and merge request |
+| Fast checks: Rust core, script lint, `patch-check` and `android-patch-check`, release bot | `lb-linux`: small AWS Linux spot | Every push and merge request |
 | Chromium build, macOS arm64 (x64 later) | `lb-macos`: EC2 Mac host (mac2-m2pro) allocated per release by the `macos-arm64-host` job; a cold build on the instance's own disk (a persistent data volume is optional) | **Release tags only**: hours per version bump |
 | Chromium build, Linux x64 and arm64 / Windows | 64 vCPU AWS **spot** instances (300–400 GB disk), one job per host, each architecture built natively (arm64 on Graviton, so its unit tests run on the build host): `lb-linux-build` / `lb-linux-arm64-build` / `lb-windows-build` for merge requests, `lb-linux-release` / `lb-linux-arm64-release` / `lb-windows-release` for protected refs | **Every merge request** and release tags, once those platform recipes exist |
-| Compiler cache | **sccache** via GN `cc_wrapper`, keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles, and on the Mac only when it keeps a persistent data volume. Same checkout path on every runner so keys match | Always |
+| Chromium build, Android arm64 (`android-arm64`) | `lb-linux-build`, through the `.linux-chromium` CI template that Linux desktop builds will use as well: a fresh `ubuntu:24.04` per job, prepared by `desktop/scripts/linux-build-host.sh` (fetch tools, sccache) | **Manual**, until the runner is up and the APK ships |
+| Compiler cache | **sccache** via GN `cc_wrapper`, keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles (a job's container uses its host's role), and on the Mac only when it keeps a persistent data volume. Same checkout path on every runner so keys match | Always |
 
 **What a build costs.** A change to our own code on the same Chromium version mostly hits the
 cache: minutes. A Chromium version bump, about weekly, changes headers that nearly everything

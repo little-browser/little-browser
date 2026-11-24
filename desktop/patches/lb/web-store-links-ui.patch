@@ -1,0 +1,78 @@
+# The view half of web-store-links.patch (Views and WebUI), which says why. One patch never mixes
+# engine and view code (desktop/patches/README.md).
+
+--- a/chrome/browser/resources/extensions/sidebar.html.ts
++++ b/chrome/browser/resources/extensions/sidebar.html.ts
+@@ -45,6 +45,16 @@
+     <cr-ripple></cr-ripple>
+   </a>
+ </cr-menu-selector>
++<div class="separator"></div>
++<div class="cr-nav-menu-item" id="moreExtensions">
++  <cr-icon id="web-store-icon" icon="extensions-icons:web_store-custom">
++  </cr-icon>
++  <span id="discover-more-text" class="cr-secondary-text"
++      @click="${this.onMoreExtensionsClick_}"
++      .innerHTML="${this.computeDiscoverMoreText_()}">
++  </span>
++  <cr-ripple></cr-ripple>
++</div>
+ <!--_html_template_end_-->`;
+   // clang-format on
+ }
+--- a/chrome/browser/resources/extensions/sidebar.ts
++++ b/chrome/browser/resources/extensions/sidebar.ts
+@@ -23,6 +23,7 @@
+     sectionsExtensions: HTMLElement,
+     sectionsShortcuts: HTMLElement,
+     sectionsSitePermissions: HTMLElement,
++    moreExtensions: HTMLElement,
+   };
+ }
+ 
+@@ -116,6 +117,13 @@
+     }
+   }
+ 
++  protected computeDiscoverMoreText_(): TrustedHTML {
++    return this.i18nAdvanced('sidebarDiscoverMore', {
++      tags: ['a'],
++      attrs: ['target'],
++      substitutions: [loadTimeData.getString('getMoreExtensionsUrl')],
++    });
++  }
+ }
+ 
+ declare global {
+--- a/chrome/browser/resources/extensions/item_list.html.ts
++++ b/chrome/browser/resources/extensions/item_list.html.ts
+@@ -32,6 +32,12 @@
+       </div>
+     ` : ''}
+ 
++    <div id="no-items" class="empty-list-message"
++        ?hidden="${!this.shouldShowEmptyItemsMessage_()}">
++      <span @click="${this.onNoExtensionsClick_}"
++          .innerHTML="${this.computeNoItemsText_()}">
++      </span>
++    </div>
+     <div id="no-search-results" class="empty-list-message"
+         ?hidden="${!this.shouldShowEmptySearchMessage_()}">
+       <span>$i18n{noSearchResults}</span>
+--- a/chrome/browser/resources/extensions/item_list.ts
++++ b/chrome/browser/resources/extensions/item_list.ts
+@@ -290,6 +290,14 @@
+   protected shouldShowEmptySearchMessage_(): boolean {
+     return !this.shouldShowEmptyItemsMessage_() && this.shownAppsCount_ === 0 &&
+         this.shownExtensionsCount_ === 0;
++  }
++
++  protected computeNoItemsText_(): TrustedHTML {
++    return this.i18nAdvanced('noExtensionsOrApps', {
++      tags: ['a'],
++      attrs: ['target'],
++      substitutions: [loadTimeData.getString('getMoreExtensionsUrl')],
++    });
+   }
+ 
+   protected onNoExtensionsClick_(e: Event) {

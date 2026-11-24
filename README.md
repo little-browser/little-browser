@@ -6,7 +6,8 @@ Sidebar-first UI inspired by Arc. Open source under [MPL-2.0](LICENSE).
 > **Status:** the macOS desktop build runs: sidebar with spaces, pinned tabs and groups, command bar,
 > first-run search-engine and password-manager choices, Chrome Web Store extensions (MV3), the
 > built-in ad blocker (network filtering and element hiding), tracking-parameter stripping, Peek,
-> the little window, Safe Browsing in standard mode. Windows, Linux, iOS and Android don't exist
+> the little window, Safe Browsing in standard mode. Android builds Chromium's own app with our
+> privacy patches and app ID, with none of our features yet. Windows, Linux and iOS don't exist
 > yet. Sync is designed but not built. Little Browser is in beta, for Macs with Apple silicon
 > ([downloads](https://littlebrowser.app/downloads)); the one build published so far predates
 > extensions, the password-manager choice, the ad blocker, Peek and the little window.
@@ -27,7 +28,8 @@ Sidebar-first UI inspired by Arc. Open source under [MPL-2.0](LICENSE).
 | `core/` | `lb-core`, the shared Rust library (data model, sync transport trait) |
 | `branding/` | Logo masters and the icon export |
 | `site/` | The static website |
-| `ios/`, `android/` | Placeholders |
+| `android/` | Android build of the Chromium fork: GN args, privacy patches, fetch/build scripts |
+| `ios/` | Placeholder |
 
 ## Contributing
 

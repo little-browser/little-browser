@@ -7,24 +7,28 @@ See [docs/design.md §4.1](../docs/design.md#41-desktop-how-we-fork-chromium).
 
 | Path | What |
 |---|---|
-| `VERSIONS` | Pinned Chromium version and ungoogled-chromium tag |
+| `VERSIONS` | Pinned Chromium version and ungoogled-chromium tags (core and each platform repo) |
 | `args/` | GN build args: `common.gn` + one per platform, applied after ungoogled's `flags.gn` |
-| `patches/series` | Our Chromium patches, in order, one concern each |
+| `platforms/` | One entry per desktop platform (`mac.sh`): what differs in fetching and building; `platforms/README.md` |
+| `patches/series` | Our Chromium patches, in order, one concern and one layer each, some tagged for one platform; `patches/README.md` |
 | `patches/ungoogled-exclude.txt` | ungoogled patches we skip (Safe Browsing and the Chrome Web Store are kept, MV2 is off) |
 | `patches/domsub-exclude.txt` | Paths kept out of domain substitution (Safe Browsing, Widevine, the Chrome Web Store) |
 | `branding/BRANDING` | Product name, company, copyright, bundle id |
 | `lb/` | Our own code, linked into the tree as `src/lb` |
-| `scripts/fetch.sh` | Download + prepare the source tree into `build/src` |
+| `scripts/fetch.sh` | Download + prepare the source tree into `build/src` (`--platform <name>`; default: this machine's) |
+| `scripts/lib.sh` | Helpers shared with the Android scripts (clones, the series for a platform, GN args, gn + ninja, the CI build log) and the platform-entry loader; tested by `test_lib_sh.py` |
 | `scripts/rebrand_strings.py` | Rename the product in Chromium's branded strings and re-key all 81 translations |
-| `scripts/brand_assets.sh` | Install icons from the repo's `branding/exports` (macOS `app.icns` + `Assets.car` via `actool`, product logos) |
+| `scripts/brand_assets.sh` | Install the shared product logos from the repo's `branding/exports`; each platform entry adds its own icons (macOS `app.icns` + `Assets.car` via `actool`) |
 | `scripts/build.sh` | Generate args and build with GN + Ninja (`--dev` for the fast dev build) |
 | `scripts/check_patches.py` | Check that our patch series applies to a clean tree (about a minute, no re-fetch); see `AGENTS.md` |
+| `scripts/check_series.py` | Check the patch series' layers and platform tags (desktop and Android) |
+| `scripts/linux-build-host.sh` | Prepare a CI container on the Linux build runners: fetch tools and sccache |
 | `scripts/run.sh` | Launch a build with a separate developer profile |
 | `scripts/upstream.sh`, `release-bot.sh`, `macos-host.sh` | Release automation (CI); see `AGENTS.md` |
 
 `build/` and `third_party/` are git-ignored.
 
-## Prerequisites (macOS, the only supported platform)
+## Prerequisites (macOS, the only platform with an entry)
 
 - ~100 GB free disk, 16 GB+ RAM (32 GB+ comfortable)
 - Xcode with the Metal toolchain: `xcodebuild -downloadComponent MetalToolchain` if
@@ -120,8 +124,11 @@ ungoogled-chromium removes every Google endpoint. We keep three on purpose:
    | `remove-unused-preferences-fields.patch` (~6,000 lines: Safe Browsing + unused sign-in prefs) and `move-js-optimizer-unfamiliar-sites.patch` (only needed because of it) | skipped as a whole — cheaper to maintain than splitting it every release. Cost: some unused sign-in fields stay in the Preferences file; sign-in itself stays disabled |
    | `pruning.list` deletes `safe_browsing_prefs.{h,cc}` and `signin_pref_names.{h,cc}` | kept (`patches/prune-keep.txt`) |
 
-   At 157.0.8103.78 the other 125 ungoogled patches apply cleanly without these five and the two
-   in item 3.
+   `remove-uneeded-ui.patch` is written on top of `remove-unused-preferences-fields.patch`, so
+   without it one hunk needs fuzz, which GNU `patch` (Linux CI) rejects. We skip it too and carry
+   it rebased onto our tree, split by layer: `lb/ungoogled-remove-uneeded-ui.patch` and its `-ui`
+   half. At 157.0.8103.78 the other 124 ungoogled patches apply cleanly without these six and the
+   two in item 3.
 
    Then `patches/lb/safe-browsing-standard-only.patch` makes it *standard only*: enhanced protection
    and extended reporting are hard-disabled (no pref, policy or sync can turn them on), real-time

@@ -264,7 +264,7 @@ class BrowserImport {
       // Arc's colour becomes the nearest of ours (docs/ux.md §13); its folders' groups start in
       // the group colour nearest to it, as a new group does.
       const int hue =
-          arc.hue >= 0 ? kSpaceColours[NearestSpaceColour(arc.hue)].hue : NextSpaceHue(all);
+          arc.hue >= 0 ? SpaceColours()[NearestSpaceColour(arc.hue)].hue : NextSpaceHue(all);
       const std::vector<SavedTab> tabs =
           ArcSpaceTabs(arc, static_cast<int>(TabGroupColorForHue(hue)));
       result_.counts.tabs += tabs.size();

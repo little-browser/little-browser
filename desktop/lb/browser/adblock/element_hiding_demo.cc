@@ -82,6 +82,9 @@ class Demo {
       return;
     }
     profile_ = Profile::FromBrowserContext(contents->GetBrowserContext())->GetWeakPtr();
+    // The profile's downloaded rules may be loaded already: without them the page waits for the
+    // demo's.
+    WithholdElementHidingRulesForDemo();
     contents->GetController().LoadURL(GURL(kPage), content::Referrer(), ui::PAGE_TRANSITION_TYPED,
                                       std::string());
     // The rules come after the page has asked for them, as at startup: it gets them once they

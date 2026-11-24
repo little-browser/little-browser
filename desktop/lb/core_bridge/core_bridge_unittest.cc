@@ -2,8 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-// lb-core reaches C++ through the cxx bridge (lb/core_bridge/lib.rs). The rules are tested in
-// lb-core; these tests check that the bridge links and carries the values across.
+// lb-core reaches C++ through the cxx bridge (lb/core_bridge/lib.rs for import, rules.rs for the
+// browser rules). The rules are tested in lb-core; these tests check that the bridge links and
+// carries the values across. The rules wrapped by //lb:model are also checked through their
+// wrappers' tests (spaces, command bar, filter lists, site ads).
 
 #include <algorithm>
 #include <cstdint>
@@ -13,6 +15,7 @@
 #include <vector>
 
 #include "lb/core_bridge/lib.rs.h"
+#include "lb/core_bridge/rules.rs.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace lb {
@@ -323,6 +326,76 @@ TEST(CoreBridgeTest, PlacesSpacesAndProfiles) {
   EXPECT_EQ(std::string(mapped[1].existing_id), "Profile 2");
   EXPECT_TRUE(std::string(mapped[2].existing_id).empty());
   EXPECT_EQ(std::string(mapped[2].new_name), "Side");
+}
+
+TEST(CoreBridgeTest, SearchChoiceStep) {
+  core::SearchChoiceState first_run{.off_the_record = false,
+                                    .open = false,
+                                    .offered_before = false,
+                                    .has_engines = true,
+                                    .engines_loaded = true,
+                                    .no_search_engine = true};
+  EXPECT_EQ(core::search_choice_step(first_run), core::SearchChoiceStep::Ask);
+  core::SearchChoiceState offered = first_run;
+  offered.offered_before = true;
+  EXPECT_EQ(core::search_choice_step(offered), core::SearchChoiceStep::Skip);
+  core::SearchChoiceState loading = first_run;
+  loading.engines_loaded = false;
+  EXPECT_EQ(core::search_choice_step(loading), core::SearchChoiceStep::WaitForEngines);
+  core::SearchChoiceState open = first_run;
+  open.open = true;
+  EXPECT_EQ(core::search_choice_step(open), core::SearchChoiceStep::WaitForOpenChoice);
+}
+
+TEST(CoreBridgeTest, SearchChoiceEngines) {
+  rust::Vec<core::ChoiceEngine> engines = core::search_choice_engines();
+  ASSERT_EQ(engines.size(), 7u);
+  EXPECT_EQ(std::string(engines[0].id), "brave");
+  EXPECT_EQ(std::string(engines[0].name), "Brave Search");
+  EXPECT_EQ(std::string(engines[3].id), "google");
+  EXPECT_EQ(std::string(core::google_keyword()), "google.com");
+  EXPECT_NE(std::string(core::google_search_url()).find("{searchTerms}"), std::string::npos);
+}
+
+TEST(CoreBridgeTest, SpaceRules) {
+  EXPECT_EQ(core::space_icons().size(), core::space_colours().size());
+  EXPECT_EQ(core::first_space_hue(), 222);
+  EXPECT_EQ(core::next_space_hue(false, 0), 222);
+  EXPECT_EQ(std::string(core::next_space_name(2)), "Space 3");
+  rust::Vec<core::WindowSpace> spaces;
+  spaces.push_back({"a", "P", true});
+  spaces.push_back({"b", "P", false});
+  EXPECT_EQ(std::string(core::choose_space_for_window(spaces, "P", "a", false)), "b");
+  EXPECT_EQ(std::string(core::choose_space_for_window(spaces, "Q", "", true)), "");
+  const std::vector<int32_t> hues = {0, 120, 240};
+  EXPECT_EQ(core::nearest_hue(rust::Slice<const int32_t>(hues.data(), hues.size()), 200), 2);
+  EXPECT_EQ(core::nearest_hue(rust::Slice<const int32_t>(), 200), -1);
+}
+
+TEST(CoreBridgeTest, FilterListRules) {
+  EXPECT_EQ(core::filter_lists().size(), 4u);
+  EXPECT_TRUE(core::filter_condition_holds("env_chromium"));
+  EXPECT_FALSE(core::filter_condition_holds("env_mobile"));
+  core::NormalizedFilterRule rule = core::normalize_filter_rule("||a.com^$xhr,badfilter");
+  EXPECT_EQ(std::string(rule.text), "||a.com^$xmlhttprequest");
+  EXPECT_TRUE(rule.badfilter);
+  EXPECT_EQ(std::string(core::filter_ruleset_version(0)), "lb-1970-01-01-000000");
+  const core::DownloadedFilterRules in_use{.on_disk = true, .indexed = true, .hiding_loaded = true};
+  EXPECT_TRUE(core::filter_lists_need_update(false, 0, 0, in_use));
+  EXPECT_FALSE(core::filter_lists_need_update(true, 1000, 1000, in_use));
+  EXPECT_TRUE(core::decide_filter_lists_update(false, true, core::DownloadedFilterRules{}).forget_stamp);
+  const core::FilterHidingRules hiding =
+      core::filter_hiding_rules(rust::Vec<rust::String>{rust::String("##.ad\n||a.com^\n")});
+  EXPECT_EQ(std::string(hiding.text), "##.ad\n");
+  EXPECT_EQ(hiding.count, 1u);
+  EXPECT_EQ(core::site_ads_exception(true, false), core::SiteAdsException::Allow);
+}
+
+TEST(CoreBridgeTest, CommandBarRules) {
+  EXPECT_FALSE(core::command_bar_offers_result(core::CommandBarMode::LittleWindow,
+                                               core::CommandBarResult::OpenTab));
+  EXPECT_DOUBLE_EQ(core::command_bar_match_score("git", "GitHub"), 3.5);
+  EXPECT_EQ(core::command_bar_max_bookmark_results(), 6u);
 }
 
 }  // namespace

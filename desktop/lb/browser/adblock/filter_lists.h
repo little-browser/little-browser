@@ -10,7 +10,6 @@
 #include <string_view>
 #include <vector>
 
-#include "base/containers/span.h"
 #include "base/time/time.h"
 
 class GURL;
@@ -19,25 +18,27 @@ namespace lb {
 
 // A filter list the built-in ad blocker uses (docs/design.md section 5), downloaded from its
 // maintainers in Adblock Plus syntax.
+// The rules are lb-core's (lb_core::adblock, through lb/core_bridge/rules.rs.h), shared with the
+// other platforms; this file converts Chromium's types and builds the subresource filter's ruleset.
 struct FilterList {
-  const char* name;
-  const char* url;
+  std::string name;
+  std::string url;
 };
 
 // The lists, in the order their rules are added.
-base::span<const FilterList> FilterLists();
+const std::vector<FilterList>& FilterLists();
 
 // How old the lists may get before they are downloaded again (EasyList asks for 4 days).
-inline constexpr base::TimeDelta kFilterListMaxAge = base::Days(4);
+base::TimeDelta FilterListMaxAge();
 
 // After a download fails, how soon to try again.
-inline constexpr base::TimeDelta kFilterListRetryAfter = base::Hours(1);
+base::TimeDelta FilterListRetryAfter();
 
 // How long one download may take before it counts as failed.
-inline constexpr base::TimeDelta kFilterListDownloadTimeout = base::Minutes(5);
+base::TimeDelta FilterListDownloadTimeout();
 
 // The most files one update downloads: the lists and the files they include.
-inline constexpr size_t kMaxFilterListFiles = 32;
+size_t MaxFilterListFiles();
 
 // The newest downloaded rules on disk.
 struct DownloadedFilterRules {
@@ -53,7 +54,7 @@ struct DownloadedFilterRules {
 // their element-hiding rules loaded. With none on disk there is nothing to redo.
 bool FilterRulesInUse(const DownloadedFilterRules& rules);
 
-// Whether to download the lists again: never downloaded, older than kFilterListMaxAge, downloaded
+// Whether to download the lists again: never downloaded, older than FilterListMaxAge(), downloaded
 // "in the future" (the clock was set back), or the newest downloaded rules aren't all in use:
 // never indexed (e.g. the browser crashed while the subresource filter indexed them, which it
 // doesn't retry), or their element-hiding rules didn't load.
@@ -65,9 +66,9 @@ bool FilterListsNeedUpdate(std::optional<base::Time> last_update,
 struct FilterListsUpdate {
   // Build and use a new ruleset from the files that downloaded.
   bool write = false;
-  // Record the update time, so the next download is kFilterListMaxAge later.
+  // Record the update time, so the next download is FilterListMaxAge() later.
   bool stamp = false;
-  // Try again after kFilterListRetryAfter.
+  // Try again after FilterListRetryAfter().
   bool retry = false;
   // Forget when the lists were last downloaded: what was written is partial, so the retries
   // keep downloading until every file comes.

@@ -1,0 +1,32 @@
+# Little Browser (Android): the first-run screen doesn't opt the user in to usage statistics and
+# crash reports. Nothing is uploaded either way (non-Google builds compile reporting out), but the
+# screen said it would be, and the opt-in was stored.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/firstrun/FirstRunActivityBase.java b/chrome/android/java/src/org/chromium/chrome/browser/firstrun/FirstRunActivityBase.java
+index 67e796558..67712b45a 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/firstrun/FirstRunActivityBase.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/firstrun/FirstRunActivityBase.java
+@@ -59,7 +59,8 @@ public abstract class FirstRunActivityBase extends FullscreenSigninAndHistorySyn
+     static final String SHOW_SEARCH_ENGINE_PAGE = "ShowSearchEnginePage";
+     static final String SHOW_HISTORY_SYNC_PAGE = "ShowHistorySync";
+ 
+-    public static final boolean DEFAULT_METRICS_AND_CRASH_REPORTING = true;
++    // Little Browser: opted out by default.
++    public static final boolean DEFAULT_METRICS_AND_CRASH_REPORTING = false;
+ 
+     private boolean mNativeInitialized;
+     private @Nullable AppHeaderStateProvider mAppHeaderStateProvider;
+diff --git a/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java b/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java
+index a4df538ca..35c97eeb1 100644
+--- a/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java
++++ b/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java
+@@ -350,7 +350,8 @@ public class FullscreenSigninMediator
+                             ? mForcedSigninStatusProvider.showForcedSigninScreen()
+                             : TokenHolder.INVALID_TOKEN;
+         } else {
+-            mAllowMetricsAndCrashUploading = true;
++            // Little Browser: no usage statistics or crash reports by default.
++            mAllowMetricsAndCrashUploading = false;
+             mIsSigninForcedByPolicy = false;
+         }
+ 

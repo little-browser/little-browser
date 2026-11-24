@@ -115,10 +115,10 @@ class NewSpaceDialog : public BrowserModalDialog, public views::TextfieldControl
 
     const auto spaces = controller->GetSpaces();
     const size_t n = spaces.size();
-    icon_ = n % std::size(kSpaceIcons);
+    icon_ = n % SpaceIcons().size();
     hue_ = NextSpaceHue(spaces);
     colour_index_ = NearestSpaceColour(hue_);
-    hue_ = kSpaceColours[colour_index_].hue;
+    hue_ = SpaceColours()[colour_index_].hue;
 
     // Name.
     AddCaption(contents_, u"Name");
@@ -158,19 +158,19 @@ class NewSpaceDialog : public BrowserModalDialog, public views::TextfieldControl
     auto* colours = contents_->AddChildView(std::make_unique<views::View>());
     colours->SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 6));
-    for (size_t i = 0; i < std::size(kSpaceColours); ++i) {
+    for (size_t i = 0; i < SpaceColours().size(); ++i) {
       swatches_.push_back(colours->AddChildView(std::make_unique<Swatch>(
           base::BindRepeating(&NewSpaceDialog::SelectColour, base::Unretained(this), i),
-          SpaceTint(kSpaceColours[i].hue), kSpaceColours[i].name)));
+          SpaceTint(SpaceColours()[i].hue), SpaceColours()[i].name)));
     }
     AddCaption(contents_, u"Icon");
     auto* icons = contents_->AddChildView(std::make_unique<views::View>());
     icons->SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 4));
-    for (size_t i = 0; i < std::size(kSpaceIcons); ++i) {
+    for (size_t i = 0; i < SpaceIcons().size(); ++i) {
       auto* button = icons->AddChildView(std::make_unique<views::LabelButton>(
           base::BindRepeating(&NewSpaceDialog::SelectIcon, base::Unretained(this), i),
-          base::UTF8ToUTF16(kSpaceIcons[i])));
+          base::UTF8ToUTF16(SpaceIcons()[i])));
       button->SetHorizontalAlignment(gfx::ALIGN_CENTER);
       button->SetMinSize(gfx::Size(30, 30));
       button->SetMaxSize(gfx::Size(30, 30));
@@ -243,7 +243,7 @@ class NewSpaceDialog : public BrowserModalDialog, public views::TextfieldControl
     const std::u16string profile_name =
         new_profile ? std::u16string(base::TrimWhitespace(new_profile_->GetText(), base::TRIM_ALL))
                     : std::u16string();
-    controller_->CreateSpace(name, kSpaceIcons[icon_], kSpaceColours[colour_index_].hue, profile,
+    controller_->CreateSpace(name, SpaceIcons()[icon_], SpaceColours()[colour_index_].hue, profile,
                              profile_name);
   }
 
@@ -257,7 +257,7 @@ class NewSpaceDialog : public BrowserModalDialog, public views::TextfieldControl
   std::vector<raw_ptr<views::LabelButton>> icon_buttons_;
   size_t colour_index_ = 0;
   size_t icon_ = 0;
-  int hue_ = kFirstSpaceHue;
+  int hue_ = FirstSpaceHue();
 };
 
 }  // namespace

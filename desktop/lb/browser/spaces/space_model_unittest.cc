@@ -15,11 +15,11 @@
 namespace lb {
 namespace {
 
-Space MakeSpace(std::string id, std::string profile, int hue = kFirstSpaceHue) {
+Space MakeSpace(std::string id, std::string profile, int hue = FirstSpaceHue()) {
   Space space;
   space.id = std::move(id);
   space.name = "Space";
-  space.icon = kSpaceIcons[0];
+  space.icon = SpaceIcons()[0];
   space.hue = hue;
   space.profile = std::move(profile);
   return space;
@@ -28,7 +28,7 @@ Space MakeSpace(std::string id, std::string profile, int hue = kFirstSpaceHue) {
 TEST(SpaceModelTest, DictRoundTrip) {
   Space space = MakeSpace("a1", "Profile 1", 140);
   space.name = "Work";
-  space.icon = kSpaceIcons[1];
+  space.icon = SpaceIcons()[1];
   const base::DictValue dict = SpaceToDict(space);
   EXPECT_FALSE(dict.contains("tabs"));  // saved tabs live in their own pref
 
@@ -36,7 +36,7 @@ TEST(SpaceModelTest, DictRoundTrip) {
   ASSERT_TRUE(read);
   EXPECT_EQ(read->id, "a1");
   EXPECT_EQ(read->name, "Work");
-  EXPECT_EQ(read->icon, kSpaceIcons[1]);
+  EXPECT_EQ(read->icon, SpaceIcons()[1]);
   EXPECT_EQ(read->hue, 140);
   EXPECT_EQ(read->profile, "Profile 1");
   EXPECT_TRUE(read->profile_name.empty());
@@ -57,28 +57,28 @@ TEST(SpaceModelTest, FromDictFillsDefaults) {
     const std::optional<Space> read = SpaceFromDict(dict, "Default");
     ASSERT_TRUE(read);
     EXPECT_EQ(read->name, "Space");
-    EXPECT_EQ(read->icon, kSpaceIcons[0]);
-    EXPECT_EQ(read->hue, kFirstSpaceHue);
+    EXPECT_EQ(read->icon, SpaceIcons()[0]);
+    EXPECT_EQ(read->hue, FirstSpaceHue());
     EXPECT_EQ(read->profile, "Default");
   }
 }
 
 TEST(SpaceModelTest, NextSpaceDefaults) {
   std::vector<Space> spaces;
-  EXPECT_EQ(NextSpaceHue(spaces), kFirstSpaceHue);
-  EXPECT_STREQ(NextSpaceIcon(spaces), kSpaceIcons[0]);
+  EXPECT_EQ(NextSpaceHue(spaces), FirstSpaceHue());
+  EXPECT_EQ(NextSpaceIcon(spaces), SpaceIcons()[0]);
   EXPECT_EQ(NextSpaceName(spaces), "Space 1");
 
   spaces.push_back(MakeSpace("a", "Default", 300));
   EXPECT_EQ(NextSpaceHue(spaces), (300 + 137) % 360);  // wraps around the wheel
-  EXPECT_STREQ(NextSpaceIcon(spaces), kSpaceIcons[1]);
+  EXPECT_EQ(NextSpaceIcon(spaces), SpaceIcons()[1]);
   EXPECT_EQ(NextSpaceName(spaces), "Space 2");
 }
 
 TEST(SpaceModelTest, FindActiveSpace) {
   EXPECT_EQ(FindActiveSpace({}, "a"), nullptr);
   std::vector<Space> spaces = {MakeSpace("a", "Default"), MakeSpace("b", "Default")};
-  spaces[1].icon = kSpaceIcons[1];
+  spaces[1].icon = SpaceIcons()[1];
   EXPECT_EQ(FindActiveSpace(spaces, "b"), &spaces[1]);
   EXPECT_EQ(FindActiveSpace(spaces, "a"), &spaces[0]);
   // A window whose space is gone (or not chosen yet) shows the first.
@@ -88,10 +88,10 @@ TEST(SpaceModelTest, FindActiveSpace) {
 
 TEST(SpaceModelTest, NextSpaceIconCycles) {
   std::vector<Space> spaces;
-  for (size_t i = 0; i < std::size(kSpaceIcons); ++i) {
+  for (size_t i = 0; i < SpaceIcons().size(); ++i) {
     spaces.push_back(MakeSpace("s" + std::to_string(i), "Default"));
   }
-  EXPECT_STREQ(NextSpaceIcon(spaces), kSpaceIcons[0]);
+  EXPECT_EQ(NextSpaceIcon(spaces), SpaceIcons()[0]);
 }
 
 TEST(SpaceModelTest, NeighbouringHuesDiffer) {
@@ -158,7 +158,7 @@ TEST(SpaceModelTest, SpaceColoursMapToTheirGroupColours) {
       {u"Orange", TabGroupColorId::kOrange}, {u"Red", TabGroupColorId::kRed},
       {u"Pink", TabGroupColorId::kPink},     {u"Purple", TabGroupColorId::kPurple},
   };
-  for (const SpaceColour& colour : kSpaceColours) {
+  for (const SpaceColour& colour : SpaceColours()) {
     EXPECT_EQ(TabGroupColorForHue(colour.hue), expected.at(colour.name)) << colour.hue;
   }
 }
@@ -187,10 +187,10 @@ TEST(SpaceModelTest, HuesWrapAround) {
 }
 
 TEST(SpaceModelTest, NearestSpaceColourWrapsAndNormalises) {
-  for (size_t i = 0; i < std::size(kSpaceColours); ++i) {
-    EXPECT_EQ(NearestSpaceColour(kSpaceColours[i].hue), i);
+  for (size_t i = 0; i < SpaceColours().size(); ++i) {
+    EXPECT_EQ(NearestSpaceColour(SpaceColours()[i].hue), i);
   }
-  auto name = [](int hue) { return std::u16string(kSpaceColours[NearestSpaceColour(hue)].name); };
+  auto name = [](int hue) { return SpaceColours()[NearestSpaceColour(hue)].name; };
   EXPECT_EQ(name(355), u"Red");      // wraps past 360
   EXPECT_EQ(name(-100), u"Purple");  // 260: a negative hue is normalised first
   EXPECT_EQ(name(200), u"Teal");

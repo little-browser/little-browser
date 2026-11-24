@@ -6,18 +6,20 @@ repository. Directories with their own rules have their own `AGENTS.md`: `deskto
 
 ## What this is
 
-Little Browser: a minimal, private browser with an Arc-like sidebar. It is a Chromium fork built on
-ungoogled-chromium for desktop and Android, and uses WebKit on iOS. The macOS desktop build runs;
-Windows, Linux, iOS and Android don't exist yet.
+Little Browser: a minimal, private browser with an Arc-like sidebar. It is a Chromium fork, built on
+ungoogled-chromium for desktop and on Chromium itself for Android, and uses WebKit on iOS. The macOS desktop build runs;
+Android builds Chromium's own app with our privacy patches and app ID, none of our UI yet;
+Windows, Linux and iOS don't exist yet.
 
 | Path | What |
 |---|---|
-| `desktop/` | Chromium fork tooling: version pins, GN args, patch series, branding, scripts |
+| `desktop/` | Chromium fork tooling: version pins, GN args, patch series, one entry per platform (`platforms/`), branding, scripts |
 | `desktop/lb/` | Our own C++ code, linked into the Chromium tree as `src/lb` |
 | `core/` | `lb-core`, the shared Rust library (data model, sync, import readers; later the blocker) |
 | `docs/` | `design.md` (architecture, privacy, sync, release pipeline), `ux.md` (UX spec), `desktop-ui.md` (sidebar internals), `legal/` |
 | `branding/`, `site/` | Logo masters and icon export; the static website |
-| `ios/`, `android/` | Placeholders |
+| `android/` | Android build of the Chromium fork: GN args, privacy patches, fetch/build scripts (Linux x86_64 hosts) |
+| `ios/` | Placeholder |
 
 ## Before you change things
 
@@ -36,7 +38,10 @@ Windows, Linux, iOS and Android don't exist yet.
 cd core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 core/scripts/coverage.sh                  # gate: lb-core line coverage of at least 95%
 desktop/scripts/check_lb_tests.py         # gate: unit tests for //lb:model and //lb:page_names
-shellcheck desktop/scripts/*.sh core/scripts/*.sh
+desktop/scripts/check_series.py           # gate: patches keep engine and view code apart, platform ones tagged
+python3 -m unittest discover -s desktop/scripts -p 'test_*.py'   # the scripts' own tests
+shellcheck desktop/scripts/*.sh desktop/platforms/*.sh core/scripts/*.sh android/scripts/*.sh
+android/scripts/fetch.sh --patches-only   # after changing android/patches or desktop/VERSIONS
 ```
 
 Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
@@ -60,12 +65,23 @@ Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
   comes with tests that fail if it breaks: each behaviour and its edge cases, and for a bug fix a
   test that fails without the fix (run it against the old code to be sure). Untested work isn't
   done. The CI gates above check this; meet them with tests, never by lowering a threshold.
-- **Testable logic.** Data-model logic belongs in `lb-core` (Rust, unit tested) or in plain C++ in
-  `desktop/lb/` with no dependency on views, so it can be tested without a browser window. A
-  decision made in a view or a Chromium hook (what a close, click or drag does) moves into
-  `//lb:model` as a plain function over a small state struct, with tests for each case, and the
-  hook only gathers the state and acts on the answer. Behaviour that only a browser window can
-  show gets a `--lb-sidebar-demo` mode whose log says whether it passed (`desktop/lb/AGENTS.md`).
+- **Testable logic, shared where it can be.** Data-model logic belongs in `lb-core` (Rust, unit
+  tested), which every platform links: desktop through `cxx`, Android and iOS through UniFFI. Only
+  rules that work on Chromium's desktop types (tab strip, Views state) or exist only on desktop go
+  in plain C++ in `desktop/lb/`'s `//lb:model`, with no dependency on views, so they can be
+  tested without a browser window. A decision made in a view or a Chromium hook (what a close,
+  click or drag does) moves into the model as a plain function over a small state struct, with
+  tests for each case, and the hook only gathers the state and acts on the answer. Behaviour that
+  only a browser window can show gets a `--lb-sidebar-demo` mode whose log says whether it passed
+  (`desktop/lb/AGENTS.md`).
+- **Engine patches stay out of view code.** A Chromium patch for every platform changes either
+  engine code or view code (Views, Cocoa, WebUI), never both: the engine half is the one Linux,
+  Windows and Android can share. A patch for one platform's files is tagged for it in the series.
+  `desktop/patches/README.md` has the rules; `check_series.py` enforces them.
+- **Platforms are entries.** What a desktop platform does differently in fetching and building is
+  its file in `desktop/platforms/`; the scripts around it stay platform-free. Linux-hosted
+  Chromium builds (Android, later Linux desktop) share one CI template (`.linux-chromium`), with
+  sccache on the Linux build runners.
 - **Verify, then report honestly.** Say what you actually checked (built, ran, captured a
   screenshot, read a log). Say what you couldn't check. Never claim a UI interaction works
   without having driven it.

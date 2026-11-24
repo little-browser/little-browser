@@ -1,0 +1,21 @@
+# Little Browser (Android): no network time queries to clients2.google.com. They run in the
+# background and when a certificate date looks wrong; the certificate error then relies on the
+# system clock.
+
+diff --git a/components/network_time/network_time_tracker.cc b/components/network_time/network_time_tracker.cc
+index 3bb0f0237..8885fcc25 100644
+--- a/components/network_time/network_time_tracker.cc
++++ b/components/network_time/network_time_tracker.cc
+@@ -71,11 +71,8 @@ namespace network_time {
+ 
+ // Network time queries are enabled on Android and all desktop platforms except
+ // Chrome OS, which uses tlsdated to set the system time.
+-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_IOS)
++// Little Browser: no queries to Google's time server.
+ BASE_FEATURE(kNetworkTimeServiceQuerying, base::FEATURE_DISABLED_BY_DEFAULT);
+-#else
+-BASE_FEATURE(kNetworkTimeServiceQuerying, base::FEATURE_ENABLED_BY_DEFAULT);
+-#endif
+ 
+ namespace {
+ 

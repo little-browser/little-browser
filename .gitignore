@@ -22,3 +22,7 @@ desktop/out/
 # Editors
 .vscode/
 .idea/
+
+# Android Chromium working trees (huge — never commit)
+android/build/
+android/third_party/

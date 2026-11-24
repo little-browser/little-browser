@@ -55,6 +55,7 @@
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
+#include "url/url_constants.h"
 
 namespace lb {
 
@@ -67,13 +68,22 @@ constexpr char kSnapshotSwitch[] = "lb-ui-snapshot-pinned-drag";
 constexpr char16_t kGroupTitle[] = u"Work stuff";
 constexpr int kGroupColor = static_cast<int>(tab_groups::TabGroupColorId::kCyan);
 
-// A page whose title is `name`.
+// A page whose title is `name`, with the name in its address too: a tab added in the background
+// may not have loaded (or may be asleep) when a step looks at it, but it has its address.
 GURL Page(const std::string& name) {
-  return GURL("data:text/html,<title>" + name + "</title>" + name);
+  return GURL("data:text/html,<title>" + name + "</title>" + name + "#" + name);
 }
 
+// A demo page's name (from its address), else the tab's title.
 std::string TitleOf(const tabs::TabInterface* tab) {
-  return tab ? base::UTF16ToUTF8(tab->GetContents()->GetTitle()) : std::string("?");
+  if (!tab) {
+    return "?";
+  }
+  const GURL url = tab->GetContents()->GetVisibleURL();
+  if (url.SchemeIs(url::kDataScheme) && url.has_ref()) {
+    return std::string(url.ref());
+  }
+  return base::UTF16ToUTF8(tab->GetContents()->GetTitle());
 }
 
 template <typename T>

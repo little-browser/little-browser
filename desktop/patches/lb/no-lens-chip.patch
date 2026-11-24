@@ -1,0 +1,17 @@
+# Little Browser: the address bar's Google Lens promo chip ("homework" action chip) is off. Lens is
+# one of the Google services the browser leaves out (docs/design.md section 5). The chip's
+# controller also looks up its tab's window whenever a navigation finishes, and crashed when a
+# page of an inactive space (a tab parked outside every window) finished loading.
+
+--- a/components/lens/lens_features.cc
++++ b/components/lens/lens_features.cc
+@@ -83,7 +83,8 @@
+              base::FEATURE_DISABLED_BY_DEFAULT);
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+ 
+-BASE_FEATURE(kLensOverlayEduActionChip, base::FEATURE_ENABLED_BY_DEFAULT);
++// Little Browser: no Google Lens promo chip in the address bar (docs/design.md section 5).
++BASE_FEATURE(kLensOverlayEduActionChip, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kLensOverlayKeyboardSelection, base::FEATURE_ENABLED_BY_DEFAULT);
+ 

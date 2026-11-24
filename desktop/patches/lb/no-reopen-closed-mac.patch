@@ -1,0 +1,52 @@
+# The macOS half of no-reopen-closed.patch (Cocoa), which says why.
+
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -131,9 +131,6 @@
+               Item(IDS_NEW_ISOLATED_WINDOW_MAC)
+                   .command_id(IDC_NEW_ISOLATED_WINDOW)
+                   .remove_if(is_pwa),
+-              Item(IDS_REOPEN_CLOSED_TABS_MAC)
+-                  .command_id(IDC_RESTORE_TAB)
+-                  .remove_if(is_pwa),
+               Item(IDS_OPEN_FILE_MAC)
+                   .command_id(IDC_OPEN_FILE)
+                   .remove_if(is_pwa),
+@@ -381,13 +378,6 @@
+                   .command_id(IDC_BACK),
+               Item(IDS_HISTORY_FORWARD_MAC)
+                   .command_id(IDC_FORWARD),
+-              Item().is_separator()
+-                  .tag(HistoryMenuBridge::kRecentlyClosedSeparator)
+-                  .remove_if(is_pwa),
+-              Item(IDS_HISTORY_CLOSED_MAC)
+-                  .tag(HistoryMenuBridge::kRecentlyClosedTitle)
+-                  .is_section_header()
+-                  .remove_if(is_pwa),
+               Item().is_separator()
+                   .tag(HistoryMenuBridge::kVisitedSeparator)
+                   .remove_if(is_pwa),
+--- a/chrome/browser/ui/cocoa/history_menu_bridge.mm
++++ b/chrome/browser/ui/cocoa/history_menu_bridge.mm
+@@ -144,6 +144,11 @@
+   // Clear the history menu before rebuilding.
+   NSMenu* menu = HistoryMenu();
+   ClearMenuSection(menu, kRecentlyClosed);
++  // Little Browser: no Recently Closed section. Release the profile as below.
++  if ([menu indexOfItemWithTag:kRecentlyClosedTitle] < 0) {
++    tab_restore_service_keep_alive_.reset();
++    return;
++  }
+ 
+   // Index for the next menu item.
+   NSInteger index = [menu indexOfItemWithTag:kRecentlyClosedTitle] + 1;
+--- a/chrome/browser/ui/cocoa/accelerators_cocoa.mm
++++ b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+@@ -45,7 +45,6 @@
+     {IDC_NEW_WINDOW, ui::EF_COMMAND_DOWN, ui::VKEY_N},
+     {IDC_PASTE, ui::EF_COMMAND_DOWN, ui::VKEY_V},
+     {IDC_PRINT, ui::EF_COMMAND_DOWN, ui::VKEY_P},
+-    {IDC_RESTORE_TAB, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_T},
+     {IDC_SAVE_PAGE, ui::EF_COMMAND_DOWN, ui::VKEY_S},
+     {IDC_SHOW_BOOKMARK_BAR, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN,
+      ui::VKEY_B},

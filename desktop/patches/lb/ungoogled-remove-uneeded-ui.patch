@@ -1,0 +1,81 @@
+# Little Browser: ungoogled-chromium's extra/ungoogled-chromium/remove-uneeded-ui.patch
+# (the engine half), which we skip and carry here instead: it is written on top of
+# remove-unused-preferences-fields.patch, which we also skip (Safe Browsing stays), so on our
+# tree its security-page hunk needs fuzz, and GNU patch rejects it. Same changes as upstream
+# (157.0.8103.78-1), rebased onto our tree.
+# The upstream description:
+#
+# Removes in order:
+# 'Learn more' links on the performance page
+# more 'Learn more' links on the performance page
+# link to Chrome store on the extensions page when empty
+# link to Chrome store in extensions page sidebar
+# 'Tabs from other devices' entry on the History page sidebar
+# the 'Learn more' link on new incognito tabs
+# Live captions entry from the settings page
+# link to Google's accessibility site from the settings page
+# update status icon on the About page
+# update status text on the About page
+# link to Google's help site on the About page
+# external link for theme entry on settings page
+# the Google account line from the Payment methods page
+# Safety check section on the settings page
+# Google sign-in and Anonymized Data Collection sections
+# help bubble for the removed data collection section
+# Privacy guide promo on the privacy page
+# Privacy guide section on the privacy page
+# The password leak detection toggle on the security settings page
+# Advanced Protection Program link on the security settings page
+# the 'Learn more' link from the search engine entry on the settings page
+# Safety Check entry on the side menu on the settings page
+# the (?) learn more button on many settings pages
+# 'Sign in to see tabs from other devices' in the history submenu
+# the 'Vist Chrome Web Store' entry in the extensions section of the main menu
+# the side panel entry in All Bookmarks
+# the 'Learn more' link on crashed tabs
+# Session restore default infobar
+# non-functional AI options
+# disable LiveCaption flag by default, this also removes non-functional Live Caption checkbox from media controls
+# the new feature badges
+
+
+--- a/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
++++ b/chrome/browser/ui/tabs/recent_tabs_sub_menu_model.cc
+@@ -448,7 +448,6 @@
+ 
+   AddSeparator(ui::NORMAL_SEPARATOR);
+   BuildLocalEntries();
+-  BuildTabsFromOtherDevices();
+   is_dynamic_section_built_ = true;
+ }
+ 
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -1180,16 +1180,6 @@
+   SetElementIdentifierAt(
+       GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS).value(),
+       kManageExtensionsMenuItem);
+-  AddItemWithStringId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+-                      IDS_EXTENSIONS_SUBMENU_CHROME_WEBSTORE_ITEM);
+-  SetElementIdentifierAt(
+-      GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE)
+-          .value(),
+-      kVisitChromeWebStoreMenuItem);
+-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  SetCommandIcon(this, IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+-                 vector_icons::kGoogleChromeWebstoreIcon);
+-#endif
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////
+--- a/media/base/media_switches.cc
++++ b/media/base/media_switches.cc
+@@ -727,7 +727,7 @@
+ );
+ 
+ // Enables the Live Caption feature on supported devices.
+-BASE_FEATURE(kLiveCaption, base::FEATURE_ENABLED_BY_DEFAULT);
++BASE_FEATURE(kLiveCaption, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Enable automatic downloading of speech recognition language packs.
+ BASE_FEATURE(kLiveCaptionAutomaticLanguageDownload,

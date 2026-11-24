@@ -1,0 +1,18 @@
+# Little Browser (Android): no Discover feed on the new tab page. It loads from discover-
+# pa.googleapis.com for signed-out users too, and refreshes in the background. Same as the
+# NTPContentSuggestionsEnabled=false policy.
+
+diff --git a/components/feed/core/shared_prefs/pref_names.cc b/components/feed/core/shared_prefs/pref_names.cc
+index 50f880e71..c954ef688 100644
+--- a/components/feed/core/shared_prefs/pref_names.cc
++++ b/components/feed/core/shared_prefs/pref_names.cc
+@@ -24,7 +24,8 @@ const char kArticlesListVisible[] = "ntp_snippets.list_visible";
+ const char kEnableSnippetsByDse[] = "ntp_snippets_by_dse.enable";
+ 
+ void RegisterFeedSharedProfilePrefs(PrefRegistrySimple* registry) {
+-  registry->RegisterBooleanPref(kEnableSnippets, true);
++  // Little Browser: no Discover feed.
++  registry->RegisterBooleanPref(kEnableSnippets, false);
+   registry->RegisterBooleanPref(kArticlesListVisible, true);
+   registry->RegisterBooleanPref(kEnableSnippetsByDse, true);
+ }

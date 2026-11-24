@@ -18,22 +18,20 @@
 
 namespace lb {
 
-// Space rules that don't need a window or views (unit tested in space_model_unittest.cc).
+// Spaces on desktop: the saved form (Local State) and Chromium's types around the space rules,
+// which are lb-core's (lb_core::spaces, through lb/core_bridge/rules.rs.h) so every platform
+// shares them. Unit tested in space_model_unittest.cc.
 
-// Space icons and colours offered in menus.
-inline constexpr const char* kSpaceIcons[] = {"\U0001F3E0",   "\U0001F4BC", "\U0001F3A8",
-                                              "\U0001F4DA",   "\U0001F9EA", "\U0001F3AE",
-                                              "\u2708\uFE0F", "\U0001F331"};
+// Space icons and colours offered in menus, in the order new spaces take them.
+const std::vector<std::string>& SpaceIcons();
 struct SpaceColour {
-  const char16_t* name;
-  int hue;
+  std::u16string name;
+  int hue = 0;
 };
-inline constexpr SpaceColour kSpaceColours[] = {{u"Blue", 222}, {u"Teal", 180},  {u"Green", 140},
-                                                {u"Amber", 40}, {u"Orange", 24}, {u"Red", 0},
-                                                {u"Pink", 330}, {u"Purple", 270}};
+const std::vector<SpaceColour>& SpaceColours();
 
 // The first space's colour (blue).
-inline constexpr int kFirstSpaceHue = 222;
+int FirstSpaceHue();
 
 // A space (docs/ux.md §5): a named set of tabs with an icon, a colour and a profile.
 // Spaces are browser-wide; each runs in one profile (its logins and history), and
@@ -42,7 +40,7 @@ struct Space {
   std::string id;
   std::string name;
   std::string icon;
-  int hue = kFirstSpaceHue;
+  int hue = FirstSpaceHue();
   // Profile directory name ("Default", "Profile 1", …) and its display name.
   std::string profile;
   std::u16string profile_name;
@@ -56,12 +54,12 @@ base::DictValue SpaceToDict(const Space& space);
 std::optional<Space> SpaceFromDict(const base::DictValue& dict, std::string_view fallback_profile);
 
 // Defaults for the next new space, given the existing ones: colours step around the wheel so
-// neighbours differ, icons cycle through kSpaceIcons, names count up ("Space 3").
+// neighbours differ, icons cycle through SpaceIcons(), names count up ("Space 3").
 // The space a window shows: the one with `active_id`, else the first; null when there are none.
 const Space* FindActiveSpace(const std::vector<Space>& spaces, std::string_view active_id);
 
 int NextSpaceHue(const std::vector<Space>& spaces);
-const char* NextSpaceIcon(const std::vector<Space>& spaces);
+std::string NextSpaceIcon(const std::vector<Space>& spaces);
 std::string NextSpaceName(const std::vector<Space>& spaces);
 
 // Hues are degrees on the colour wheel: NormalizeHue maps any int into [0, 360), and HueDistance
@@ -69,7 +67,7 @@ std::string NextSpaceName(const std::vector<Space>& spaces);
 int NormalizeHue(int hue);
 int HueDistance(int a, int b);
 
-// The index into kSpaceColours of the colour closest to `hue` (the new-space dialog's preset).
+// The index into SpaceColours() of the colour closest to `hue` (the new-space dialog's preset).
 size_t NearestSpaceColour(int hue);
 
 // The Chromium tab group colour closest to a space colour: a new tab group starts in its space's

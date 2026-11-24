@@ -1,0 +1,23 @@
+# Little Browser (Android): the component updater never checks for updates. On Android it would
+# poll update.googleapis.com from startup for some twenty components (optimization hints, first-
+# party sets, origin trials, CRLSet, …). Android doesn't need it for Widevine, which comes from
+# the system; the features those components feed use the data built into the release or go
+# without. Same effect as --disable-component-update, which Android ignores outside rooted
+# devices.
+
+diff --git a/chrome/browser/browser_process_impl.cc b/chrome/browser/browser_process_impl.cc
+index 187e99b29..220a07393 100644
+--- a/chrome/browser/browser_process_impl.cc
++++ b/chrome/browser/browser_process_impl.cc
+@@ -1489,9 +1489,8 @@ BrowserProcessImpl::component_updater() {
+           base::CommandLine::ForCurrentProcess(),
+           g_browser_process->local_state()),
+       std::move(scheduler), brand,
+-      /*update_checks_disabled=*/
+-      base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          switches::kDisableComponentUpdate));
++      // Little Browser: no update checks (android/patches/series).
++      /*update_checks_disabled=*/true);
+ 
+   return component_updater_.get();
+ }

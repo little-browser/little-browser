@@ -1,0 +1,49 @@
+# Little Browser (Android): no default search engine; first run asks for one (docs/design.md §5).
+# This turns on Chromium's own first-run search engine page, which Chromium shows only in a few
+# locales: the engines Chromium has built in for the user's country, shuffled, none preselected.
+# The choice replaces the default. Without a choice, the same question comes back as a dialog on
+# the next start.
+
+diff --git a/chrome/browser/locale/java/src/org/chromium/chrome/browser/locale/LocaleManagerDelegate.java b/chrome/browser/locale/java/src/org/chromium/chrome/browser/locale/LocaleManagerDelegate.java
+index bf5ba32a0..e286951ea 100644
+--- a/chrome/browser/locale/java/src/org/chromium/chrome/browser/locale/LocaleManagerDelegate.java
++++ b/chrome/browser/locale/java/src/org/chromium/chrome/browser/locale/LocaleManagerDelegate.java
+@@ -39,6 +39,7 @@ import org.chromium.components.search_engines.TemplateUrlService;
+ import org.chromium.ui.base.PageTransition;
+ 
+ import java.lang.ref.WeakReference;
++import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Objects;
+ 
+@@ -369,7 +370,12 @@ public class LocaleManagerDelegate {
+ 
+     /** @see LocaleManager#getSearchEnginePromoShowType */
+     public @SearchEnginePromoType int getSearchEnginePromoShowType() {
+-        if (!isSpecialLocaleEnabled()) return SearchEnginePromoType.DONT_SHOW;
++        if (!isSpecialLocaleEnabled()) {
++            // Little Browser: ask for a search engine until one is chosen.
++            return hasCompletedSearchEnginePromo()
++                    ? SearchEnginePromoType.DONT_SHOW
++                    : SearchEnginePromoType.SHOW_NEW;
++        }
+         var preferences = ChromeSharedPreferences.getInstance();
+         if (preferences.readBoolean(ChromePreferenceKeys.LOCALE_MANAGER_PROMO_SHOWN, false)) {
+             return SearchEnginePromoType.DONT_SHOW;
+@@ -389,8 +395,14 @@ public class LocaleManagerDelegate {
+ 
+     /** @see LocaleManager#getSearchEnginesForPromoDialog  */
+     public List<TemplateUrl> getSearchEnginesForPromoDialog(@SearchEnginePromoType int promoType) {
+-        throw new IllegalStateException(
+-                "Not applicable unless existing or new promos are required");
++        // Little Browser: the engines Chromium has built in for the user's country.
++        List<TemplateUrl> engines = new ArrayList<>();
++        for (TemplateUrl engine :
++                TemplateUrlServiceFactory.getForProfile(ProfileManager.getLastUsedRegularProfile())
++                        .getTemplateUrls()) {
++            if (engine.getIsPrepopulated()) engines.add(engine);
++        }
++        return engines;
+     }
+ 
+     /** @see LocaleManager#onUserSearchEngineChoice */

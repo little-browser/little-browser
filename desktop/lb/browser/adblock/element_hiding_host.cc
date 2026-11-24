@@ -200,6 +200,12 @@ void LoadElementHidingRules(const base::FilePath& file, base::OnceCallback<void(
       base::BindOnce(&ReadRules, file), base::BindOnce(&SetLoadedRules).Then(std::move(done)));
 }
 
+void WithholdElementHidingRulesForDemo() {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  g_demo_rules = true;
+  CurrentRules().reset();
+}
+
 void SetElementHidingRulesForDemo(const std::string& rules) {
   g_demo_rules = true;
   Install(std::make_unique<Rules>(core::element_hiding(rules)));

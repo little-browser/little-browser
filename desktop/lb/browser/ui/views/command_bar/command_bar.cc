@@ -341,10 +341,10 @@ class CommandBarView : public views::View, public views::TextfieldController {
                }
                const std::string icon = spaces[i].icon;
                size_t k = 0;
-               while (k < std::size(kSpaceIcons) && icon != kSpaceIcons[k]) {
+               while (k < SpaceIcons().size() && icon != SpaceIcons()[k]) {
                  ++k;
                }
-               c->SetSpaceIcon(i, kSpaceIcons[(k + 1) % std::size(kSpaceIcons)]);
+               c->SetSpaceIcon(i, SpaceIcons()[(k + 1) % SpaceIcons().size()]);
              },
              c)},
         {u"Change space colour", u"Command", u"", 0,
@@ -357,10 +357,10 @@ class CommandBarView : public views::View, public views::TextfieldController {
                }
                const int hue = spaces[i].hue;
                size_t k = 0;
-               while (k < std::size(kSpaceColours) && hue != kSpaceColours[k].hue) {
+               while (k < SpaceColours().size() && hue != SpaceColours()[k].hue) {
                  ++k;
                }
-               c->SetSpaceHue(i, kSpaceColours[(k + 1) % std::size(kSpaceColours)].hue);
+               c->SetSpaceHue(i, SpaceColours()[(k + 1) % SpaceColours().size()].hue);
              },
              c)},
         {u"Delete space", u"Command", u"", 0,

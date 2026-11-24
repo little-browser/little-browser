@@ -213,12 +213,12 @@ void SidebarFooterView::ShowContextMenuForViewImpl(views::View* source,
   const auto spaces = controller_->GetSpaces();
   const std::u16string name = base::UTF8ToUTF16(spaces[context_index_].name);
   icon_menu_ = std::make_unique<ui::SimpleMenuModel>(this);
-  for (size_t i = 0; i < std::size(kSpaceIcons); ++i) {
-    icon_menu_->AddItem(kCmdIconBase + static_cast<int>(i), base::UTF8ToUTF16(kSpaceIcons[i]));
+  for (size_t i = 0; i < SpaceIcons().size(); ++i) {
+    icon_menu_->AddItem(kCmdIconBase + static_cast<int>(i), base::UTF8ToUTF16(SpaceIcons()[i]));
   }
   colour_menu_ = std::make_unique<ui::SimpleMenuModel>(this);
-  for (size_t i = 0; i < std::size(kSpaceColours); ++i) {
-    colour_menu_->AddItem(kCmdColourBase + static_cast<int>(i), kSpaceColours[i].name);
+  for (size_t i = 0; i < SpaceColours().size(); ++i) {
+    colour_menu_->AddItem(kCmdColourBase + static_cast<int>(i), SpaceColours()[i].name);
   }
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   menu_model_->AddItem(kCmdRenameSpace, kRenameSpace);
@@ -263,11 +263,11 @@ void SidebarFooterView::ExecuteCommand(int command_id, int event_flags) {
   } else if (command_id == kCmdRenameSpace) {
     controller_->StartRename(index);
   } else if (command_id >= kCmdColourBase &&
-             command_id < kCmdColourBase + static_cast<int>(std::size(kSpaceColours))) {
-    controller_->SetSpaceHue(index, kSpaceColours[command_id - kCmdColourBase].hue);
+             command_id < kCmdColourBase + static_cast<int>(SpaceColours().size())) {
+    controller_->SetSpaceHue(index, SpaceColours()[command_id - kCmdColourBase].hue);
   } else if (command_id >= kCmdIconBase &&
-             command_id < kCmdIconBase + static_cast<int>(std::size(kSpaceIcons))) {
-    controller_->SetSpaceIcon(index, kSpaceIcons[command_id - kCmdIconBase]);
+             command_id < kCmdIconBase + static_cast<int>(SpaceIcons().size())) {
+    controller_->SetSpaceIcon(index, SpaceIcons()[command_id - kCmdIconBase]);
   }
 }
 

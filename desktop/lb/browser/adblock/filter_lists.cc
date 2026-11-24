@@ -4,20 +4,15 @@
 
 #include "lb/browser/adblock/filter_lists.h"
 
-#include <algorithm>
-#include <set>
 #include <string_view>
 
-#include "base/functional/function_ref.h"
-#include "base/strings/string_split.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_util.h"
-#include "base/strings/stringprintf.h"
 #include "components/subresource_filter/core/common/unindexed_ruleset.h"
 #include "components/subresource_filter/tools/rule_parser/rule.h"
 #include "components/subresource_filter/tools/rule_parser/rule_parser.h"
 #include "components/url_pattern_index/proto/rules.pb.h"
-#include "lb/browser/importer/import_text.h"
-#include "lb/core_bridge/lib.rs.h"
+#include "lb/core_bridge/rules.rs.h"
 #include "third_party/protobuf/src/google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "url/gurl.h"
 
@@ -25,228 +20,89 @@ namespace lb {
 
 namespace {
 
-// docs/design.md section 5. EasyList and EasyPrivacy: GPLv3 or CC BY-SA 3.0; uBlock filters:
-// GPLv3; Peter Lowe's list: free to use and combine. The browser downloads them itself; we don't
-// redistribute them.
-constexpr FilterList kFilterLists[] = {
-    {"EasyList", "https://easylist.to/easylist/easylist.txt"},
-    {"EasyPrivacy", "https://easylist.to/easylist/easyprivacy.txt"},
-    {"uBlock filters", "https://ublockorigin.github.io/uAssets/filters/filters.txt"},
-    {"Peter Lowe's list",
-     "https://pgl.yoyo.org/adservers/"
-     "serverlist.php?hostformat=adblockplus&showintro=1&mimetype=plaintext"},
-};
-
-// uBlock Origin's "!#if" tokens that hold here: a Chromium browser that supports user
-// stylesheets. Everything else (env_firefox, env_safari, env_mobile, env_mv3, ext_ubol,
-// cap_html_filtering, adguard, false, ...) is false.
-constexpr std::string_view kTrueConditions[] = {"env_chromium", "cap_user_stylesheet"};
-
-// Evaluates a "!#if" condition: tokens, "!", "&&", "||" and parentheses. nullopt if malformed.
-class ConditionParser {
- public:
-  explicit ConditionParser(std::string_view text) : text_(text) {}
-
-  std::optional<bool> Parse() {
-    const std::optional<bool> value = Or();
-    SkipSpaces();
-    if (!value || pos_ != text_.size()) {
-      return std::nullopt;
-    }
-    return value;
-  }
-
- private:
-  // Deep enough for any real list; stops runaway recursion on hostile input.
-  static constexpr int kMaxDepth = 32;
-
-  void SkipSpaces() {
-    while (pos_ < text_.size() && (text_[pos_] == ' ' || text_[pos_] == '\t')) {
-      ++pos_;
-    }
-  }
-
-  bool Take(std::string_view token) {
-    SkipSpaces();
-    if (text_.substr(pos_).starts_with(token)) {
-      pos_ += token.size();
-      return true;
-    }
-    return false;
-  }
-
-  std::optional<bool> Or() {
-    std::optional<bool> value = And();
-    while (value && Take("||")) {
-      const std::optional<bool> right = And();
-      if (!right) {
-        return std::nullopt;
-      }
-      value = *value || *right;
-    }
-    return value;
-  }
-
-  std::optional<bool> And() {
-    std::optional<bool> value = Unary();
-    while (value && Take("&&")) {
-      const std::optional<bool> right = Unary();
-      if (!right) {
-        return std::nullopt;
-      }
-      value = *value && *right;
-    }
-    return value;
-  }
-
-  std::optional<bool> Unary() {
-    if (++depth_ > kMaxDepth) {
-      return std::nullopt;
-    }
-    std::optional<bool> value;
-    if (Take("!")) {
-      value = Unary();
-      if (value) {
-        value = !*value;
-      }
-    } else if (Take("(")) {
-      value = Or();
-      if (value && !Take(")")) {
-        value = std::nullopt;
-      }
-    } else {
-      const size_t start = pos_;
-      while (pos_ < text_.size() &&
-             (base::IsAsciiAlphaNumeric(text_[pos_]) || text_[pos_] == '_')) {
-        ++pos_;
-      }
-      if (pos_ > start) {
-        value = std::ranges::find(kTrueConditions, text_.substr(start, pos_ - start)) !=
-                std::end(kTrueConditions);
-      }
-    }
-    --depth_;
-    return value;
-  }
-
-  const std::string_view text_;
-  size_t pos_ = 0;
-  int depth_ = 0;
-};
-
-// Calls `on_line` for each non-empty line of `list` outside "!#if" blocks that don't apply, and
-// returns how many rules (not comments) it left out.
-int ForEachActiveLine(std::string_view list, base::FunctionRef<void(std::string_view)> on_line) {
-  // One entry per open "!#if": whether its current branch applies.
-  std::vector<bool> branches;
-  int left_out = 0;
-  for (std::string_view line :
-       base::SplitStringPiece(list, "\r\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
-    if (line.starts_with("!#if ") || line == "!#if") {
-      branches.push_back(FilterListConditionHolds(line.substr(4)));
-      continue;
-    }
-    if (line == "!#else") {
-      if (!branches.empty()) {
-        branches.back() = !branches.back();
-      }
-      continue;
-    }
-    if (line == "!#endif") {
-      if (!branches.empty()) {
-        branches.pop_back();
-      }
-      continue;
-    }
-    if (std::ranges::all_of(branches, [](bool applies) { return applies; })) {
-      on_line(line);
-    } else if (line[0] != '!') {
-      ++left_out;
-    }
-  }
-  return left_out;
+// Filter lists are downloaded text: anything that isn't UTF-8 becomes U+FFFD on the way to
+// lb-core instead of failing the conversion (cxx aborts the browser on anything else).
+rust::String Lossy(std::string_view text) {
+  return rust::String::lossy(text.data(), text.size());
 }
 
-// uBlock Origin's option names and the Adblock Plus names Chromium's parser knows. `flip` turns
-// "1p" (first party) into "~third-party".
-struct OptionAlias {
-  std::string_view ubo;
-  std::string_view abp;
-  bool flip = false;
-};
-constexpr OptionAlias kOptionAliases[] = {
-    {"xhr", "xmlhttprequest"},
-    {"frame", "subdocument"},
-    {"doc", "document"},
-    {"css", "stylesheet"},
-    {"3p", "third-party"},
-    {"1p", "third-party", true},
-    {"first-party", "third-party", true},
-    {"from", "domain"},
-    {"ehide", "elemhide"},
-    {"ghide", "generichide"},
-};
-// Options uBlock Origin has that change nothing here: "important" (Chromium's exceptions always
-// win) and "all" (every type, which is what a rule without types already means here).
-constexpr std::string_view kIgnoredOptions[] = {"important", "all"};
-
-bool IsElementHidingRule(std::string_view rule) {
-  for (std::string_view separator : {"##", "#@#", "#?#", "#$#", "#%#"}) {
-    if (rule.find(separator) != std::string_view::npos) {
-      return true;
-    }
+rust::Vec<rust::String> LossyLists(const std::vector<std::string>& lists) {
+  rust::Vec<rust::String> texts;
+  texts.reserve(lists.size());
+  for (const std::string& list : lists) {
+    texts.push_back(Lossy(list));
   }
-  return false;
+  return texts;
+}
+
+core::DownloadedFilterRules ToCore(const DownloadedFilterRules& rules) {
+  return {.on_disk = rules.on_disk, .indexed = rules.indexed, .hiding_loaded = rules.hiding_loaded};
 }
 
 }  // namespace
 
-base::span<const FilterList> FilterLists() {
-  return kFilterLists;
+const std::vector<FilterList>& FilterLists() {
+  static const base::NoDestructor<std::vector<FilterList>> lists([] {
+    std::vector<FilterList> all;
+    for (const core::FilterListInfo& list : core::filter_lists()) {
+      all.push_back({std::string(list.name), std::string(list.url)});
+    }
+    return all;
+  }());
+  return *lists;
+}
+
+base::TimeDelta FilterListMaxAge() {
+  return base::Seconds(core::filter_lists_max_age_secs());
+}
+
+base::TimeDelta FilterListRetryAfter() {
+  return base::Seconds(core::filter_lists_retry_after_secs());
+}
+
+base::TimeDelta FilterListDownloadTimeout() {
+  return base::Seconds(core::filter_lists_download_timeout_secs());
+}
+
+size_t MaxFilterListFiles() {
+  return core::filter_lists_max_files();
 }
 
 bool FilterRulesInUse(const DownloadedFilterRules& rules) {
-  return !rules.on_disk || (rules.indexed && rules.hiding_loaded);
+  return core::filter_rules_in_use(ToCore(rules));
 }
 
 bool FilterListsNeedUpdate(std::optional<base::Time> last_update,
                            base::Time now,
                            const DownloadedFilterRules& rules) {
-  if (!last_update || last_update->is_null() || !FilterRulesInUse(rules)) {
-    return true;
-  }
-  return *last_update > now || now - *last_update >= kFilterListMaxAge;
+  const bool has_last = last_update && !last_update->is_null();
+  return core::filter_lists_need_update(
+      has_last, has_last ? last_update->InMillisecondsSinceUnixEpoch() : 0,
+      now.InMillisecondsSinceUnixEpoch(), ToCore(rules));
 }
 
 FilterListsUpdate DecideFilterListsUpdate(bool all_downloaded,
                                           bool any_downloaded,
                                           const DownloadedFilterRules& rules) {
-  if (all_downloaded) {
-    return {.write = true, .stamp = true, .retry = false};
-  }
-  const bool write = any_downloaded && !(rules.on_disk && rules.hiding_loaded);
-  return {.write = write, .stamp = false, .retry = true, .forget_stamp = write};
+  const core::FilterListsUpdateDecision d =
+      core::decide_filter_lists_update(all_downloaded, any_downloaded, ToCore(rules));
+  return {.write = d.write, .stamp = d.stamp, .retry = d.retry, .forget_stamp = d.forget_stamp};
 }
 
 std::string FilterRulesetVersion(base::Time now) {
-  base::Time::Exploded t;
-  now.UTCExplode(&t);
-  return base::StringPrintf("lb-%04d-%02d-%02d-%02d%02d%02d", t.year, t.month, t.day_of_month,
-                            t.hour, t.minute, t.second);
+  return std::string(core::filter_ruleset_version(now.ToTimeT()));
 }
 
 std::optional<std::string> NewestFilterRulesetVersion(const std::vector<std::string>& names) {
-  std::optional<std::string> newest;
-  for (const std::string& name : names) {
-    if (name.starts_with("lb-") && base::IsStringASCII(name) && (!newest || name > *newest)) {
-      newest = name;
-    }
+  const rust::String newest = core::newest_filter_ruleset_version(LossyLists(names));
+  if (newest.empty()) {
+    return std::nullopt;
   }
-  return newest;
+  return std::string(newest);
 }
 
 bool FilterListConditionHolds(std::string_view condition) {
-  return ConditionParser(condition).Parse().value_or(false);
+  return core::filter_condition_holds(Lossy(condition));
 }
 
 std::vector<GURL> FilterListIncludes(const GURL& list_url, std::string_view list) {
@@ -256,128 +112,54 @@ std::vector<GURL> FilterListIncludes(const GURL& list_url, std::string_view list
   }
   const std::string_view list_path = list_url.path();
   const std::string_view folder = list_path.substr(0, list_path.rfind('/') + 1);
-  ForEachActiveLine(list, [&](std::string_view line) {
-    if (!line.starts_with("!#include ")) {
-      return;
-    }
-    const GURL include = list_url.Resolve(
-        base::TrimWhitespaceASCII(line.substr(sizeof("!#include ") - 1), base::TRIM_ALL));
+  for (const rust::String& target : core::filter_list_includes(Lossy(list))) {
+    const GURL include = list_url.Resolve(std::string(target));
     if (include.is_valid() && include.scheme() == list_url.scheme() &&
         include.host() == list_url.host() && include.port() == list_url.port() &&
         include.path().starts_with(folder) && include != list_url) {
       includes.push_back(include);
     }
-  });
+  }
   return includes;
 }
 
 NormalizedFilterRule NormalizeFilterRule(std::string_view rule) {
-  NormalizedFilterRule normalized{.text = std::string(rule)};
-  // As Chromium's parser splits off the options: at the last "$", unless the rule is a /regex/.
-  const size_t dollar = rule.rfind('$');
-  if (rule.starts_with('!') || IsElementHidingRule(rule) || dollar == std::string_view::npos ||
-      rule.back() == '/') {
-    return normalized;
-  }
-  std::string options;
-  for (std::string_view option : base::SplitStringPiece(
-           rule.substr(dollar + 1), ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
-    bool negated = option.starts_with('~');
-    std::string_view name = negated ? option.substr(1) : option;
-    std::string_view value;
-    if (const size_t equals = name.find('='); equals != std::string_view::npos) {
-      value = name.substr(equals);
-      name = name.substr(0, equals);
-    }
-    if (name == "badfilter") {
-      normalized.badfilter = true;
-      continue;
-    }
-    if (std::ranges::find(kIgnoredOptions, name) != std::end(kIgnoredOptions)) {
-      continue;
-    }
-    for (const OptionAlias& alias : kOptionAliases) {
-      if (name == alias.ubo) {
-        name = alias.abp;
-        negated = negated != alias.flip;
-        break;
-      }
-    }
-    if (!options.empty()) {
-      options += ',';
-    }
-    if (negated) {
-      options += '~';
-    }
-    options.append(name).append(value);
-  }
-  normalized.text = std::string(rule.substr(0, dollar));
-  if (!options.empty()) {
-    normalized.text += '$' + options;
-  }
-  return normalized;
+  const core::NormalizedFilterRule normalized = core::normalize_filter_rule(Lossy(rule));
+  return {.text = std::string(normalized.text), .badfilter = normalized.badfilter};
 }
-
-namespace {
-
-// The rules uBlock Origin's "badfilter" rules disable, from any of `lists` (normalized).
-std::set<std::string> DisabledRules(const std::vector<std::string>& lists) {
-  std::set<std::string> disabled;
-  for (const std::string& list : lists) {
-    ForEachActiveLine(list, [&](std::string_view line) {
-      if (NormalizedFilterRule rule = NormalizeFilterRule(line); rule.badfilter) {
-        disabled.insert(std::move(rule.text));
-      }
-    });
-  }
-  return disabled;
-}
-
-}  // namespace
 
 std::optional<std::string> BuildUnindexedFilterRuleset(const std::vector<std::string>& lists,
                                                        FilterRulesetStats* stats) {
+  // The URL rules that apply here, normalized, without element hiding (BuildElementHidingRules),
+  // "badfilter" rules and what they disable.
+  const core::PreparedFilterRules prepared = core::prepare_filter_rules(LossyLists(lists));
   FilterRulesetStats counts;
+  counts.element_hiding_rules = static_cast<int>(prepared.element_hiding_rules);
+  counts.other_platform_rules = static_cast<int>(prepared.other_platform_rules);
+  counts.disabled_rules = static_cast<int>(prepared.disabled_rules);
   std::string ruleset;
   {
     google::protobuf::io::StringOutputStream output(&ruleset);
     subresource_filter::UnindexedRulesetWriter writer(&output);
     subresource_filter::RuleParser parser;
-    const std::set<std::string> disabled = DisabledRules(lists);
     bool written = true;
-    for (const std::string& list : lists) {
-      counts.other_platform_rules += ForEachActiveLine(list, [&](std::string_view line) {
-        // Element hiding takes these (BuildElementHidingRules); some, such as those excluding a
-        // site, Chromium's parser would count as unsupported.
-        if (IsElementHidingRule(line)) {
+    for (const rust::String& rule : prepared.rules) {
+      switch (parser.Parse(std::string(rule))) {
+        case url_pattern_index::proto::RULE_TYPE_URL:
+          written = written && writer.AddUrlRule(parser.url_rule().ToProtobuf());
+          ++counts.url_rules;
+          break;
+        case url_pattern_index::proto::RULE_TYPE_STYLE:
           ++counts.element_hiding_rules;
-          return;
-        }
-        const NormalizedFilterRule rule = NormalizeFilterRule(line);
-        if (rule.badfilter || disabled.contains(rule.text)) {
-          ++counts.disabled_rules;
-          return;
-        }
-        switch (parser.Parse(rule.text)) {
-          case url_pattern_index::proto::RULE_TYPE_URL:
-            written = written && writer.AddUrlRule(parser.url_rule().ToProtobuf());
-            ++counts.url_rules;
-            break;
-          case url_pattern_index::proto::RULE_TYPE_STYLE:
-            ++counts.element_hiding_rules;
-            break;
-          case url_pattern_index::proto::RULE_TYPE_COMMENT:
-            break;
-          default:
-            ++counts.unsupported_rules;
-            break;
-        }
-      });
-      if (!written) {
-        return std::nullopt;
+          break;
+        case url_pattern_index::proto::RULE_TYPE_COMMENT:
+          break;
+        default:
+          ++counts.unsupported_rules;
+          break;
       }
     }
-    if (!writer.Finish() || writer.had_error()) {
+    if (!written || !writer.Finish() || writer.had_error()) {
       return std::nullopt;
     }
   }
@@ -388,33 +170,11 @@ std::optional<std::string> BuildUnindexedFilterRuleset(const std::vector<std::st
 }
 
 std::string BuildElementHidingRules(const std::vector<std::string>& lists, size_t* count) {
-  const std::set<std::string> disabled = DisabledRules(lists);
-  std::string rules;
-  size_t lines = 0;
-  for (const std::string& list : lists) {
-    ForEachActiveLine(list, [&](std::string_view line) {
-      // lb-core takes only UTF-8 (cxx aborts the browser on anything else).
-      if (!IsCoreText(line)) {
-        return;
-      }
-      // An exception that turns hiding off, and the "badfilter" rules that cancel one.
-      if (line.starts_with("@@")) {
-        if (const NormalizedFilterRule rule = NormalizeFilterRule(line);
-            rule.badfilter || disabled.contains(rule.text)) {
-          return;
-        }
-      }
-      if (core::is_element_hiding_line(rust::Str(line.data(), line.size()))) {
-        rules.append(line);
-        rules.push_back('\n');
-        ++lines;
-      }
-    });
-  }
+  const core::FilterHidingRules hiding = core::filter_hiding_rules(LossyLists(lists));
   if (count) {
-    *count = lines;
+    *count = hiding.count;
   }
-  return rules;
+  return std::string(hiding.text);
 }
 
 }  // namespace lb

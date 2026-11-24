@@ -49,9 +49,7 @@
      </message>
      <message name="IDS_SETTINGS_SITE_SETTINGS_AR_DESCRIPTION" desc="Description of the augmented reality content setting.">
        Sites usually track your camera position for AR features, like games or heads-up directions
-@@ -3267,10 +3267,10 @@
-       Allowlisted internally
-     </message>
+@@ -3269,8 +3269,8 @@
      <message name="IDS_SETTINGS_SITE_SETTINGS_ADS_BLOCK_BLOCKLISTED_SINGULAR" desc="A subtitle for the ‘Ads’ setting, shown if a website is known to show ads that have a poor user experience (intrusive, misleading) and is blocked from showing ads by Chrome.">
        Site shows intrusive or misleading ads
      </message>

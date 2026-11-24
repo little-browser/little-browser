@@ -8,33 +8,51 @@
 
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "lb/core_bridge/rules.rs.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "url/gurl.h"
 
 namespace lb {
 
+namespace {
+
+core::CommandBarMode ToCore(CommandBarMode mode) {
+  switch (mode) {
+    case CommandBarMode::kNewTab:
+      return core::CommandBarMode::NewTab;
+    case CommandBarMode::kOpenHere:
+      return core::CommandBarMode::OpenHere;
+    case CommandBarMode::kEditAddress:
+      return core::CommandBarMode::EditAddress;
+    case CommandBarMode::kRenameSpace:
+      return core::CommandBarMode::RenameSpace;
+    case CommandBarMode::kLittleWindow:
+      return core::CommandBarMode::LittleWindow;
+  }
+}
+
+core::CommandBarResult ToCore(CommandBarResult kind) {
+  switch (kind) {
+    case CommandBarResult::kOpenTab:
+      return core::CommandBarResult::OpenTab;
+    case CommandBarResult::kCommand:
+      return core::CommandBarResult::Command;
+    case CommandBarResult::kBookmark:
+      return core::CommandBarResult::Bookmark;
+    case CommandBarResult::kHistory:
+      return core::CommandBarResult::History;
+    case CommandBarResult::kAddress:
+      return core::CommandBarResult::Address;
+    case CommandBarResult::kSearch:
+      return core::CommandBarResult::Search;
+  }
+}
+
+}  // namespace
+
+// The ranking is lb-core's (lb_core::command_bar), shared with the other platforms.
 double MatchScore(std::u16string_view query, std::u16string_view text) {
-  if (query.empty()) {
-    return 0;
-  }
-  const std::u16string t = base::ToLowerASCII(text);
-  const std::u16string q = base::ToLowerASCII(query);
-  if (size_t i = t.find(q); i != std::u16string::npos) {
-    const bool word_start = i == 0 || !base::IsAsciiAlpha(t[i - 1]);
-    return 2.0 + (i == 0 ? 1.0 : 0.0) + (word_start ? 0.5 : 0.0) -
-           std::min<size_t>(i, 200) / 1000.0;
-  }
-  size_t ti = 0;
-  size_t gaps = 0;
-  for (char16_t ch : q) {
-    size_t j = t.find(ch, ti);
-    if (j == std::u16string::npos) {
-      return 0;
-    }
-    gaps += j - ti;
-    ti = j + 1;
-  }
-  return gaps > 25 ? 0 : 1.0 - gaps / 40.0;
+  return core::command_bar_match_score(base::UTF16ToUTF8(query), base::UTF16ToUTF8(text));
 }
 
 std::u16string DisplayHost(const GURL& url) {
@@ -138,30 +156,17 @@ std::optional<TypedAddress> InputAsAddress(std::u16string_view input) {
 }
 
 double ResultBoost(CommandBarResult kind) {
-  switch (kind) {
-    case CommandBarResult::kOpenTab:
-      return 0.3;
-    case CommandBarResult::kCommand:
-      return 0.2;
-    case CommandBarResult::kBookmark:
-      return 0.1;
-    case CommandBarResult::kHistory:
-    case CommandBarResult::kAddress:
-    case CommandBarResult::kSearch:
-      return 0;
-  }
+  return core::command_bar_result_boost(ToCore(kind));
+}
+
+size_t MaxBookmarkResults() {
+  return core::command_bar_max_bookmark_results();
 }
 
 std::vector<size_t> PickBookmarkResults(const std::vector<double>& scores) {
-  std::vector<size_t> picked(scores.size());
-  for (size_t i = 0; i < picked.size(); ++i) {
-    picked[i] = i;
-  }
-  std::ranges::stable_sort(picked, [&](size_t a, size_t b) { return scores[a] > scores[b]; });
-  if (picked.size() > kMaxBookmarkResults) {
-    picked.resize(kMaxBookmarkResults);
-  }
-  return picked;
+  const rust::Vec<size_t> picked =
+      core::pick_bookmark_results(rust::Slice<const double>(scores.data(), scores.size()));
+  return std::vector<size_t>(picked.begin(), picked.end());
 }
 
 std::u16string BookmarkSubtitle(std::u16string_view folder, const GURL& url) {
@@ -174,10 +179,7 @@ std::u16string BookmarkSubtitle(std::u16string_view folder, const GURL& url) {
 }
 
 bool OffersResult(CommandBarMode mode, CommandBarResult kind) {
-  if (mode == CommandBarMode::kLittleWindow) {
-    return kind != CommandBarResult::kOpenTab && kind != CommandBarResult::kCommand;
-  }
-  return true;
+  return core::command_bar_offers_result(ToCore(mode), ToCore(kind));
 }
 
 }  // namespace lb

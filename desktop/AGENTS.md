@@ -8,14 +8,19 @@ This file covers how to work in the fork.
 `scripts/fetch.sh` builds `build/src` (git-ignored, about 100 GB) in this order:
 
 1. the Chromium tarball pinned in `VERSIONS`;
-2. ungoogled-chromium's core patches, then its macOS patches, minus
-   `patches/ungoogled-exclude.txt`;
-3. our patch series, `patches/series`;
+2. ungoogled-chromium's core patches, then its platform patches (macOS: ungoogled-chromium-macos),
+   minus `patches/ungoogled-exclude.txt`;
+3. our patch series, `patches/series`, without the patches tagged for another platform;
 4. domain substitution, which rewrites Google domains to `*.qjz9zk` in listed files, minus
    `patches/domsub-exclude.txt`;
-5. the macOS toolchains (LLVM, Rust, Node.js, Crubit);
-6. branding: `rebrand_strings.py` and `brand_assets.sh`;
+5. the platform's toolchains (macOS: LLVM, Rust, Node.js, Crubit);
+6. branding: `rebrand_strings.py`, `brand_assets.sh` and the platform's own icons;
 7. symlinks `src/lb` → `desktop/lb` and `src/lb_core` → `core/lb-core`.
+
+`fetch.sh` and `build.sh` do the steps every platform shares; what differs per platform (its
+ungoogled-chromium repo, the tarball and toolchain download, its icons, the tools it builds before
+GN, what it packages) is one file, `platforms/<name>.sh`, plus `args/<name>.gn`.
+`platforms/README.md` lists what an entry defines and how to add one.
 
 So **our patches apply before domain substitution**. A patch must be made against the text as it
 is before substitution, not against what you see in `build/src`.
@@ -38,11 +43,17 @@ Workflow for a patch:
    `diff -u --label a/<file> --label b/<file> "$T/base/<file>" <your copy>` (or keep the history
    in a scratch git repo such as `build/minitree`, committing the base as `base: …`).
 3. **Write the patch.** Save it as `patches/lb/<name>.patch`, starting with `#` comment lines
-   that explain why the patch exists. One concern per patch.
-4. **Add it to the series.** List it in `patches/series` with a one-line reason. Order matters:
-   a patch must come after any patch that touches the same file, and is then diffed from the
-   state after that patch (`$T/patched` holds every file after the whole series).
-5. **Check it applies to a clean tree:** `scripts/check_patches.py`. It fails on any rejected
+   that explain why the patch exists. One concern per patch, and one layer: engine code and view
+   code (Views, Cocoa, WebUI) go in separate patches, `<name>.patch` and `<name>-ui.patch`, so
+   another platform can take the engine half (`patches/README.md`).
+4. **Add it to the series.** List it in `patches/series` with a one-line reason, starting with
+   `[mac]` (or another platform's tag) when it is for one platform only; a patch that touches a
+   platform's own files (`.mm`, `*_mac.*`, `cocoa/`) must be. Order matters: a patch must come
+   after any patch that touches the same file, and is then diffed from the state after that patch
+   (`$T/patched` holds every file after the whole series). `scripts/check_series.py` checks the
+   layers and tags on every push.
+5. **Check it applies to a clean tree:** `scripts/check_patches.py` (`--platform <name>` for
+   another platform's series). It fails on any rejected
    hunk, fuzz or offset. `git apply --check -R` against `build/src` is not enough: `build/src`
    already contains every patch, so a patch made from the wrong base passes it.
 6. **Mirror the change into `build/src`.** Copy the patched file across, or edit it in place if it
