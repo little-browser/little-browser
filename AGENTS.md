@@ -52,7 +52,8 @@ Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
 - New source files start with the MPL-2.0 header (text in `CONTRIBUTING.md`).
 - One concern per commit. Say what changed and why.
 - A change people using the browser would notice gets a `Release-note:` line next to the sign-off:
-  one sentence, written for them (`CONTRIBUTING.md`).
+  one sentence, written for them. CI, tests, docs, the website, dev-build-only changes and fixes
+  to something not yet released get none (`CONTRIBUTING.md` lists the cases).
 - Don't push unless asked.
 
 ## Good practice here

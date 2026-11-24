@@ -36,7 +36,16 @@ Signed-off-by: …
 
 A release's notes are these lines from the commits since the last release, leaving out commits
 that were reverted (`desktop/scripts/release_notes.py`). Commits nobody using the browser would
-notice (CI, tests, refactors, docs) have none.
+notice have none:
+
+- CI, tests, refactors and docs;
+- the website, branding and the release tooling, which change what people see outside the
+  browser, not in it;
+- changes only development builds see, such as `run.sh` flags and demo modes;
+- `lb-core` changes the browser doesn't use yet; the commit that uses them gets the note;
+- fixes and follow-ups to something not released yet, since its own note already covers it. If
+  the fix makes that note wrong, the release's notes are corrected when it is published
+  (`LB_RELEASE_NOTES` on the publish job).
 
 ## Licence headers
 
