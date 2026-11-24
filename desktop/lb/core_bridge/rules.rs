@@ -111,6 +111,8 @@ mod ffi {
         EditAddress,
         RenameSpace,
         LittleWindow,
+        RenameTab,
+        EditPinnedUrl,
     }
 
     enum CommandBarResult {
@@ -442,6 +444,8 @@ fn to_mode(mode: ffi::CommandBarMode) -> command_bar::Mode {
         ffi::CommandBarMode::EditAddress => command_bar::Mode::EditAddress,
         ffi::CommandBarMode::RenameSpace => command_bar::Mode::RenameSpace,
         ffi::CommandBarMode::LittleWindow => command_bar::Mode::LittleWindow,
+        ffi::CommandBarMode::RenameTab => command_bar::Mode::RenameTab,
+        ffi::CommandBarMode::EditPinnedUrl => command_bar::Mode::EditPinnedUrl,
         _ => command_bar::Mode::NewTab,
     }
 }

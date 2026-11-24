@@ -20,9 +20,17 @@ namespace lb {
 // URL parser and stays here.
 
 // What the command bar can open: a new tab; a page in the current tab (a New Tab Group's blank
-// first tab); the current tab's address, to edit; the space's name, to rename; or a page in a new
-// little window (Cmd+Option+N).
-enum class CommandBarMode { kNewTab, kOpenHere, kEditAddress, kRenameSpace, kLittleWindow };
+// first tab); the current tab's address, to edit; the space's name, to rename; a page in a new
+// little window (Cmd+Option+N); a tab's name, to rename; or a pinned tab's link, to edit.
+enum class CommandBarMode {
+  kNewTab,
+  kOpenHere,
+  kEditAddress,
+  kRenameSpace,
+  kLittleWindow,
+  kRenameTab,
+  kEditPinnedUrl,
+};
 
 // The kinds of result the command bar lists.
 enum class CommandBarResult { kOpenTab, kCommand, kBookmark, kHistory, kAddress, kSearch };

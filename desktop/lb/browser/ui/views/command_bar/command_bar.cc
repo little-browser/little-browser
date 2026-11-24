@@ -7,8 +7,10 @@
 #include "lb/browser/adblock/ad_blocker.h"
 #include "lb/browser/adblock/site_ads.h"
 #include "lb/browser/command_bar/command_matching.h"
+#include "lb/browser/tabs/tab_names.h"
 #include "lb/browser/ui/lb_command_ids.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
+#include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 
@@ -47,6 +49,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -192,7 +195,19 @@ class CommandBarView : public views::View, public views::TextfieldController {
         views::BoxLayout::Orientation::kVertical, gfx::Insets(), 0));
 
     BrowserWindowInterface* browser = controller_->browser();
-    if (mode_ == CommandBarMode::kRenameSpace) {
+    tabs::TabInterface* const target = controller_->command_bar_tab();
+    if (mode_ == CommandBarMode::kRenameTab) {
+      // The tab's own name, or its page's title to start from.
+      field_->SetPlaceholderText(u"Tab name (empty: the page's title)");
+      if (target) {
+        field_->SetText(TabRowTitle(target, target->GetContents()->GetTitle()));
+      }
+    } else if (mode_ == CommandBarMode::kEditPinnedUrl) {
+      field_->SetPlaceholderText(u"The pinned tab's link");
+      if (target) {
+        field_->SetText(base::UTF8ToUTF16(PinnedUrlOf(target).spec()));
+      }
+    } else if (mode_ == CommandBarMode::kRenameSpace) {
       field_->SetPlaceholderText(u"Space name");
       field_->SetText(
           base::UTF8ToUTF16(controller_->GetSpaces()[controller_->GetActiveIndex()].name));
@@ -220,6 +235,16 @@ class CommandBarView : public views::View, public views::TextfieldController {
   }
 
   std::u16string TextForTesting() const { return std::u16string(field_->GetText()); }
+
+  bool RunFirstForTesting(const std::u16string& typed) {
+    field_->SetText(typed);
+    Rebuild();
+    if (items_.empty()) {
+      return false;
+    }
+    Run(0);  // destroys this view
+    return true;
+  }
 
   bool RunForTesting(const std::u16string& text) {
     field_->SetText(text);
@@ -307,6 +332,36 @@ class CommandBarView : public views::View, public views::TextfieldController {
             base::BindRepeating(&ChooseEngineThenSearch, browser()->GetWeakPtr(), mode_, query)};
   }
 
+  // The one result of a bar renaming a tab or editing a pinned tab's link (docs/ux.md §6).
+  void AddTabEditItem(const std::u16string& query) {
+    tabs::TabInterface* const target = controller_->command_bar_tab();
+    if (!target) {
+      return;
+    }
+    const tabs::TabHandle handle = target->GetHandle();
+    if (mode_ == CommandBarMode::kRenameTab) {
+      // The page's own title, as the field starts, leaves the tab unnamed (lb::NameFromInput).
+      const std::u16string name = NameFromInput(query, target->GetContents()->GetTitle());
+      items_.push_back(
+          {name.empty() ? u"Show the page's own title" : u"Rename tab to “" + name + u"”",
+           u"Enter to save", u"", 0,
+           base::BindRepeating(
+               [](tabs::TabHandle tab, std::u16string name) { RenameTab(tab.Get(), name); }, handle,
+               name)});
+      return;
+    }
+    const std::optional<GURL> url = PinnedUrlFromInput(query);
+    if (!url) {
+      // Not an action: Enter leaves the bar open (Run).
+      items_.push_back({u"Type a web address for the link", u"", u"", 0, base::RepeatingClosure()});
+      return;
+    }
+    items_.push_back(
+        {u"Set link to " + base::UTF8ToUTF16(url->spec()), u"Enter to save", u"", 0,
+         base::BindRepeating([](tabs::TabHandle tab, GURL url) { SetPinnedUrl(tab.Get(), url); },
+                             handle, *url)});
+  }
+
   // Each command: title, hint, action.
   std::vector<Item> Commands() {
     base::WeakPtr<SidebarController> c = controller_->GetWeakPtr();
@@ -371,6 +426,15 @@ class CommandBarView : public views::View, public views::TextfieldController {
                }
              },
              c)},
+        {u"Rename tab", u"Command", u"", 0,
+         base::BindRepeating(
+             [](base::WeakPtr<SidebarController> c) {
+               if (c) {
+                 c->ShowCommandBarForTab(CommandBarMode::kRenameTab,
+                                         c->browser()->GetTabStripModel()->GetActiveTab());
+               }
+             },
+             c)},
         {u"Tabs on top", u"Command", u"", 0,
          base::BindRepeating(
              [](BrowserWindowInterface* b) {
@@ -386,6 +450,48 @@ class CommandBarView : public views::View, public views::TextfieldController {
         {u"Settings", u"Command", u"⌘,", 0, exec(IDC_OPTIONS)},
         {u"Developer tools", u"Command", u"⌥⌘I", 0, exec(IDC_DEV_TOOLS_TOGGLE)},
     };
+    // A pinned tab's link (docs/ux.md §6), for the active tab: the items its tab menu offers
+    // (lb::TabNameMenuItems), but Rename, which is above for any tab.
+    if (tabs::TabInterface* active = b->GetTabStripModel()->GetActiveTab()) {
+      const tabs::TabHandle handle = active->GetHandle();
+      for (const TabNameMenuItem& item :
+           TabNameMenuItems(1, active->IsPinned(), HasLeftPinnedUrl(active))) {
+        if (!item.enabled) {
+          continue;
+        }
+        switch (item.command) {
+          case TabNameCommand::kRename:
+            break;
+          case TabNameCommand::kEditPinnedUrl:
+            commands.push_back({u"Edit pinned link", u"Command", u"", 0,
+                                base::BindRepeating(
+                                    [](base::WeakPtr<SidebarController> c, tabs::TabHandle tab) {
+                                      if (c && tab.Get()) {
+                                        c->ShowCommandBarForTab(CommandBarMode::kEditPinnedUrl,
+                                                                tab.Get());
+                                      }
+                                    },
+                                    c, handle)});
+            break;
+          case TabNameCommand::kUsePageAsPinnedUrl:
+            commands.push_back({u"Use current page as pinned link", u"Command", u"", 0,
+                                base::BindRepeating(
+                                    [](tabs::TabHandle tab) {
+                                      if (tab.Get()) {
+                                        SetPinnedUrl(tab.Get(), CurrentUrlOf(tab.Get()));
+                                      }
+                                    },
+                                    handle)});
+            break;
+          case TabNameCommand::kBackToPinnedUrl:
+            commands.push_back(
+                {u"Back to pinned page", u"Command", u"", 0,
+                 base::BindRepeating([](tabs::TabHandle tab) { GoBackToPinnedUrl(tab.Get()); },
+                                     handle)});
+            break;
+        }
+      }
+    }
     // The built-in ad blocker's per-site switch, for the page in the active tab.
     content::WebContents* tab = b->GetTabStripModel()->GetActiveWebContents();
     const GURL page = tab ? tab->GetLastCommittedURL() : GURL();
@@ -409,6 +515,12 @@ class CommandBarView : public views::View, public views::TextfieldController {
     const std::u16string query(base::TrimWhitespace(text, base::TRIM_ALL));
     items_.clear();
     selected_ = 0;
+
+    if (mode_ == CommandBarMode::kRenameTab || mode_ == CommandBarMode::kEditPinnedUrl) {
+      AddTabEditItem(query);
+      Render();
+      return;
+    }
 
     if (mode_ == CommandBarMode::kRenameSpace) {
       base::WeakPtr<SidebarController> c = controller_->GetWeakPtr();
@@ -445,7 +557,9 @@ class CommandBarView : public views::View, public views::TextfieldController {
     }
 
     for (const TabEntry& tab : tabs ? controller_->GetAllTabs() : std::vector<TabEntry>()) {
-      if (double s = MatchScore(query, tab.title + u" " + base::UTF8ToUTF16(tab.url.spec()));
+      // A renamed tab is found by its name and by its page's own title.
+      if (double s = MatchScore(
+              query, tab.title + u" " + tab.page_title + u" " + base::UTF8ToUTF16(tab.url.spec()));
           s > 0) {
         items_.push_back(tab_item(tab, s + ResultBoost(CommandBarResult::kOpenTab)));
       }
@@ -579,6 +693,9 @@ class CommandBarView : public views::View, public views::TextfieldController {
       return;
     }
     base::RepeatingClosure run = items_[index].run;
+    if (!run) {
+      return;  // a hint, such as an edit that isn't valid yet: the bar stays open
+    }
     CommandBar* bar = bar_;
     bar->Close();  // destroys this view
     run.Run();
@@ -622,6 +739,14 @@ bool CommandBar::RunForTesting(const std::u16string& text) {
 
 bool RunCommandBarForTesting(const std::u16string& text) {
   return g_open_bar && g_open_bar->RunForTesting(text);
+}
+
+bool CommandBar::RunFirstForTesting(const std::u16string& typed) {
+  return view_ && view_->RunFirstForTesting(typed);
+}
+
+bool RunFirstCommandBarResultForTesting(const std::u16string& typed) {
+  return g_open_bar && g_open_bar->RunFirstForTesting(typed);
 }
 
 std::optional<std::u16string> CommandBar::TextForTesting() const {

@@ -28,6 +28,7 @@
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/spaces/space_model.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
+#include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 
 namespace lb {
@@ -814,6 +815,8 @@ void OnTabRestored(BrowserWindowInterface* browser,
   if (controller && contents) {
     controller->pinned_groups().OnTabRestored(tabs::TabInterface::GetFromContents(contents),
                                               extra_data);
+    // Its name and pinned link too (lb/browser/ui/tabs/tab_custom_data.h).
+    RestoreTabCustom(tabs::TabInterface::GetFromContents(contents), extra_data);
   }
 }
 

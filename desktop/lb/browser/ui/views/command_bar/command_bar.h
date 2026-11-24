@@ -35,8 +35,10 @@ class CommandBar : public views::WidgetObserver {
   void Close();
   bool IsShowing() const { return !!widget_; }
 
-  // RunCommandBarForTesting() and CommandBarTextForTesting() for this bar.
+  // RunCommandBarForTesting(), RunFirstCommandBarResultForTesting() and
+  // CommandBarTextForTesting() for this bar.
   bool RunForTesting(const std::u16string& text);
+  bool RunFirstForTesting(const std::u16string& typed);
   std::optional<std::u16string> TextForTesting() const;
 
   // Called by the view when its preferred height changes.
@@ -59,6 +61,10 @@ class CommandBar : public views::WidgetObserver {
 // does; false if no bar is open or no such result is shown (the --lb-sidebar-demo=ad-blocker
 // check).
 bool RunCommandBarForTesting(const std::u16string& text);
+
+// Types `typed` into the open command bar and runs its first result, as Enter does; false if no
+// bar is open or it shows no result (the --lb-sidebar-demo=tab-names check).
+bool RunFirstCommandBarResultForTesting(const std::u16string& typed);
 
 // What the open command bar's field holds, or null if no bar is open.
 std::optional<std::u16string> CommandBarTextForTesting();

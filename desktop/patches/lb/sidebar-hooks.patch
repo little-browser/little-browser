@@ -2,11 +2,11 @@
 # strip — header at the top, footer (space switcher, "+" menu) at the bottom, "+ New Tab" above
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
 # snapshot tool, pinned tab sleep and pinned groups, extensions demo, first-run dialogs, ad blocker,
-# Peek, little window, import, the space avatar, the tracking-parameters demo, element hiding)
-# with the region view's target.
+# Peek, little window, import, the space avatar, the tracking-parameters demo, element hiding,
+# tab names and pinned links) with the region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,87 @@
+@@ -537,7 +537,91 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -71,6 +71,8 @@
 +    "//lb/browser/ui/views/sidebar/new_tab_row_view.h",
 +    "//lb/browser/ui/views/sidebar/sidebar_controller.cc",
 +    "//lb/browser/ui/views/sidebar/sidebar_controller.h",
++    "//lb/browser/ui/views/sidebar/sidebar_edits_demo.cc",
++    "//lb/browser/ui/views/sidebar/sidebar_edits_demo.h",
 +    "//lb/browser/ui/views/sidebar/sidebar_footer_view.cc",
 +    "//lb/browser/ui/views/sidebar/sidebar_footer_view.h",
 +    "//lb/browser/ui/views/sidebar/sidebar_header_view.cc",
@@ -85,6 +87,8 @@
 +    "//lb/browser/ui/tabs/pinned_group_tracker.h",
 +    "//lb/browser/ui/tabs/pinned_tab_sleep.cc",
 +    "//lb/browser/ui/tabs/pinned_tab_sleep.h",
++    "//lb/browser/ui/tabs/tab_custom_data.cc",
++    "//lb/browser/ui/tabs/tab_custom_data.h",
 +    "//lb/browser/ui/views/sidebar/pinned_group_layout.cc",
 +    "//lb/browser/ui/views/sidebar/pinned_group_layout.h",
 +    "//lb/browser/ui/views/sidebar/pinned_groups_demo.cc",
@@ -95,7 +99,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +637,22 @@
+@@ -557,6 +641,22 @@
      "//ui/views",
    ]
    deps = [

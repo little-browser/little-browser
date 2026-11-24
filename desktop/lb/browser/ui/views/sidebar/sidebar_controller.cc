@@ -89,8 +89,10 @@
 #include "lb/browser/peek/peek_demo.h"
 #include "lb/browser/prefs/pref_defaults.h"
 #include "lb/browser/privacy/tracking_params_demo.h"
+#include "lb/browser/tabs/tab_names.h"
 #include "lb/browser/ui/lb_command_ids.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
+#include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "lb/browser/ui/views/importer/import_dialog.h"
 #include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/little_window/little_window_menu.h"
@@ -101,6 +103,7 @@
 #include "lb/browser/ui/views/search/search_choice_dialog.h"
 #include "lb/browser/ui/views/sidebar/new_space_dialog.h"
 #include "lb/browser/ui/views/sidebar/pinned_groups_demo.h"
+#include "lb/browser/ui/views/sidebar/sidebar_edits_demo.h"
 #include "lb/browser/ui/views/sidebar/sidebar_header_view.h"
 #include "lb/browser/ui/views/sidebar/tab_search_demo.h"
 #include "third_party/skia/include/core/SkColor.h"
@@ -117,6 +120,16 @@
 namespace lb {
 
 namespace {
+
+// A saved tab's name and link as session tab extra data, for chrome::AddRestoredTab.
+std::map<std::string, std::string> TabCustomExtraData(const SavedTab& saved) {
+  const std::string data =
+      TabCustomToSessionData({saved.name, saved.pinned ? saved.pinned_url : GURL()});
+  if (data.empty()) {
+    return {};
+  }
+  return {{kTabCustomSessionKey, data}};
+}
 
 // Demo check (--lb-sidebar-demo=pinned-*): logs each pinned row's close button, which reads
 // "Remove pinned tab" ("−") while the tab sleeps and "Close" ("✕") while it is awake.
@@ -329,7 +342,6 @@ void LoadInParkedTab(base::WeakPtr<content::WebContents> page) {
                    page),
                base::Seconds(3));
 }
-
 
 }  // namespace
 
@@ -785,10 +797,12 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
 }
 
 void SidebarController::OnTabChangedAt(tabs::TabInterface* tab, TabChangeType change_type) {
+  OnTabChangedForNames(tab);
   ScheduleSave();
 }
 
 void SidebarController::OnTabPinnedStateChanged(tabs::TabInterface* tab, int index) {
+  OnTabPinnedChangedForNames(tab);
   ScheduleSave();
   pinned_groups_->Update({tab});
 }
@@ -895,6 +909,9 @@ void SidebarController::SaveTabs(bool closing) {
       continue;
     }
     SavedTab tab{url, contents->GetTitle(), strip_tab->IsPinned(), strip_tab == active};
+    const TabCustom custom = GetTabCustom(strip_tab);
+    tab.name = custom.name;
+    tab.pinned_url = custom.pinned_url;
     if (const std::optional<tab_groups::TabGroupId> group = strip_tab->GetGroup()) {
       tab.group_id = group->ToString();
       if (const TabGroup* tab_group = model->group_model()->GetTabGroup(*group)) {
@@ -1042,7 +1059,9 @@ std::vector<tabs::TabInterface*> SidebarController::AddSavedTabs(const std::vect
         browser_, base::span(&entry, 1u), model->count(), /*selected_navigation=*/0,
         /*extension_app_id=*/std::string(), group_of[i], /*select=*/false, saved[i].pinned,
         base::TimeTicks(), base::Time(), /*storage_namespace=*/nullptr,
-        sessions::SerializedUserAgentOverride(), /*extra_data=*/{}, /*from_session_restore=*/false,
+        sessions::SerializedUserAgentOverride(),
+        // Its name and link come back through lb::OnTabRestored, as in a session restore.
+        TabCustomExtraData(saved[i]), /*from_session_restore=*/false,
         /*is_active_browser=*/std::nullopt);
     added[i] = contents ? tabs::TabInterface::GetFromContents(contents) : nullptr;
   }
@@ -1514,8 +1533,9 @@ std::vector<TabEntry> SidebarController::GetAllTabs() const {
   std::vector<TabEntry> result;
   auto add_live = [&](size_t space, tabs::TabInterface* tab, bool in_active_space) {
     content::WebContents* contents = tab->GetContents();
-    result.push_back({space, contents->GetTitle(), contents->GetLastCommittedURL(), in_active_space,
-                      tab->GetHandle(), std::nullopt});
+    result.push_back({space, TabRowTitle(tab, contents->GetTitle()), contents->GetTitle(),
+                      contents->GetLastCommittedURL(), in_active_space, tab->GetHandle(),
+                      std::nullopt});
   };
   const size_t active = GetActiveIndex();
   for (tabs::TabInterface* tab : *browser_->GetTabStripModel()) {
@@ -1552,7 +1572,8 @@ std::vector<TabEntry> SidebarController::GetAllTabs() const {
     if (const base::ListValue* list = SavedTabs(spaces[s].id)) {
       const std::vector<SavedTab> saved = SavedTabsFromList(*list);
       for (size_t i = 0; i < saved.size(); ++i) {
-        result.push_back({s, saved[i].title, saved[i].url, false, tabs::TabHandle(), i});
+        result.push_back({s, TabTitleToShow({saved[i].name, GURL()}, saved[i].title),
+                          saved[i].title, saved[i].url, false, tabs::TabHandle(), i});
       }
     }
   }
@@ -1606,6 +1627,14 @@ bool SidebarController::ShowCommandBar(CommandBarMode mode) {
   }
   show_command_bar_.Run(mode);
   return true;
+}
+
+bool SidebarController::ShowCommandBarForTab(CommandBarMode mode, tabs::TabInterface* tab) {
+  if (!tab) {
+    return false;
+  }
+  command_bar_tab_ = tab->GetHandle();
+  return ShowCommandBar(mode);
 }
 
 // ---------------------------------------------------------------- spaces: create, delete
@@ -1873,6 +1902,9 @@ void SidebarController::SeedDemoData() {
             }
             if (MaybeRunPinnedGroupsDemo(self->browser(), demo)) {
               return;  // Modes: lb/browser/ui/views/sidebar/pinned_groups_demo.h.
+            }
+            if (MaybeRunSidebarEditsDemo(self->browser(), demo)) {
+              return;  // Modes: lb/browser/ui/views/sidebar/sidebar_edits_demo.h.
             }
             if (demo == "tab-search") {
               RunTabSearchDemo(self->browser());

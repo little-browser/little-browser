@@ -28,6 +28,10 @@ core::CommandBarMode ToCore(CommandBarMode mode) {
       return core::CommandBarMode::RenameSpace;
     case CommandBarMode::kLittleWindow:
       return core::CommandBarMode::LittleWindow;
+    case CommandBarMode::kRenameTab:
+      return core::CommandBarMode::RenameTab;
+    case CommandBarMode::kEditPinnedUrl:
+      return core::CommandBarMode::EditPinnedUrl;
   }
 }
 

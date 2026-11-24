@@ -139,6 +139,8 @@ source_set("model") {
     "browser/tabs/pinned_groups.h",
     "browser/tabs/restore_order.cc",
     "browser/tabs/restore_order.h",
+    "browser/tabs/tab_names.cc",
+    "browser/tabs/tab_names.h",
     "browser/tabs/tab_to_show.cc",
     "browser/tabs/tab_to_show.h",
     "browser/ui/lb_command_ids.h",  # also in the sidebar's views target, which includes it
@@ -229,6 +231,7 @@ test("lb_unittests") {
     "browser/tabs/pinned_close_unittest.cc",
     "browser/tabs/pinned_groups_unittest.cc",
     "browser/tabs/restore_order_unittest.cc",
+    "browser/tabs/tab_names_unittest.cc",
     "browser/tabs/tab_to_show_unittest.cc",
     "core_bridge/core_bridge_unittest.cc",
     "common/page_names_unittest.cc",

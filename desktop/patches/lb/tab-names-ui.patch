@@ -1,0 +1,24 @@
+# Little Browser: a tab the user renamed (tab-names.patch) is read by its name, as its row shows
+# it: the tab's accessible label takes its title from lb::TabRowTitle.
+--- a/chrome/browser/ui/views/tabs/tab/tab_accessibility.cc
++++ b/chrome/browser/ui/views/tabs/tab/tab_accessibility.cc
+@@ -26,6 +26,8 @@
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/text/bytes_formatting.h"
+ 
++#include "lb/browser/ui/tabs/tab_custom_data.h"  // Little Browser
++
+ namespace {
+ int GetAccessibleTabLabelFormatStringForSplit(split_tabs::SplitTabLayout layout,
+                                               int tab_index_in_split) {
+@@ -99,6 +101,10 @@
+   std::u16string title =
+       is_for_tab ? controller->GetTitleForTab(tab->GetHandle())
+                  : controller->GetWindowTitleForTab(tab->GetHandle());
++  // Little Browser: a tab the user named is read by its name, as its row shows.
++  if (is_for_tab) {
++    title = lb::TabRowTitle(tab, std::move(title));
++  }
+ 
+   if (const std::optional<split_tabs::SplitTabId> split = tab->GetSplit()) {
+     if (!tab_strip_model->ContainsSplit(split.value())) {

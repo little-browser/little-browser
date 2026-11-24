@@ -21,10 +21,23 @@ pub struct Tab {
     pub id: Id,
     pub url: String,
     pub title: String,
+    /// The user's name for the tab, shown instead of `title`; empty for none.
+    pub name: String,
     /// For pinned tabs: the URL the tab returns to ("back to pinned page").
     pub pinned_url: Option<String>,
     /// Milliseconds since the Unix epoch; drives auto-archive and sleeping.
     pub last_active_ms: u64,
+}
+
+impl Tab {
+    /// The title the tab is shown with: the user's name for it, or the page's title.
+    pub fn display_title(&self) -> &str {
+        if self.name.is_empty() {
+            &self.title
+        } else {
+            &self.name
+        }
+    }
 }
 
 /// One set of logins and cookies.
@@ -87,6 +100,18 @@ impl Space {
         let mut tab = self.today.remove(i);
         tab.pinned_url = Some(tab.url.clone());
         self.pinned.push(tab);
+        true
+    }
+
+    /// Unpin a pinned tab (Cmd+D): it becomes the newest today tab and drops its link. Returns
+    /// false if the tab is not pinned.
+    pub fn unpin(&mut self, tab_id: &str) -> bool {
+        let Some(i) = self.pinned.iter().position(|t| t.id == tab_id) else {
+            return false;
+        };
+        let mut tab = self.pinned.remove(i);
+        tab.pinned_url = None;
+        self.today.insert(0, tab);
         true
     }
 }
@@ -222,9 +247,31 @@ mod tests {
             id: id.into(),
             url: format!("https://{id}.example/"),
             title: id.into(),
+            name: String::new(),
             pinned_url: None,
             last_active_ms,
         }
+    }
+
+    #[test]
+    fn unpin_drops_the_link_and_makes_the_newest_today_tab() {
+        let mut space = Space::new("s", "Personal", 210);
+        space.today.push(tab("a", 0));
+        space.today.push(tab("b", 0));
+        assert!(space.pin("b"));
+        assert!(space.unpin("b"));
+        assert!(space.pinned.is_empty());
+        assert_eq!(space.today[0].id, "b");
+        assert_eq!(space.today[0].pinned_url, None);
+        assert!(!space.unpin("b"));
+    }
+
+    #[test]
+    fn a_name_replaces_the_title() {
+        let mut t = tab("a", 0);
+        assert_eq!(t.display_title(), "a");
+        t.name = "Mail".into();
+        assert_eq!(t.display_title(), "Mail");
     }
 
     #[test]

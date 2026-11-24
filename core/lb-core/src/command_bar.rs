@@ -7,8 +7,8 @@
 //! reading typed text as an address, which needs their URL parser and the public suffix list.
 
 /// What the command bar opens: a new tab; a page in the current tab (a New Tab Group's blank
-/// first tab); the current tab's address, to edit; the space's name, to rename; or a page in a
-/// new little window.
+/// first tab); the current tab's address, to edit; the space's name, to rename; a page in a
+/// new little window; a tab's name, to rename; or a pinned tab's link, to edit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     NewTab,
@@ -16,6 +16,18 @@ pub enum Mode {
     EditAddress,
     RenameSpace,
     LittleWindow,
+    RenameTab,
+    EditPinnedUrl,
+}
+
+impl Mode {
+    /// Whether the bar only edits a name or a link: it lists just what the typed text sets.
+    pub fn is_editing(self) -> bool {
+        matches!(
+            self,
+            Mode::RenameSpace | Mode::RenameTab | Mode::EditPinnedUrl
+        )
+    }
 }
 
 /// The kinds of result the command bar lists.
@@ -31,8 +43,11 @@ pub enum ResultKind {
 
 /// Whether the bar in `mode` lists results of `kind`. In the little-window mode everything
 /// chosen opens a page in a new little window, so it lists no open tabs (they'd switch the window
-/// behind) and no commands (they'd act on it).
+/// behind) and no commands (they'd act on it). A bar editing a name or a link lists none.
 pub fn offers_result(mode: Mode, kind: ResultKind) -> bool {
+    if mode.is_editing() {
+        return false;
+    }
     mode != Mode::LittleWindow || !matches!(kind, ResultKind::OpenTab | ResultKind::Command)
 }
 
@@ -109,12 +124,14 @@ pub fn match_score(query: &str, text: &str) -> f64 {
 mod tests {
     use super::*;
 
-    const MODES: [Mode; 5] = [
+    const MODES: [Mode; 7] = [
         Mode::NewTab,
         Mode::OpenHere,
         Mode::EditAddress,
         Mode::RenameSpace,
         Mode::LittleWindow,
+        Mode::RenameTab,
+        Mode::EditPinnedUrl,
     ];
     const KINDS: [ResultKind; 6] = [
         ResultKind::OpenTab,
@@ -135,10 +152,31 @@ mod tests {
                 "{kind:?}"
             );
         }
-        for mode in MODES.into_iter().filter(|&m| m != Mode::LittleWindow) {
+        for mode in MODES
+            .into_iter()
+            .filter(|&m| m != Mode::LittleWindow && !m.is_editing())
+        {
             for kind in KINDS {
                 assert!(offers_result(mode, kind), "{mode:?} {kind:?}");
             }
+        }
+    }
+
+    #[test]
+    fn editing_a_name_or_link_lists_no_results() {
+        for mode in [Mode::RenameSpace, Mode::RenameTab, Mode::EditPinnedUrl] {
+            assert!(mode.is_editing());
+            for kind in KINDS {
+                assert!(!offers_result(mode, kind), "{mode:?} {kind:?}");
+            }
+        }
+        for mode in [
+            Mode::NewTab,
+            Mode::OpenHere,
+            Mode::EditAddress,
+            Mode::LittleWindow,
+        ] {
+            assert!(!mode.is_editing(), "{mode:?}");
         }
     }
 

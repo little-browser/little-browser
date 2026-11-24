@@ -111,6 +111,9 @@ struct SavedTab {
   std::string split_id;
   int split_layout = 0;  // split_tabs::SplitTabLayout
   double split_ratio = 0.5;
+  // The user's name for the tab, and a pinned tab's link (lb/browser/tabs/tab_names.h).
+  std::u16string name;
+  GURL pinned_url;
 };
 
 base::DictValue SavedTabToDict(const SavedTab& tab);

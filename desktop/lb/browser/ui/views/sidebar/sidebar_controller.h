@@ -56,7 +56,8 @@ std::u16string ProfileDisplayName(const std::string& base_name);
 // A tab in any space of this window (for the command bar).
 struct TabEntry {
   size_t space_index;
-  std::u16string title;
+  std::u16string title;       // as its row shows it: the user's name for it, or the page's title
+  std::u16string page_title;  // the page's own title, which the command bar also matches
   GURL url;
   bool in_active_space;
   tabs::TabHandle tab;                // a live tab, or null for a saved one
@@ -164,6 +165,10 @@ class SidebarController : public TabStripModelObserver {
   // Command bar, shown by the sidebar view that registered the callback.
   void SetShowCommandBarCallback(base::RepeatingCallback<void(CommandBarMode)> callback);
   bool ShowCommandBar(CommandBarMode mode);
+  // The command bar for one tab: renaming it, or editing its pinned link (CommandBarMode).
+  bool ShowCommandBarForTab(CommandBarMode mode, tabs::TabInterface* tab);
+  // The tab the bar opened by ShowCommandBarForTab acts on, or null if it went away.
+  tabs::TabInterface* command_bar_tab() const { return command_bar_tab_.Get(); }
 
   // The space this window shows (empty for private windows).
   std::string GetActiveSpaceId() const;
@@ -274,6 +279,7 @@ class SidebarController : public TabStripModelObserver {
   void ApplyTint();
 
   base::RepeatingCallback<void(CommandBarMode)> show_command_bar_;
+  tabs::TabHandle command_bar_tab_;
 
   raw_ptr<BrowserWindowInterface> browser_;
   std::unique_ptr<PinnedGroupTracker> pinned_groups_;

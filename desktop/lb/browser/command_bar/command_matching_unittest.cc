@@ -147,6 +147,18 @@ TEST(OffersResultTest, OtherModesListEverything) {
   }
 }
 
+TEST(OffersResultTest, EditingANameOrLinkListsNothing) {
+  // The bar only sets what is typed: a space's or a tab's name, or a pinned tab's link.
+  for (CommandBarMode mode :
+       {CommandBarMode::kRenameSpace, CommandBarMode::kRenameTab, CommandBarMode::kEditPinnedUrl}) {
+    for (CommandBarResult kind :
+         {CommandBarResult::kOpenTab, CommandBarResult::kCommand, CommandBarResult::kBookmark,
+          CommandBarResult::kHistory, CommandBarResult::kAddress, CommandBarResult::kSearch}) {
+      EXPECT_FALSE(OffersResult(mode, kind));
+    }
+  }
+}
+
 TEST(ResultBoostTest, TabsThenCommandsThenBookmarksThenHistory) {
   EXPECT_GT(ResultBoost(CommandBarResult::kOpenTab), ResultBoost(CommandBarResult::kCommand));
   EXPECT_GT(ResultBoost(CommandBarResult::kCommand), ResultBoost(CommandBarResult::kBookmark));

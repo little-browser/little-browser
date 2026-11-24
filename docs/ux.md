@@ -66,7 +66,7 @@ Sidebar zones, top to bottom:
 |---|---|---|
 | Title row | Window controls, the sidebar toggle, the command bar button, Tab Search | Drag area for the window. Tab Search is always there: no Pin/Unpin in its menu or the window's, and no switch for it in Settings |
 | Space header | Icon + name of the current space; a profile badge (🔒 and the profile's name) if it isn't the default profile | Space colour tints the sidebar |
-| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Wandered off the pinned URL → hover shows ↺ "back to pinned page" |
+| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Each keeps a link, the page it goes back to (section 6); off its link, the tab menu has Back to Pinned Page (a ↺ on hover is not built yet) |
 | Divider + New tab | "+ New Tab" row, opens the command bar (Cmd+T) | The divider shows only when the space has pinned tabs |
 | Today tabs | Unpinned tabs, newest first | Optional auto-archive (section 6) |
 | Footer | Space switcher (each space's icon, the current one highlighted), **＋** in the bottom-right corner; a Downloads button on the left (not built yet) | ＋ opens a menu: New space, then, set apart, the tab actions: New tab, New split view (only while a page is open), New tab group |
@@ -164,6 +164,18 @@ The centre of the browser. A floating palette in the middle of the window.
   again closes it once the page has asked, and so does closing it while it isn't shown. A pinned
   tab in a split view closes as usual. A pinned tab that hasn't loaded since a
   restart or a space switch counts as sleeping. Cmd+D pins/unpins.
+- **Names.** Any tab can be renamed: the tab menu's **Rename Tab…** (or the command bar's "Rename
+  tab", for the shown tab) opens the command bar on its name. The name replaces the page's title in
+  the sidebar, the command bar and to VoiceOver, whatever page the tab shows; the command bar finds
+  it by its name and by its page's title. Renaming it to nothing, or to the page's own title as the
+  bar starts with it, shows the page's title again. Names are kept across restarts, space switches
+  and sleep. In a split view each tab has its own menu items.
+- **Pinned links.** A pinned tab keeps a link, the page it goes back to: the page it showed when it
+  was pinned, or, pinned while blank, the first page it loads. Its tab menu has **Edit Link…** (the
+  command bar, on the link: typing an address sets it and loads it; Enter on anything else leaves
+  the bar open), and, once the tab shows another page, **Use Current Page as Link** and **Back to
+  Pinned Page**; the command bar offers the same for the shown tab. Unpinning drops the link; a
+  drag that takes a pinned tab across "+ New Tab" and back keeps it.
 - **Today** tabs are everything else. **Auto-archive**: today tabs not used for a while are
   closed and moved to the archive (searchable in the command bar). This keeps the sidebar short and
   memory low. Choices: 12 h, **24 h (default)**, 7 days, 30 days, or Never. The first-run screen asks

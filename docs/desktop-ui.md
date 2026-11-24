@@ -32,6 +32,29 @@ space between the tabs and the footer. The header, footer and row switch to thei
 icons-only form (`lb::IsSidebarCompact`) while the strip is collapsed and not expanded on hover;
 an expanded strip dragged narrow keeps the full form, as its tabs do.
 
+**Tab names and pinned links.** A tab's name and a pinned tab's link (`lb::TabCustom`, rules in
+`lb/browser/tabs/tab_names.h`) are kept by the tab, in a map by its `TabHandle`
+(`lb/browser/ui/tabs/tab_custom_data.h`), not with its page: a sleeping tab is discarded, which on
+desktop gives it a new WebContents. `patches/lb/tab-names.patch` hooks them in: `TabData` takes the
+row's title from `lb::TabRowTitle` (no "Loading…" title for a named tab); `TabMenuModel` gets the
+items of `lb::TabNameMenuItems` after Pin/Unpin, with command ids from 900 (below the menu's
+submenu ranges; `tabs::TabContextMenuCommand` gets a fixed underlying type so they are valid
+values), which `TabStripModel` hands to `lb::IsTabNameCommandEnabled` and
+`lb::ExecuteTabNameCommand`; a menu counts the right-clicked tab's split view, always selected
+whole, as one tab (`lb::TabMenuTargets`); the session saves them as tab extra data `lb_tab`, also
+in its rebuilt file and in tab restore's records, and `lb::OnTabRestored` brings them back. A tab
+that gets a new page writes them to the session again, as the session knows the new page as a new
+tab. `patches/lb/tab-names-ui.patch` gives the row's accessible name the same title. A rename
+notifies `TabUIHelper` as a page's new title does, so the row redraws. Rename Tab… and Edit Link…
+open the command bar in `kRenameTab` or `kEditPinnedUrl` for that tab
+(`SidebarController::ShowCommandBarForTab`); a typed link is read as the bar reads an address. A
+tab's link settles (`lb::SettleTabLink`) when it is pinned or unpinned and whenever it changes
+(`SidebarController::OnTabPinnedStateChanged` and `OnTabChangedAt`): a pinned tab without one takes
+the page it has committed unless that is blank, and an unpinned tab has none. A tab drag pins and
+unpins tabs as they cross "+ New Tab", so during one links wait, and settle when it ends
+(`lb::OnTabDragEnded`). The space's saved tabs carry both too (`SavedTab::name`, `pinned_url`,
+written and read by the same `lb::WriteTabCustom` and `lb::ReadTabCustom` as the session's data).
+
 **New Tab Group** runs `IDC_CREATE_NEW_TAB_GROUP` through `SidebarController::NewTabGroup()`, which
 remembers the blank tab the group starts with. When another tab joins that group the controller
 closes the placeholder, but not while a tab drag is under way (a dragged tab passes through groups).

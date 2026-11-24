@@ -65,3 +65,5 @@ lb/space-avatar.patch                # the profile button and profile menu show 
 lb/tracking-params.patch             # a page navigation loses its tracking parameters (utm_*, fbclid, ...)
 lb/element-hiding.patch              # element hiding: each frame gets the CSS that hides ads' leftovers
 lb/no-lens-chip.patch                 # no Google Lens promo chip in the address bar (it crashed on parked tabs)
+lb/tab-names.patch                   # a tab can be renamed; a pinned tab keeps a link to go back to
+lb/tab-names-ui.patch                # a renamed tab is read by its name (accessible label)

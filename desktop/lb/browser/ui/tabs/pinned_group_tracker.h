@@ -170,7 +170,8 @@ void PinTabGroup(BrowserWindowInterface* browser, const tab_groups::TabGroupId& 
 
 // Session hooks (patches/lb/pinned-groups.patch): what to save for a tab, in the session file and
 // in tab restore's record of a closed tab or window; and a tab that session or tab restore just
-// added.
+// added, which gets its pinned group back, and its name and link (lb/browser/ui/tabs/
+// tab_custom_data.h).
 std::string GetPinnedGroupSessionData(content::WebContents* contents);
 void OnTabRestored(BrowserWindowInterface* browser,
                    content::WebContents* contents,

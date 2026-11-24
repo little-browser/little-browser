@@ -296,6 +296,41 @@ TEST(SavedTabsTest, SplitRoundTrip) {
   EXPECT_FALSE(SavedTabToDict({GURL("https://b.com/"), u"B"}).contains("split"));
 }
 
+TEST(SavedTabsTest, NameAndPinnedUrlRoundTrip) {
+  SavedTab tab{GURL("https://mail.example.com/sent"), u"Sent - Mail", /*pinned=*/true};
+  tab.name = u"Mail";
+  tab.pinned_url = GURL("https://mail.example.com/inbox");
+  base::ListValue list;
+  list.Append(SavedTabToDict(tab));
+  list.Append(SavedTabToDict({GURL("https://b.com/"), u"B"}));
+  const std::vector<SavedTab> tabs = SavedTabsFromList(list);
+  ASSERT_EQ(tabs.size(), 2u);
+  EXPECT_EQ(tabs[0].name, u"Mail");
+  EXPECT_EQ(tabs[0].pinned_url, GURL("https://mail.example.com/inbox"));
+  EXPECT_EQ(tabs[0].url, GURL("https://mail.example.com/sent"));
+  // Nothing set: nothing written, so records stay small.
+  EXPECT_TRUE(tabs[1].name.empty());
+  EXPECT_FALSE(tabs[1].pinned_url.is_valid());
+  EXPECT_FALSE(list[1].GetDict().contains("name"));
+  EXPECT_FALSE(list[1].GetDict().contains("pinned_url"));
+}
+
+TEST(SavedTabsTest, NameIsReadAsTypedNamesAreKept) {
+  base::ListValue list;
+  list.Append(base::DictValue().Set("url", "https://a.com/").Set("name", "  Two \n lines "));
+  const std::vector<SavedTab> tabs = SavedTabsFromList(list);
+  ASSERT_EQ(tabs.size(), 1u);
+  EXPECT_EQ(tabs[0].name, u"Two lines");
+}
+
+TEST(SavedTabsTest, InvalidPinnedUrlIsDropped) {
+  base::ListValue list;
+  list.Append(base::DictValue().Set("url", "https://a.com/").Set("pinned_url", "nope"));
+  const std::vector<SavedTab> tabs = SavedTabsFromList(list);
+  ASSERT_EQ(tabs.size(), 1u);
+  EXPECT_FALSE(tabs[0].pinned_url.is_valid());
+}
+
 TEST(SavedTabsTest, BadSplitRatioFallsBackToHalf) {
   base::ListValue list;
   list.Append(base::DictValue()

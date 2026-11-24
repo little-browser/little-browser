@@ -31,6 +31,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "lb/browser/ui/tabs/pinned_group_tracker.h"
+#include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/class_property.h"
@@ -1100,6 +1101,8 @@ void OnTabDragEnded(bool cancelled) {
                        for (SidebarController* controller : SidebarController::All()) {
                          controller->pinned_groups().EndTabDrag(cancelled);
                        }
+                       // Links of tabs the drag pinned or unpinned.
+                       OnTabDragEndedForNames();
                      },
                      cancelled));
 }
