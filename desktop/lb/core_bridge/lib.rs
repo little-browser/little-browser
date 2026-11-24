@@ -8,6 +8,8 @@
 //! converts types. Chromium builds without C++ exceptions, so nothing here returns `Result`:
 //! a failure is a non-empty `error` string. An absent optional value is an empty string.
 
+mod rules;
+
 use lb_core::import::{
     addresses, arc, bookmarks, cookies, extensions, history, plan, profiles, safari, search,
     sources, tabs as open_tabs, ImportedTab,

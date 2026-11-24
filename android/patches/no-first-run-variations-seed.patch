@@ -1,0 +1,26 @@
+# Little Browser (Android): no variations seed download from clientservices.googleapis.com during
+# first run. Official builds fetch it on every start until first run completes; Google's own
+# builds are the only ones meant to (the repeated fetch later is already off outside them).
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/init/AsyncInitTaskRunner.java b/chrome/android/java/src/org/chromium/chrome/browser/init/AsyncInitTaskRunner.java
+index b18283937..bb34d3e3a 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/init/AsyncInitTaskRunner.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/init/AsyncInitTaskRunner.java
+@@ -13,6 +13,7 @@ import org.chromium.base.library_loader.ProcessInitException;
+ import org.chromium.base.task.PostTask;
+ import org.chromium.base.task.TaskTraits;
+ import org.chromium.base.version_info.VersionInfo;
++import org.chromium.build.BuildConfig;
+ import org.chromium.build.annotations.MonotonicNonNull;
+ import org.chromium.build.annotations.NullMarked;
+ import org.chromium.build.annotations.Nullable;
+@@ -38,7 +39,8 @@ public abstract class AsyncInitTaskRunner {
+ 
+     @VisibleForTesting
+     boolean shouldFetchVariationsSeedDuringFirstRun() {
+-        return VersionInfo.isOfficialBuild();
++        // Little Browser: no field trials from Google.
++        return VersionInfo.isOfficialBuild() && BuildConfig.IS_CHROME_BRANDED;
+     }
+ 
+     private class FetchSeedTask implements Runnable {

@@ -82,8 +82,8 @@ TEST(FilterListsTest, UpdateWhenNeverDownloaded) {
 TEST(FilterListsTest, UpdateWhenOld) {
   const base::Time now = base::Time::Now();
   EXPECT_FALSE(FilterListsNeedUpdate(now - base::Hours(1), now, kInUse));
-  EXPECT_FALSE(FilterListsNeedUpdate(now - kFilterListMaxAge + base::Minutes(1), now, kInUse));
-  EXPECT_TRUE(FilterListsNeedUpdate(now - kFilterListMaxAge, now, kInUse));
+  EXPECT_FALSE(FilterListsNeedUpdate(now - FilterListMaxAge() + base::Minutes(1), now, kInUse));
+  EXPECT_TRUE(FilterListsNeedUpdate(now - FilterListMaxAge(), now, kInUse));
   EXPECT_TRUE(FilterListsNeedUpdate(now - base::Days(30), now, kInUse));
 }
 
@@ -165,9 +165,9 @@ TEST(FilterListsTest, AFailedDownloadFillsInMissingHidingRules) {
 }
 
 TEST(FilterListsTest, DownloadsGiveUpAndRetryInReasonableTime) {
-  EXPECT_GE(kFilterListDownloadTimeout, base::Minutes(1));
-  EXPECT_LE(kFilterListDownloadTimeout, base::Minutes(10));
-  EXPECT_LT(kFilterListRetryAfter, kFilterListMaxAge);
+  EXPECT_GE(FilterListDownloadTimeout(), base::Minutes(1));
+  EXPECT_LE(FilterListDownloadTimeout(), base::Minutes(10));
+  EXPECT_LT(FilterListRetryAfter(), FilterListMaxAge());
 }
 
 TEST(FilterListsTest, VersionIsReadableAndSortsInTimeOrder) {

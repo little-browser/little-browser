@@ -1,0 +1,35 @@
+# Little Browser (Android): Chromium doesn't offer to translate pages unless the user turns it on,
+# and never asks Google's translate ranker. Offering a translation fetches the language list from
+# translate.googleapis.com and the ranker model from www.gstatic.com before the user says yes.
+
+diff --git a/chrome/browser/ui/browser_ui_prefs.cc b/chrome/browser/ui/browser_ui_prefs.cc
+index d2264ce90..d5a99c4cb 100644
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -144,8 +144,9 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(prefs::kWebAppCreateOnDesktop, true);
+   registry->RegisterBooleanPref(prefs::kWebAppCreateInAppsMenu, true);
+   registry->RegisterBooleanPref(prefs::kWebAppCreateInQuickLaunchBar, true);
++  // Little Browser: translation is offered only after the user turns it on.
+   registry->RegisterBooleanPref(
+-      translate::prefs::kOfferTranslateEnabled, true,
++      translate::prefs::kOfferTranslateEnabled, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacement);
+   registry->RegisterDictionaryPref(prefs::kBrowserWindowPlacementPopup);
+diff --git a/components/translate/core/browser/translate_ranker_impl.cc b/components/translate/core/browser/translate_ranker_impl.cc
+index e159d0d59..8df4b25da 100644
+--- a/components/translate/core/browser/translate_ranker_impl.cc
++++ b/components/translate/core/browser/translate_ranker_impl.cc
+@@ -89,8 +89,9 @@ const char kDefaultTranslateRankerModelURL[] =
+     "translate/2017/03/translate_ranker_model_20170329.pb.bin";
+ #endif
+ 
+-BASE_FEATURE(kTranslateRankerQuery, base::FEATURE_ENABLED_BY_DEFAULT);
+-BASE_FEATURE(kTranslateRankerEnforcement, base::FEATURE_ENABLED_BY_DEFAULT);
++// Little Browser: no ranker model download from www.gstatic.com.
++BASE_FEATURE(kTranslateRankerQuery, base::FEATURE_DISABLED_BY_DEFAULT);
++BASE_FEATURE(kTranslateRankerEnforcement, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ TranslateRankerFeatures::TranslateRankerFeatures() = default;
+ 

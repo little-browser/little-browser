@@ -141,6 +141,8 @@ A second space, switched to automatically: add `--lb-sidebar-demo`
 (`=command-bar` also opens the command bar through the Cmd+T path, `=collapsed` collapses the
 strip, `=new-space` opens the new-space dialog, `=new-profile` creates a space in a new profile,
 `=search-again` opens the search choice, closes it and opens it again,
+`=inactive-space-load` opens a page, switches spaces so its tab is parked, and loads another page
+in it (Chromium's tab helpers must cope with a tab outside every window),
 `=restore-after-crash` does what the crash bubble's Restore button does, `=tab-group` groups a
 tab in Work, leaves the space and comes back, `=group-colour` groups a tab without choosing a
 colour (it takes the space's), `=group-close` then closes that group and logs the saved groups
@@ -197,7 +199,8 @@ come after the search choice, never open at the same time, and install from the 
 after one with no profile and one the store doesn't have (it must install from the store all the
 same, as the import shows no prompt),
 `=element-hiding` (needs the network) puts its own hiding rules in place of the downloaded ones,
-loads example.com and adds elements as a script would after the load: the site's rule and generic
+which it sets aside before example.com loads so the page waits for its rules, loads example.com
+and adds elements as a script would after the load: the site's rule and generic
 rules (with no class or id, by class, by id) must hide theirs, an exception must keep one, the
 page's paragraph and an element no rule names must show, and an example.org iframe must get
 example.org's rule, not example.com's; after allowing ads on the site and adding them again,

@@ -244,7 +244,9 @@ sidebar switches space, once per gesture and without wrap-around.
 `search/search_choice_dialog.*` runs once per profile while ungoogled's "No Search" is the
 default, and again from the command bar. It offers Brave Search, DuckDuckGo, Ecosia, Google,
 Microsoft Bing, Qwant and Startpage, alphabetically, without suggestions; Google uses our own
-definition because ungoogled replaced the built-in one. After "Not now", a search from the command
+definition because ungoogled replaced the built-in one. The list and when to ask are lb-core's
+(`search_choice.rs`), so every platform offers the same engines; the dialog maps them to
+Chromium's built-in definitions. After "Not now", a search from the command
 bar brings the choice back and runs once an engine is picked.
 
 ## Password manager choice

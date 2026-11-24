@@ -1,0 +1,17 @@
+# Little Browser (Android): no preconnect to the default search engine at startup and in the
+# background. Search still connects when the user searches.
+
+diff --git a/chrome/browser/navigation_predictor/search_engine_preconnector.cc b/chrome/browser/navigation_predictor/search_engine_preconnector.cc
+index 0b665fddd..642bcf66d 100644
+--- a/chrome/browser/navigation_predictor/search_engine_preconnector.cc
++++ b/chrome/browser/navigation_predictor/search_engine_preconnector.cc
+@@ -144,7 +144,8 @@ namespace features {
+ // Feature to control preconnect to search.
+ 
+ BASE_FEATURE(kPreconnectFromKeyedService, base::FEATURE_ENABLED_BY_DEFAULT);
+-BASE_FEATURE(kPreconnectToSearch, base::FEATURE_ENABLED_BY_DEFAULT);
++// Little Browser: no background connections to the search engine.
++BASE_FEATURE(kPreconnectToSearch, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // Feature to control binding the receivers every time we attempt to
+ // preconnect. This will trigger the destruction of the previous receiver

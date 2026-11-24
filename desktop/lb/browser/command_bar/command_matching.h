@@ -15,7 +15,9 @@
 
 namespace lb {
 
-// Command bar text rules that don't need views (unit tested in command_matching_unittest.cc).
+// Command bar text rules that don't need views (unit tested in command_matching_unittest.cc). The
+// ranking is lb-core's (lb_core::command_bar); reading typed text as an address needs Chromium's
+// URL parser and stays here.
 
 // What the command bar can open: a new tab; a page in the current tab (a New Tab Group's blank
 // first tab); the current tab's address, to edit; the space's name, to rename; or a page in a new
@@ -36,10 +38,10 @@ bool OffersResult(CommandBarMode mode, CommandBarResult kind);
 double ResultBoost(CommandBarResult kind);
 
 // How many bookmarks the bar lists at most, the best matches.
-inline constexpr size_t kMaxBookmarkResults = 6;
+size_t MaxBookmarkResults();
 
 // Which bookmark matches the bar lists, given their scores: the indexes of the best
-// kMaxBookmarkResults, best first (equal scores keep their order). Only these count as listed,
+// MaxBookmarkResults(), best first (equal scores keep their order). Only these count as listed,
 // so a page left out here can still come from history.
 std::vector<size_t> PickBookmarkResults(const std::vector<double>& scores);
 

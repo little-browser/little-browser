@@ -1,0 +1,53 @@
+# The view half of no-reopen-closed.patch (Views and WebUI), which says why. One patch never mixes
+# engine and view code (desktop/patches/README.md).
+
+--- a/chrome/browser/ui/views/frame/system_menu_model_builder.cc
++++ b/chrome/browser/ui/views/frame/system_menu_model_builder.cc
+@@ -156,14 +156,7 @@
+ #endif
+   model->SetElementIdentifierAt(model->GetIndexOfCommandId(IDC_NEW_TAB).value(),
+                                 kSystemMenuNewTabElementId);
+-#if BUILDFLAG(IS_MAC)
+-  model->AddItemWithStringId(IDC_RESTORE_TAB, IDS_REOPEN_CLOSED_TABS_MAC);
+-#else
+-  model->AddItemWithStringId(IDC_RESTORE_TAB, IDS_RESTORE_TAB);
+-#endif
+-  model->SetElementIdentifierAt(
+-      model->GetIndexOfCommandId(IDC_RESTORE_TAB).value(),
+-      kSystemMenuRestoreTabElementId);
++  // Little Browser: no Reopen Closed Tab.
+ 
+ #if BUILDFLAG(IS_MAC)
+   model->AddItemWithStringId(IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS_MAC);
+--- a/chrome/browser/ui/webui/tab_search/tab_search_page_handler.cc
++++ b/chrome/browser/ui/webui/tab_search/tab_search_page_handler.cc
+@@ -396,7 +396,8 @@
+ void TabSearchPageHandler::OpenRecentlyClosedEntry(int32_t session_id) {
+   sessions::TabRestoreService* tab_restore_service =
+       TabRestoreServiceFactory::GetForProfile(profile_);
+-  if (!tab_restore_service) {
++  // Little Browser: closed tabs aren't reopened (none are listed either).
++  if (!tab_restore_service || true) {
+     return;
+   }
+ 
+@@ -567,7 +568,8 @@
+     std::set<DedupKey>& tab_dedup_keys) {
+   sessions::TabRestoreService* tab_restore_service =
+       TabRestoreServiceFactory::GetForProfile(profile_);
+-  if (!tab_restore_service) {
++  // Little Browser: no recently closed section.
++  if (!tab_restore_service || true) {
+     return;
+   }
+ 
+@@ -950,7 +952,8 @@
+ 
+   sessions::TabRestoreService* tab_restore_service =
+       TabRestoreServiceFactory::GetForProfile(profile_);
+-  if (tab_restore_service) {
++  // Little Browser: closed tabs don't join a recently closed section.
++  if (tab_restore_service && false) {
+     // Loops through at most (TabRestoreServiceHelper) kMaxEntries.
+     // Recently closed entries appear first in the list.
+     for (auto& entry : tab_restore_service->entries()) {

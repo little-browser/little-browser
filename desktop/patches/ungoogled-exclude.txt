@@ -2,7 +2,7 @@
 #
 # Reasons: we keep standard Safe Browsing, which ungoogled removes in several layers (most of
 # these patches exist only for building and running without it), and the Chrome Web Store (the
-# last two). At 157.0.8103.78 the remaining 125 patches (102 core + 23 macOS) apply cleanly
+# last two). At 157.0.8103.78 the remaining 124 patches (101 core + 23 macOS) apply cleanly
 # without them. See desktop/README.md.
 core/inox-patchset/0001-fix-building-without-safebrowsing.patch
 core/ungoogled-chromium/fix-building-without-safebrowsing.patch
@@ -16,6 +16,10 @@ core/ungoogled-chromium/remove-unused-preferences-fields.patch
 # Moves one pref out of the (deleted) Safe Browsing prefs; with them restored it would register
 # the same pref twice and crash at startup.
 core/ungoogled-chromium/move-js-optimizer-unfamiliar-sites.patch
+# Removes UI we don't want, but is written on top of remove-unused-preferences-fields.patch,
+# so one hunk needs fuzz on our tree and GNU patch rejects it. Carried, rebased, as
+# lb/ungoogled-remove-uneeded-ui.patch and its -ui half.
+extra/ungoogled-chromium/remove-uneeded-ui.patch
 # Takes the Chrome Web Store out of extensions: no update checks, no store-process isolation, store
 # extensions treated as off-store. We install and update extensions from the store (docs/design.md
 # section 5); lb/extension-updates.patch keeps the one part we want, no usage pings.

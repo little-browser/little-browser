@@ -1,0 +1,19 @@
+# Little Browser (Android): favicons never come from Google's favicon server
+# (t0.gstatic.com/faviconV2), which would learn the sites behind new-tab tiles, bookmarks and the
+# search engine list. With no server URL every request fails before it is sent, as "server URL
+# invalid"; sites' own favicons still load as usual.
+
+diff --git a/components/favicon/core/large_icon_service_impl.cc b/components/favicon/core/large_icon_service_impl.cc
+index 18ac10587..1bd68d7a3 100644
+--- a/components/favicon/core/large_icon_service_impl.cc
++++ b/components/favicon/core/large_icon_service_impl.cc
+@@ -36,7 +36,8 @@ using NoBigEnoughIconBehavior =
+ 
+ const char kImageFetcherUmaClient[] = "LargeIconService";
+ 
+-const char kGoogleServerV2Url[] = "https://t0.gstatic.com/faviconV2";
++// Little Browser: no Google favicon server.
++const char kGoogleServerV2Url[] = "";
+ 
+ // `check_seen` is a legacy parameter which prevents the Google-favicon-server
+ // from crawling a URL as a result of a Google-favicon-server request in order

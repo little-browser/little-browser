@@ -5,48 +5,38 @@
 #
 # Fetch and prepare the Chromium source tree for the Little Browser desktop build.
 #
-#   desktop/scripts/fetch.sh [arm64|x86_64]        (macOS; default: host architecture)
-#   desktop/scripts/fetch.sh --patches-only        steps 1–3 only, any OS: CI checks that every
+#   desktop/scripts/fetch.sh [--platform <name>] [<arch>]   default: this machine's platform and
+#                                                            architecture
+#   desktop/scripts/fetch.sh --patches-only [--platform <name>]
+#                                                  steps 1–3 only, on any OS: CI checks that every
 #                                                  patch still applies
 #
-#   1. ungoogled-chromium (+ platform repo) at the pinned tags
+#   1. ungoogled-chromium and the platform's repo at the pinned tags
 #   2. Chromium source tarball for the pinned version (much smaller than a git checkout)
 #   3. prune binaries, apply ungoogled patches (minus ours to skip), platform patches, our patches
+#      (those tagged for another platform skipped)
 #   4. domain substitution, EXCEPT paths that must keep real Google endpoints (Safe Browsing, Widevine)
-#   5. platform toolchains (macOS: LLVM, Rust, Node, Crubit), branding, link our source tree
+#   5. platform toolchains, branding, link our source tree
 #
-# Only macOS is supported; the Windows and Linux platform repos are not used yet.
+# What differs per platform lives in its entry, desktop/platforms/<name>.sh (macOS: mac).
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../VERSIONS
 source "$DESKTOP/VERSIONS"
+# shellcheck source=lib.sh
+source "$DESKTOP/scripts/lib.sh"
 UG="$DESKTOP/third_party/ungoogled-chromium"
-UGM="$DESKTOP/third_party/ungoogled-chromium-macos"
 BUILD="$DESKTOP/build"
 SRC="$BUILD/src"
 
-log() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
-die() { printf 'error: %s\n' "$*" >&2; exit 1; }
-
-# Strip comments and blank lines from a list file.
-clean_list() { sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$1"; }
-
-# clone_at <repo url> <tag> <dir>: shallow clone, or verify an existing clone is at <tag>.
-clone_at() {
-  if [ ! -d "$3/.git" ]; then
-    git -c advice.detachedHead=false clone --depth 1 --branch "$2" "$1" "$3"
-  elif [ "$(git -C "$3" rev-parse HEAD)" != "$(git -C "$3" rev-parse "refs/tags/$2^{commit}" 2>/dev/null)" ]; then
-    die "$3 is not at tag $2 — delete it and re-run."
-  fi
-}
-
-# apply_series <patches dir>: apply its series minus ungoogled-exclude.txt, via ungoogled's patches.py.
+# apply_series <patches dir>: apply its series for this platform, minus ungoogled-exclude.txt,
+# via ungoogled's patches.py.
 apply_series() {
   local from="$1" name
   name="$(basename "$(dirname "$from")")-$(basename "$from")"
   rm -rf "$BUILD/patches-$name" && cp -R "$from" "$BUILD/patches-$name"
-  clean_list "$from/series" |
+  series_for "$from/series" "$PLATFORM" |
     grep -v -x -F -f <(clean_list "$DESKTOP/patches/ungoogled-exclude.txt") \
       > "$BUILD/patches-$name/series" || true
   if [ -s "$BUILD/patches-$name/series" ]; then
@@ -57,36 +47,44 @@ apply_series() {
 }
 
 PATCHES_ONLY=0
-if [ "${1:-}" = --patches-only ]; then PATCHES_ONLY=1; shift; fi
-[ "$PATCHES_ONLY" = 1 ] || [ "$(uname -s)" = Darwin ] ||
-  die "only macOS is supported (see desktop/README.md)"
-ARCH="${1:-$(uname -m)}"
-case "$ARCH" in arm64|x86_64) ;; *) die "unknown arch $ARCH" ;; esac
+CHOSEN_PLATFORM=""
+ARCH=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --patches-only) PATCHES_ONLY=1 ;;
+    --platform) CHOSEN_PLATFORM="${2:?--platform needs a name}"; shift ;;
+    -*) die "usage: fetch.sh [--patches-only] [--platform <name>] [<arch>]" ;;
+    *) ARCH="$1" ;;
+  esac
+  shift
+done
+load_platform "$DESKTOP/platforms" "${CHOSEN_PLATFORM:-$(host_platform)}"
+PU="$DESKTOP/third_party/$PLATFORM_REPO"
+[ "$PATCHES_ONLY" = 1 ] || [ "$(uname -s)" = "$PLATFORM_HOST" ] ||
+  die "the $PLATFORM_LABEL build runs on $PLATFORM_HOST (see desktop/README.md)"
+ARCH="${ARCH:-$(uname -m)}"
+check_arch "$ARCH"
 [ -e "$SRC" ] && die "$SRC already exists. Delete $BUILD/src to prepare it again (downloads stay cached)."
 
-log "ungoogled-chromium $UNGOOGLED_TAG + macOS $UNGOOGLED_MACOS_TAG"
+log "ungoogled-chromium $UNGOOGLED_TAG + $PLATFORM_LABEL $PLATFORM_TAG"
 mkdir -p "$DESKTOP/third_party" "$BUILD"
 clone_at https://github.com/ungoogled-software/ungoogled-chromium "$UNGOOGLED_TAG" "$UG"
-clone_at https://github.com/ungoogled-software/ungoogled-chromium-macos "$UNGOOGLED_MACOS_TAG" "$UGM"
+clone_at "$PLATFORM_REPO_URL" "$PLATFORM_TAG" "$PU"
 [ "$(cat "$UG/chromium_version.txt")" = "$CHROMIUM_VERSION" ] ||
   die "ungoogled-chromium in $UG is not for Chromium $CHROMIUM_VERSION"
-# The macOS repo's helper scripts expect ./ungoogled-chromium (a submodule) and ./build next to them.
-# Point both at ours so there is a single source tree: desktop/build/src.
-rm -rf "$UGM/ungoogled-chromium" && ln -s ../ungoogled-chromium "$UGM/ungoogled-chromium"
-if [ ! -L "$UGM/build" ]; then rm -rf "$UGM/build" && ln -s ../../build "$UGM/build"; fi
 
 log "Chromium $CHROMIUM_VERSION source tarball"
-python3 "$UGM/retrieve_and_unpack_resource.py" --download --generic "$ARCH"
+platform_fetch_source "$ARCH"
 
 log "Pruning (minus desktop/patches/prune-keep.txt)"
 grep -v -x -F -f <(clean_list "$DESKTOP/patches/prune-keep.txt") "$UG/pruning.list" > "$BUILD/pruning.list"
 python3 "$UG/utils/prune_binaries.py" "$SRC" "$BUILD/pruning.list"
 
-log "Patches: ungoogled-chromium core, macOS platform, Little Browser"
+log "Patches: ungoogled-chromium core, $PLATFORM_LABEL platform, Little Browser"
 apply_series "$UG/patches"
-apply_series "$UGM/patches"
+apply_series "$PU/patches"
 apply_series "$DESKTOP/patches"
-if [ "$PATCHES_ONLY" = 1 ]; then log "Done: every patch applies."; exit 0; fi
+if [ "$PATCHES_ONLY" = 1 ]; then log "Done: every patch applies ($PLATFORM_LABEL)."; exit 0; fi
 
 log "Domain substitution (keeping Safe Browsing, Widevine and Chrome Web Store endpoints)"
 python3 - "$UG/domain_substitution.list" "$DESKTOP/patches/domsub-exclude.txt" \
@@ -109,8 +107,8 @@ python3 "$UG/utils/domain_substitution.py" apply \
   -r "$UG/domain_regex.list" -f "$BUILD/domain_substitution.list" \
   -c "$BUILD/domsubcache.tar.gz" "$SRC"
 
-log "macOS toolchains (LLVM, Rust, Node.js, Crubit)"
-python3 "$UGM/retrieve_and_unpack_resource.py" --platform-specific "$ARCH"
+log "$PLATFORM_LABEL toolchains"
+platform_toolchains "$ARCH"
 
 log "Branding: product strings (translations re-keyed), icons, our source tree"
 cp "$DESKTOP/branding/BRANDING" "$SRC/chrome/app/theme/chromium/BRANDING"
@@ -119,6 +117,7 @@ COMPANY="$(sed -n 's/^COMPANY_FULLNAME=//p' "$DESKTOP/branding/BRANDING")"
 python3 "$DESKTOP/scripts/rebrand_strings.py" "$SRC" "$PRODUCT" "$COMPANY" \
   chrome/app/chromium_strings.grd components/components_chromium_strings.grd
 "$DESKTOP/scripts/brand_assets.sh" "$SRC"
+platform_branding "$SRC"
 ln -sfn "$DESKTOP/lb" "$SRC/lb"
 ln -sfn "$DESKTOP/../core/lb-core" "$SRC/lb_core"
 

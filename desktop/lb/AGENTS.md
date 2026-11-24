@@ -61,11 +61,14 @@ build is in `../AGENTS.md`.
 
 `BUILD.gn` here has these targets:
 
-- **`//lb:model`**, a `source_set` for logic that needs no views or browser window
+- **`//lb:model`**, a `source_set` for desktop logic that needs no views or browser window
   (`browser/spaces/`, `browser/command_bar/`, `browser/tabs/`, `browser/adblock/`,
-  `browser/password/`, `browser/search/`, `browser/peek/`, `browser/little_window/`,
-  `browser/prefs/` and the rules and readers of `browser/importer/`). The sidebar's views target depends on it through
-  `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this file.
+  `browser/password/`, `browser/peek/`, `browser/little_window/`, `browser/prefs/` and the rules
+  and readers of `browser/importer/`). Rules every platform needs are lb-core's; the model files
+  for spaces, the command bar and the ad blocker keep the desktop's saved forms and Chromium's
+  types around them and call lb-core for the rules. The sidebar's views target depends on it
+  through `patches/lb/sidebar-hooks.patch`, and that dependency is also what makes GN load this
+  file.
 - **`//lb:page_names`**, view-free logic that the renderer and the browser share
   (`common/page_names.*`: the names a page sends for element hiding); tested like `//lb:model`.
 - **`//lb:renderer`**, code that runs in each page's renderer process (`renderer/`), and
@@ -73,9 +76,11 @@ build is in `../AGENTS.md`.
 - **`lb_unittests`**, a gtest binary built from `*_unittest.cc` files next to the code they
   test.
 - **`lb_core`**, lb-core (`core/lb-core`, linked at `//lb_core`) built with Chromium's Rust
-  toolchain, and **`core_bridge`**, its C++ binding (`core_bridge/lib.rs`, a `cxx` bridge in
-  `namespace lb::core`; include `lb/core_bridge/lib.rs.h`). lb-core's own tests also run here as
-  `lb_core_unittests`. A new `.rs` file in lb-core goes in `lb_core`'s sources.
+  toolchain, and **`core_bridge`**, its C++ binding (`cxx` bridges in `namespace lb::core`:
+  `core_bridge/lib.rs` for import, include `lb/core_bridge/lib.rs.h`; `core_bridge/rules.rs` for
+  spaces, the command bar, filter lists and the search choice, include
+  `lb/core_bridge/rules.rs.h`). lb-core's own tests also run here as `lb_core_unittests`. A new
+  `.rs` file in lb-core goes in `lb_core`'s sources.
 
 ```bash
 cd desktop/build/src

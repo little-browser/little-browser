@@ -14,6 +14,8 @@ rust_static_library("lb_core") {
   crate_root = "//lb_core/src/lib.rs"
   edition = "2021"
   sources = [
+    "//lb_core/src/adblock.rs",
+    "//lb_core/src/command_bar.rs",
     "//lb_core/src/element_hiding.rs",
     "//lb_core/src/import/addresses.rs",
     "//lb_core/src/import/arc.rs",
@@ -30,6 +32,8 @@ rust_static_library("lb_core") {
     "//lb_core/src/import/tabs.rs",
     "//lb_core/src/lib.rs",
     "//lb_core/src/model.rs",
+    "//lb_core/src/search_choice.rs",
+    "//lb_core/src/spaces.rs",
     "//lb_core/src/sync.rs",
     "//lb_core/src/tracking_params.rs",
   ]
@@ -37,14 +41,21 @@ rust_static_library("lb_core") {
   build_native_rust_unit_tests = true
 }
 
-# The C++ binding of lb-core: include "lb/core_bridge/lib.rs.h" (namespace lb::core).
+# The C++ binding of lb-core (namespace lb::core): include "lb/core_bridge/lib.rs.h" for import,
+# "lb/core_bridge/rules.rs.h" for the browser rules (spaces, command bar, filter lists, search choice).
 rust_static_library("core_bridge") {
   crate_name = "lb_core_bridge"
   crate_root = "core_bridge/lib.rs"
   edition = "2021"
   allow_unsafe = true  # cxx's generated glue
-  sources = [ "core_bridge/lib.rs" ]
-  cxx_bindings = [ "core_bridge/lib.rs" ]
+  sources = [
+    "core_bridge/lib.rs",
+    "core_bridge/rules.rs",
+  ]
+  cxx_bindings = [
+    "core_bridge/lib.rs",
+    "core_bridge/rules.rs",
+  ]
   deps = [ ":lb_core" ]
 }
 
@@ -118,8 +129,6 @@ source_set("model") {
     "browser/prefs/pref_defaults.h",
     "browser/privacy/tracking_params.cc",
     "browser/privacy/tracking_params.h",
-    "browser/search/search_choice.cc",
-    "browser/search/search_choice.h",
     "browser/spaces/space_model.cc",
     "browser/spaces/space_model.h",
     "browser/spaces/swipe_tracker.cc",
@@ -215,7 +224,6 @@ test("lb_unittests") {
     "browser/peek/peek_rules_unittest.cc",
     "browser/prefs/pref_defaults_unittest.cc",
     "browser/privacy/tracking_params_unittest.cc",
-    "browser/search/search_choice_unittest.cc",
     "browser/spaces/space_model_unittest.cc",
     "browser/spaces/swipe_tracker_unittest.cc",
     "browser/tabs/pinned_close_unittest.cc",

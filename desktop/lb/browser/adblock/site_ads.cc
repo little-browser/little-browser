@@ -4,6 +4,7 @@
 
 #include "lb/browser/adblock/site_ads.h"
 
+#include "lb/core_bridge/rules.rs.h"
 #include "url/gurl.h"
 
 namespace lb {
@@ -22,11 +23,16 @@ std::optional<std::u16string> SiteAdsSwitchState(const GURL& page, bool ads_allo
   return ads_allowed ? u"Allowed" : u"Blocked";
 }
 
+// The rule is lb-core's (lb_core::adblock::site_exception), shared with the other platforms.
 SiteAdsException SiteAdsExceptionFor(bool allowed, bool allowed_without_exception) {
-  if (allowed == allowed_without_exception) {
-    return SiteAdsException::kNone;
+  switch (core::site_ads_exception(allowed, allowed_without_exception)) {
+    case core::SiteAdsException::Allow:
+      return SiteAdsException::kAllow;
+    case core::SiteAdsException::Block:
+      return SiteAdsException::kBlock;
+    default:
+      return SiteAdsException::kNone;
   }
-  return allowed ? SiteAdsException::kAllow : SiteAdsException::kBlock;
 }
 
 }  // namespace lb

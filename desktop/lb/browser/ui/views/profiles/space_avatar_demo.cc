@@ -5,6 +5,7 @@
 #include "lb/browser/ui/views/profiles/space_avatar_demo.h"
 
 #include <string>
+#include <string_view>
 
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
@@ -45,7 +46,7 @@ views::LabelButton* AvatarButton(BrowserWindowInterface* browser) {
 }
 
 // Whether the button shows `emoji`: its image, pixel for pixel, is that emoji drawn at its size.
-bool ShowsEmoji(BrowserWindowInterface* browser, const char* emoji) {
+bool ShowsEmoji(BrowserWindowInterface* browser, std::string_view emoji) {
   views::LabelButton* button = AvatarButton(browser);
   if (!button || !button->GetColorProvider()) {
     return false;
@@ -81,7 +82,7 @@ void CheckNewIcon(base::WeakPtr<BrowserWindowInterface> browser, std::string det
     ReportDemo(kMode, false, "the window went away");
     return;
   }
-  const bool new_icon = ShowsEmoji(browser.get(), kSpaceIcons[2]);
+  const bool new_icon = ShowsEmoji(browser.get(), SpaceIcons()[2]);
   detail += " new_icon=" + Flag(new_icon);
   chrome::ExecuteCommand(browser.get(), IDC_SHOW_AVATAR_MENU);
   PostDemoTask(base::BindOnce(&CheckMenu, browser, detail, pass && new_icon), base::Seconds(1));
@@ -97,10 +98,10 @@ void CheckSecondSpace(base::WeakPtr<BrowserWindowInterface> browser,
     ReportDemo(kMode, false, "the window went away");
     return;
   }
-  const bool second = ShowsEmoji(browser.get(), kSpaceIcons[1]);
-  const bool not_first = !ShowsEmoji(browser.get(), kSpaceIcons[0]);
+  const bool second = ShowsEmoji(browser.get(), SpaceIcons()[1]);
+  const bool not_first = !ShowsEmoji(browser.get(), SpaceIcons()[0]);
   detail += " second=" + Flag(second) + " not_first=" + Flag(not_first);
-  controller->SetSpaceIcon(1, kSpaceIcons[2]);
+  controller->SetSpaceIcon(1, SpaceIcons()[2]);
   PostDemoTask(base::BindOnce(&CheckNewIcon, browser, detail, pass && second && not_first),
                base::Seconds(1));
 }
@@ -115,7 +116,7 @@ void RunSpaceAvatarDemo(BrowserWindowInterface* browser) {
     return;
   }
   // The window opens on the first space (Personal), whose emoji the seeded data sets.
-  const bool first = ShowsEmoji(browser, kSpaceIcons[0]);
+  const bool first = ShowsEmoji(browser, SpaceIcons()[0]);
   const std::string detail = "first=" + Flag(first);
   controller->SwitchTo(1);
   PostDemoTask(base::BindOnce(&CheckSecondSpace, browser->GetWeakPtr(), detail, first),

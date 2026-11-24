@@ -249,7 +249,7 @@ class FilterListUpdater {
     if (std::ranges::find(requested_, url) != requested_.end()) {
       return;
     }
-    if (requested_.size() >= kMaxFilterListFiles) {
+    if (requested_.size() >= MaxFilterListFiles()) {
       LOG(WARNING) << "lb: filter lists include too many files; left out " << url.spec();
       failed_ = true;
       return;
@@ -260,7 +260,7 @@ class FilterListUpdater {
     request->credentials_mode = network::mojom::CredentialsMode::kOmit;
     request->load_flags = net::LOAD_BYPASS_CACHE | net::LOAD_DISABLE_CACHE;
     auto loader = network::SimpleURLLoader::Create(std::move(request), kFilterListAnnotation);
-    loader->SetTimeoutDuration(kFilterListDownloadTimeout);
+    loader->SetTimeoutDuration(FilterListDownloadTimeout());
     loader->SetRetryOptions(2, network::SimpleURLLoader::RETRY_ON_NETWORK_CHANGE |
                                    network::SimpleURLLoader::RETRY_ON_5XX);
     network::SimpleURLLoader* raw = loader.get();
@@ -331,7 +331,7 @@ class FilterListUpdater {
   void Done(const FilterListsUpdate& update) {
     updating_ = false;
     if (update.retry) {
-      retry_.Start(FROM_HERE, kFilterListRetryAfter,
+      retry_.Start(FROM_HERE, FilterListRetryAfter(),
                    base::BindOnce(&FilterListUpdater::Check, base::Unretained(this)));
     }
   }

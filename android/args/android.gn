@@ -1,0 +1,27 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Android GN args. build.sh appends target_cpu and runs `gn gen --fail-on-unused-args`, so every
+# arg here must be one the pinned tree knows. The privacy changes GN can't make are patches
+# (patches/series).
+
+target_os = "android"
+
+# Release build: official (ThinLTO, and PGO from the profiles fetch.sh downloads), no symbols.
+is_official_build = true
+is_debug = false
+symbol_level = 0
+blink_symbol_level = 0
+
+# The app ID (docs/design.md §13). Chromium's default is org.chromium.chrome.
+chrome_public_manifest_package = "app.littlebrowser.browser"
+
+# No Google API keys, so no Google services. These are Chromium's defaults, spelled out.
+use_official_google_api_keys = false
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+
+# No field trials from Google: not even the testing config compiled into the binary.
+disable_fieldtrial_testing_config = true

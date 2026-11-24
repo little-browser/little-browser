@@ -26,7 +26,7 @@ void RegisterAdBlockerLocalStatePrefs(PrefRegistrySimple* registry);
 // Keeps the filter lists fresh, from browser startup (patches/lb/ad-blocking.patch): hands the
 // newest downloaded ruleset to the subresource filter and its element-hiding rules to
 // element_hiding_host.h, and downloads the lists and the files they include again when
-// FilterListsNeedUpdate says so: older than kFilterListMaxAge, or not all in use (checked soon
+// FilterListsNeedUpdate says so: older than FilterListMaxAge(), or not all in use (checked soon
 // after startup and every few hours, and an hour after a failed download). Safe to call more than
 // once; UI thread only.
 void StartAdBlocker();

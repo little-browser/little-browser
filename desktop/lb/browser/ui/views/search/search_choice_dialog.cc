@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -16,6 +17,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
@@ -25,8 +27,8 @@
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_data.h"
 #include "components/search_engines/template_url_service.h"
-#include "lb/browser/search/search_choice.h"
 #include "lb/browser/ui/views/browser_modal_dialog.h"
+#include "lb/core_bridge/rules.rs.h"
 #include "third_party/search_engines_data/resources/definitions/prepopulated_engines.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -48,23 +50,42 @@ namespace {
 constexpr int kRadioGroup = 1;
 
 struct Engine {
-  const char16_t* name;
-  const char16_t* domain;
+  std::u16string name;
+  std::u16string domain;
   // Chromium's built-in definition; null for Google, whose built-in entry ungoogled-chromium
-  // replaced with "No Search".
-  const TemplateURLPrepopulateData::PrepopulatedEngine* prepopulated;
+  // replaced with "No Search" (we add our own, below).
+  const TemplateURLPrepopulateData::PrepopulatedEngine* prepopulated = nullptr;
 };
 
-// Alphabetical, so the order doesn't favour anyone.
-const Engine kEngines[] = {
-    {u"Brave Search", u"search.brave.com", &TemplateURLPrepopulateData::brave},
-    {u"DuckDuckGo", u"duckduckgo.com", &TemplateURLPrepopulateData::duckduckgo},
-    {u"Ecosia", u"ecosia.org", &TemplateURLPrepopulateData::ecosia},
-    {u"Google", u"google.com", nullptr},
-    {u"Microsoft Bing", u"bing.com", &TemplateURLPrepopulateData::bing},
-    {u"Qwant", u"qwant.com", &TemplateURLPrepopulateData::qwant},
-    {u"Startpage", u"startpage.com", &TemplateURLPrepopulateData::startpage},
-};
+// Chromium's built-in definitions of the engines lb-core offers, by their ids.
+const TemplateURLPrepopulateData::PrepopulatedEngine* Prepopulated(std::string_view id) {
+  static const std::pair<std::string_view, const TemplateURLPrepopulateData::PrepopulatedEngine*>
+      kBuiltIn[] = {{"bing", &TemplateURLPrepopulateData::bing},
+                    {"brave", &TemplateURLPrepopulateData::brave},
+                    {"duckduckgo", &TemplateURLPrepopulateData::duckduckgo},
+                    {"ecosia", &TemplateURLPrepopulateData::ecosia},
+                    {"qwant", &TemplateURLPrepopulateData::qwant},
+                    {"startpage", &TemplateURLPrepopulateData::startpage}};
+  for (const auto& [name, engine] : kBuiltIn) {
+    if (name == id) {
+      return engine;
+    }
+  }
+  return nullptr;
+}
+
+// The engines offered (lb_core::search_choice), in lb-core's order.
+const std::vector<Engine>& Engines() {
+  static const base::NoDestructor<std::vector<Engine>> engines([] {
+    std::vector<Engine> list;
+    for (const core::ChoiceEngine& e : core::search_choice_engines()) {
+      list.push_back({base::UTF8ToUTF16(std::string(e.name)),
+                      base::UTF8ToUTF16(std::string(e.domain)), Prepopulated(std::string(e.id))});
+    }
+    return list;
+  }());
+  return *engines;
+}
 
 constexpr char16_t kNoSearchKeyword[] = u"nosearch";
 
@@ -83,13 +104,14 @@ void SetDefault(Profile* profile, const Engine& engine) {
     return;
   }
   // Google: our own definition (search only — no suggestions, so typing isn't sent to it).
-  TemplateURL* google = service->GetTemplateURLForKeyword(u"google.com");
+  const std::u16string keyword = base::UTF8ToUTF16(std::string(core::google_keyword()));
+  TemplateURL* google = service->GetTemplateURLForKeyword(keyword);
   if (!google) {
     TemplateURLData data;
-    data.SetShortName(u"Google");
-    data.SetKeyword(u"google.com");
-    data.SetURL("https://www.google.com/search?q={searchTerms}");
-    data.favicon_url = GURL("https://www.google.com/favicon.ico");
+    data.SetShortName(engine.name);
+    data.SetKeyword(keyword);
+    data.SetURL(std::string(core::google_search_url()));
+    data.favicon_url = GURL(std::string(core::google_favicon_url()));
     data.input_encodings.push_back("UTF-8");
     google = service->Add(std::make_unique<TemplateURL>(data));
   }
@@ -135,7 +157,7 @@ class SearchChoiceDialog : public BrowserModalDialog {
     intro->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     intro->SetProperty(views::kMarginsKey, gfx::Insets::TLBR(0, 0, 8, 0));
 
-    for (const Engine& engine : kEngines) {
+    for (const Engine& engine : Engines()) {
       auto* radio = contents_->AddChildView(std::make_unique<views::RadioButton>(
           std::u16string(engine.name) + u"  ·  " + engine.domain, kRadioGroup));
       radio->SetCallback(
@@ -197,7 +219,7 @@ class SearchChoiceDialog : public BrowserModalDialog {
 
   void Choose() {
     if (const int i = Selected(); i >= 0) {
-      SetDefault(profile_, kEngines[i]);
+      SetDefault(profile_, Engines()[i]);
       // After the dialog has closed, so a new tab opens in front of the window.
       for (base::OnceClosure& on_chosen : on_chosen_) {
         base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
@@ -275,28 +297,29 @@ void MaybeShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure th
   TemplateURLService* service =
       profile->IsOffTheRecord() ? nullptr : TemplateURLServiceFactory::GetForProfile(profile);
   const auto open = OpenDialogs().find(profile->GetOriginalProfile());
-  SearchChoiceState state;
+  core::SearchChoiceState state;
   state.off_the_record = profile->IsOffTheRecord();
   state.open = open != OpenDialogs().end() && open->second && open->second->GetWidget();
   state.offered_before = profile->GetPrefs()->GetBoolean(kSearchChoiceShownPref);
   state.has_engines = service != nullptr;
   state.engines_loaded = service && service->loaded();
   state.no_search_engine = state.engines_loaded && StillNoSearch(service);
-  switch (NextSearchChoiceStep(state)) {
-    case SearchChoiceStep::kAsk:
+  // The rule is lb-core's (lb_core::search_choice::next_step).
+  switch (core::search_choice_step(state)) {
+    case core::SearchChoiceStep::Ask:
       profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
       Show(browser, base::OnceClosure(), std::move(then));
       return;
-    case SearchChoiceStep::kSkip:
+    case core::SearchChoiceStep::Skip:
       if (state.engines_loaded) {
         profile->GetPrefs()->SetBoolean(kSearchChoiceShownPref, true);
       }
       std::move(then).Run();
       return;
-    case SearchChoiceStep::kWaitForOpenChoice:
+    case core::SearchChoiceStep::WaitForOpenChoice:
       open->second->AddOnClosed(std::move(then));
       return;
-    case SearchChoiceStep::kWaitForEngines:
+    case core::SearchChoiceStep::WaitForEngines:
       service->Load();
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
           FROM_HERE,

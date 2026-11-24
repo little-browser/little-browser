@@ -1,0 +1,18 @@
+# Little Browser (Android): no autofill field-type queries to content-autofill.googleapis.com.
+# Without this, every page with a form sends its form signatures, even with no API key. Autofill
+# keeps working from local heuristics.
+
+diff --git a/components/autofill/core/common/autofill_debug_features.cc b/components/autofill/core/common/autofill_debug_features.cc
+index 6acf5c60e..312b9d88e 100644
+--- a/components/autofill/core/common/autofill_debug_features.cc
++++ b/components/autofill/core/common/autofill_debug_features.cc
+@@ -140,7 +140,8 @@ BASE_FEATURE_PARAM(std::string,
+ // autofill server API url up to the parent "directory" of the "query" and
+ // "upload" resources.
+ // i.e., https://other.autofill.server:port/tbproxy/af/
+-BASE_FEATURE(kAutofillServerCommunication, base::FEATURE_ENABLED_BY_DEFAULT);
++// Little Browser: no autofill server queries or uploads.
++BASE_FEATURE(kAutofillServerCommunication, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // When set to a non-zero value, the value is attached as an experiment ID to
+ // all predictions requests to the Autofill server, as if it were an active GWS

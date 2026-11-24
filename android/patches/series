@@ -1,0 +1,19 @@
+# Little Browser Android patches, applied in this order to Chromium's own Android app.
+# One concern per patch. Format: <path relative to android/patches>   # one-line reason
+#
+# No automatic requests to Google (docs/design.md §5):
+no-first-run-variations-seed.patch  # no field-trial seed download during first run
+no-component-updates.patch          # no component updater checks (update.googleapis.com)
+no-network-time-queries.patch       # no time queries to clients2.google.com
+no-autofill-server.patch            # no form-signature queries to content-autofill.googleapis.com
+no-search-preconnect.patch          # no background connections to the search engine
+no-popular-sites.patch              # no "popular sites" list from www.gstatic.com for new tab tiles
+no-discover-feed.patch              # no Discover feed on the new tab page
+no-google-doodle.patch              # no doodle or logo downloads from www.google.com
+no-google-favicon-server.patch      # no favicons from Google's favicon server
+translate-off-by-default.patch      # no translate offers, no ranker model download
+#
+# Privacy defaults, as on desktop:
+privacy-default-prefs.patch         # third-party cookies blocked, suggestions off, sign-in off, …
+first-run-usage-stats-off.patch     # first run doesn't opt in to usage stats and crash reports
+first-run-search-choice.patch       # no default search engine: first run asks for one

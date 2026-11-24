@@ -1,0 +1,50 @@
+# The view half of safe-browsing-standard-only.patch (Views and WebUI), which says why. One patch never mixes
+# engine and view code (desktop/patches/README.md).
+
+diff --git a/chrome/browser/resources/settings/privacy_page/security/security_page.html b/chrome/browser/resources/settings/privacy_page/security/security_page.html
+index e8bbd9e..d9240dc 100644
+--- a/chrome/browser/resources/settings/privacy_page/security/security_page.html
++++ b/chrome/browser/resources/settings/privacy_page/security/security_page.html
+@@ -12,7 +12,8 @@ import {HttpsFirstModeSetting} from './security_page.js';
+           pref-key="generated.safe_browsing"
+           selectable-elements="cr-radio-button, settings-collapse-radio-button"
+           @change="${this.onSafeBrowsingRadioChange_}">
+-        <settings-collapse-radio-button id="safeBrowsingEnhanced"
++        <!-- Little Browser: standard protection only. -->
++        <settings-collapse-radio-button id="safeBrowsingEnhanced" hidden
+             name="${SafeBrowsingSetting.ENHANCED}"
+             pref-key="generated.safe_browsing"
+             label="$i18n{safeBrowsingEnhanced}"
+@@ -94,7 +95,7 @@ import {HttpsFirstModeSetting} from './security_page.js';
+           </div>
+         </settings-collapse-radio-button>
+         <settings-collapse-radio-button id="safeBrowsingStandard"
+-            ?no-collapse="${this.hideExtendedReportingRadioButton_}"
++            ?no-collapse="${true || this.hideExtendedReportingRadioButton_}"
+             name="${SafeBrowsingSetting.STANDARD}"
+             pref-key="generated.safe_browsing"
+             label="$i18n{safeBrowsingStandard}"
+@@ -104,7 +105,8 @@ import {HttpsFirstModeSetting} from './security_page.js';
+             @expand-clicked="${this.onStandardProtectionExpandClicked_}"
+             no-automatic-collapse>
+           <div slot="noSelectionCollapse">
+-            ${!this.hideExtendedReportingRadioButton_ ? html`
++            ${/* Little Browser: no extended reporting. */
++              false && !this.hideExtendedReportingRadioButton_ ? html`
+               <settings-toggle-button id="safeBrowsingReportingToggle"
+                   pref-key="safebrowsing.scout_reporting_enabled"
+                   label="$i18n{safeBrowsingStandardReportingLabel}"
+diff --git a/chrome/browser/resources/settings/privacy_page/security/security_page.ts b/chrome/browser/resources/settings/privacy_page/security/security_page.ts
+index 998a976..91bf82c 100644
+--- a/chrome/browser/resources/settings/privacy_page/security/security_page.ts
++++ b/chrome/browser/resources/settings/privacy_page/security/security_page.ts
+@@ -62,7 +62,8 @@ export enum HttpsFirstModeSetting {
+ 
+ export interface SettingsSecurityPageElement {
+   $: {
+-    passwordsLeakToggle: SettingsToggleButtonElement,
++    // Little Browser: passwordsLeakToggle is removed from the template by ungoogled's
++    // remove-uneeded-ui.patch (normally paired with the prefs patch we skip).
+     safeBrowsingDisabled: SettingsCollapseRadioButtonElement,
+     safeBrowsingEnhanced: SettingsCollapseRadioButtonElement,
+     safeBrowsingRadioGroup: SettingsRadioGroupElement,
