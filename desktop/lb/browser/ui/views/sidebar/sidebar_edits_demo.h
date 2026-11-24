@@ -11,8 +11,16 @@ class BrowserWindowInterface;
 
 namespace lb {
 
-// Demo checks for tab names and pinned links (docs/ux.md §6).
+// Demo checks for the hidden sidebar and for tab names and pinned links (docs/ux.md §2, §6).
 // Each logs "lb demo: <mode> PASS ..." or "... FAIL ...".
+//
+// --lb-sidebar-demo=hidden-sidebar: hides the sidebar (the toggle's collapse); it must take no
+// room beside the page and not be drawn, only an invisible band at the window's edge. Then it
+// slides in over the page, as the pointer at the edge makes it, to the sidebar's width; its edge is
+// dragged 60 px wider, which must widen it in place, keep it hidden, become the sidebar's width
+// and leave its resize area; let go, with the pointer leaving it, it slides out again. With expand
+// on hover off it must be Chromium's column of icons. The sidebar is put back as it was. With
+// --lb-ui-snapshot-sidebar=<png> it captures the slid-in sidebar after the drag instead.
 //
 // --lb-sidebar-demo=tab-names: names a tab and checks its row, the tab menu's items, the command
 // bar's rename and the session data; pins it and checks its link: a page left from it enables Use

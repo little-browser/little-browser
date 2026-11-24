@@ -45,6 +45,8 @@ lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab 
 lb/browser/tabs/pinned_groups.*     pinned groups' rules: unbroken runs, a moved tab's group, rows,
                                     the group menu, session data (unit tested)
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
+lb/browser/tabs/sidebar_width.*     a hidden sidebar's widths: no room beside the page, slid in to the
+                                    user's width, resized while slid in, its resize area (unit tested)
 lb/browser/tabs/tab_names.*         tab names and pinned links: saved form, cleaning, when a link is
                                     taken or dropped, "left its link", the tab menu's items (unit tested)
 lb/browser/password/password_manager_choice.*  first-run password managers, when to offer them, what follows an install
@@ -97,7 +99,7 @@ lb/browser/ui/
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
   views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
   views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
-  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=tab-names (below)
+  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar and =tab-names (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog, also opened by itself on first run
@@ -118,7 +120,7 @@ lb/browser/ui/
 Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
 `command-hooks.patch`, `session-spaces.patch`, `restore-selected-first.patch`, `tab-names.patch`,
-`tab-names-ui.patch`,
+`tab-names-ui.patch`, `hidden-sidebar-ui.patch`,
 `tab-metrics-detached-guard.patch`, `contents-card.patch`, `ad-blocking.patch`,
 `ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker),
 `pinned-groups.patch` (pinned groups), `peek-hooks.patch`
@@ -176,12 +178,18 @@ audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `=tab-search` saves Tab Search as unpinned, opens a second window (it must clear that and show the
 button), runs the pin toggle (it must stay pinned), checks the window menu has no toggle and
 right-clicks the button (no menu may open);
+`=hidden-sidebar` hides the sidebar (it must take no room and not be drawn), slides it in over
+the page (to the sidebar's width, the page not moving), drags its edge 60 px wider (it must widen
+in place, stay hidden, save the width and keep its resize area), then lets go as the pointer
+leaves (it must slide out), turns expand on hover off (it must be Chromium's column of icons) and
+puts the sidebar back as it was;
 `=tab-names` renames a tab (its row must show the name), checks the tab menu's items, renames it
 again through the command bar, pins it (its link must be its page), loads another page (Use
 Current Page as Link and Back to Pinned Page must be enabled), goes back, makes another page the
 link, drags the tab below "+ New Tab" and back (its link must stay), puts it to sleep (its name
 and link must stay with the new page it gets) and checks the space's saved tabs; with
-`--lb-ui-snapshot-sidebar=<png>` it captures the named rows at the end;
+`--lb-ui-snapshot-sidebar=<png>` the first captures the slid-in sidebar after the drag (and stops
+there), the second the named rows at the end;
 `=sidebar-header` checks the sidebar header holds the space name alone (no address field) and that
 ⌘L opens the command bar with the page's full address;
 `=tracking-params` (needs the network) loads a page whose address has tracking parameters (it

@@ -1,0 +1,273 @@
+# Little Browser: a hidden sidebar (Chromium's collapsed vertical strip) disappears: the page takes
+# the whole window, and the strip is an invisible band at the window's left edge. The pointer
+# there slides it in over the page, to the width the user gave the sidebar, not Chromium's
+# default; showing it while slid in keeps that width. Its edge resizes it there as it does the
+# shown sidebar (whether a drag does is decided when it starts), its resize area stays while it is
+# slid in, and it stays hidden. With expand on hover off it stays Chromium's column of icons. The
+# widths and the resize area's rule are //lb:model's (lb/browser/tabs/sidebar_width.h).
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -3218,6 +3218,7 @@
+     "//base",
+     "//build:buildflag_header_h",
+     "//chrome/browser/ui:layout_constants",
++    "//lb:model",  # Little Browser: the hidden sidebar's widths (lb/browser/tabs/sidebar_width.h)
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/color:color_headers",
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -37,6 +37,7 @@
+ #include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "lb/browser/ui/views/frame/contents_card.h"
++#include "lb/browser/tabs/sidebar_width.h"
+ #include "chrome/browser/ui/views/frame/shadow_frame_view.h"
+ #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_background_blur_backdrop.h"
+@@ -886,15 +887,33 @@
+ 
+   // Lay out vertical tab strip if visible.
+   int collapsed_vertical_tab_strip_adjustment = 0;
++  // Little Browser: whether the strip is drawn (a hidden sidebar is not, below).
++  bool lb_sidebar_drawn = true;
+   const VerticalTabStripAnimation& vertical_tab_strip_animation =
+       layout_data_->vertical_tab_strip_animation;
+   gfx::Rect vertical_tab_strip_bounds;
+   if (IsParentedTo(views().vertical_tab_strip_region_view,
+                    views().browser_view)) {
+     if (layout_data_->tab_strip_type == TabStripType::kVertical) {
++      // Little Browser: a hidden sidebar (Chromium's collapsed strip) takes no
++      // room beside the page; it slides in over the page from the window's
++      // edge, to the width the user gave it (lb/browser/tabs/sidebar_width.h).
++      // With expand on hover off it stays Chromium's column of icons.
++      const lb::SidebarWidths lb_widths = lb::LayOutSidebar(
++          {.strip = horizontal_layout.vertical_tab_strip_width,
++           .collapsed = tabs::kVerticalTabStripCollapsedWidth,
++           .uncollapsed =
++               views().vertical_tab_strip_region_view->uncollapsed_width(),
++           .slide_in = vertical_tab_strip_animation.expand_on_hover_width,
++           .shown = horizontal_layout.vertical_tab_strip_collapsed_state ==
++                    VerticalTabStripCollapsedState::kExpanded,
++           .slides_in = views().vertical_tab_strip_region_view->lb_slides_in()});
++      lb_sidebar_drawn = lb_widths.drawn;
++      views().vertical_tab_strip_region_view->layer()->SetOpacity(
++          lb_widths.drawn ? 1.0f : 0.0f);
++
+       if (vertical_tab_strip_animation.top_offset > 0) {
+-        collapsed_vertical_tab_strip_adjustment =
+-            horizontal_layout.vertical_tab_strip_width;
++        collapsed_vertical_tab_strip_adjustment = lb_widths.page_inset;
+       }
+ 
+       const int vertical_tab_strip_hover_width =
+@@ -923,6 +942,7 @@
+       } else {
+         last_vertical_tab_strip_width_ = vertical_tab_strip_width;
+       }
++      vertical_tab_strip_width = lb_widths.strip;  // Little Browser
+ 
+       vertical_tab_strip_bounds =
+           gfx::Rect(params.visual_client_area.x(),
+@@ -957,8 +977,8 @@
+             gfx::Outsets::TLBR(0, 0, 0, extra_amount));
+       }
+ 
+-      const int inset_amount = horizontal_layout.vertical_tab_strip_width -
+-                               GetVerticalTabStripContentOverlap();
++      const int inset_amount = std::max(
++          0, lb_widths.page_inset - GetVerticalTabStripContentOverlap());
+       params.InsetHorizontal(inset_amount, /*leading=*/true);
+ 
+       // Let the vertical tab strip animate out over the content.
+@@ -968,11 +988,10 @@
+                 TabStripAnimations::kExpand ||
+             vertical_tab_strip_animation.current_motion ==
+                 TabStripAnimations::kCollapse;
+-        unclipped_contents_region.Inset(
+-            gfx::Insets::TLBR(0, tabs::kVerticalTabStripCollapsedWidth, 0, 0));
++        // Little Browser: a hidden sidebar leaves the page the whole width.
+       } else {
+-        unclipped_contents_region.Inset(gfx::Insets::TLBR(
+-            0, horizontal_layout.vertical_tab_strip_width, 0, 0));
++        unclipped_contents_region.Inset(
++            gfx::Insets::TLBR(0, lb_widths.page_inset, 0, 0));
+       }
+     }
+     layout.AddChild(views().vertical_tab_strip_region_view,
+@@ -985,7 +1004,8 @@
+     layout.AddChild(
+         views().vertical_tab_strip_background_blur_backdrop,
+         vertical_tab_strip_bounds,
+-        in_glass_mode() && features::kGlassExpandOnHoverEnabled.Get() &&
++        lb_sidebar_drawn && in_glass_mode() &&
++            features::kGlassExpandOnHoverEnabled.Get() &&
+             layout_data_->vertical_tab_strip_animation.expand_on_hover_width >
+                 0.0f);
+   }
+@@ -997,7 +1017,7 @@
+     const double top_corner = layout_data_->vertical_tabs_top_corner();
+     const bool top_corner_visible =
+         layout_data_->tab_strip_type == TabStripType::kVertical &&
+-        top_corner > 0.0;
++        top_corner > 0.0 && lb_sidebar_drawn;
+ 
+     // The top corner is drawn when the tabstrip goes all the way to the top.
+     if (top_corner_visible) {
+@@ -1020,7 +1040,7 @@
+     const double bottom_corner = layout_data_->vertical_tabs_bottom_corner();
+     const bool bottom_corner_visible =
+         layout_data_->tab_strip_type == TabStripType::kVertical &&
+-        bottom_corner > 0.0;
++        bottom_corner > 0.0 && lb_sidebar_drawn;
+     if (bottom_corner_visible) {
+       auto preferred =
+           views().vertical_tab_strip_bottom_corner->GetPreferredSize();
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -31,6 +31,7 @@
+ #include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/hover_tab_selector.h"
++#include "lb/browser/tabs/sidebar_width.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -730,6 +731,44 @@
+ void VerticalTabStripRegionView::OnResize(int resize_amount,
+                                           bool done_resizing) {
+   CHECK(tab_strip_view());
++  // Little Browser: a hidden sidebar slid in over the page resizes in place
++  // and stays hidden: its edge sets the width it slides in to, and the width
++  // the sidebar has when shown (lb/browser/tabs/sidebar_width.h). Which kind
++  // of drag it is is decided when it starts.
++  if (!starting_width_on_resize_.has_value()) {
++    lb_slid_in_drag_ = lb::ResizesSlidInSidebar(state_controller_->IsCollapsed(),
++                                                is_expanded_on_hover_);
++  }
++  if (lb_slid_in_drag_) {
++    if (!starting_width_on_resize_.has_value()) {
++      // From the sidebar's width: the strip may still be sliding in.
++      starting_width_on_resize_ = target_collapse_state_.uncollapsed_width;
++      state_controller_->SetIsResizing(true);
++      lb_slid_in_resize_lock_ =
++          GetExpandOnHoverLock(ExpandOnHoverLockType::kKeepExpanded);
++    }
++    const bool still_hidden = state_controller_->IsCollapsed();
++    if (still_hidden) {
++      target_collapse_state_.uncollapsed_width = lb::SlidInSidebarWidth(
++          starting_width_on_resize_.value() + resize_amount,
++          tabs::kVerticalTabStripUncollapsedMinWidth,
++          tabs::kVerticalTabStripUncollapsedMaxWidth);
++    }
++    // Done, or the sidebar was shown meanwhile, which ends this drag.
++    if (done_resizing || !still_hidden) {
++      starting_width_on_resize_ = std::nullopt;
++      lb_slid_in_drag_ = false;
++      state_controller_->SetIsResizing(false);
++      if (still_hidden) {
++        state_controller_->SetUncollapsedWidth(
++            target_collapse_state_.uncollapsed_width);
++      }
++      lb_slid_in_resize_lock_.reset();
++      LbUpdateResizeArea(state_controller_->IsCollapsed());
++    }
++    InvalidateLayout();
++    return;
++  }
+   tab_strip_view()->SetIsAnimatingSize(!done_resizing);
+   if (!starting_width_on_resize_.has_value()) {
+     starting_width_on_resize_ = width();
+@@ -771,8 +810,7 @@
+   }
+ 
+   if (done_resizing) {
+-    resize_area_->SetVisible(!state_controller_->IsCollapsed() ||
+-                             !state_controller_->IsExpandOnHoverEnabled());
++    LbUpdateResizeArea(state_controller_->IsCollapsed());  // Little Browser
+     base::RecordAction(base::UserMetricsAction(
+         new_state.collapsed ? "VerticalTabs_TabStrip_ResizeToCollapsed"
+                             : "VerticalTabs_TabStrip_ResizeToUncollapsed"));
+@@ -916,12 +954,10 @@
+   // the collapsing state.
+   bool collapsed = state != tabs::VerticalTabStripCollapseState::kExpanded;
+ 
+-  resize_area_->SetVisible(!collapsed ||
+-                           !state_controller_->IsExpandOnHoverEnabled() ||
+-                           resize_area_->is_resizing());
++  // Little Browser: also kept on a slid-in hidden sidebar, as after resizing
++  // it (setting its width notifies a collapse change).
++  LbUpdateResizeArea(collapsed);
+ 
+-  resize_area_width_ = collapsed ? kCollapsedResizeAreaWidth : kResizeAreaWidth;
+-
+   if (tab_strip_view()) {
+     tab_strip_view()->SetCollapsedState(collapsed);
+   }
+@@ -974,9 +1010,19 @@
+ }
+ 
+ void VerticalTabStripRegionView::OnExpandOnHoverEnabledChanged(bool enabled) {
+-  resize_area_->SetVisible(!state_controller_->IsCollapsed() || !enabled ||
+-                           resize_area_->is_resizing());
++  LbUpdateResizeArea(state_controller_->IsCollapsed());  // Little Browser
+   UpdateExpandOnHoverState();
++  // Little Browser: the layout keeps a hidden sidebar as Chromium's column of
++  // icons while nothing would slide it in.
++  InvalidateLayout();
++}
++
++void VerticalTabStripRegionView::LbUpdateResizeArea(bool collapsed) {
++  const lb::SidebarResizeArea area = lb::SidebarResizeAreaFor(
++      collapsed, state_controller_->IsExpandOnHoverEnabled(),
++      is_expanded_on_hover_, resize_area_->is_resizing());
++  resize_area_->SetVisible(area.visible);
++  resize_area_width_ = area.wide ? kResizeAreaWidth : kCollapsedResizeAreaWidth;
+ }
+ 
+ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -1135,6 +1181,9 @@
+ void VerticalTabStripRegionView::AnimateExpandOnHover(bool expand) {
+   is_expanded_on_hover_ = expand;
+   ResetExpandOnHoverTimers();
++  // Little Browser: a hidden sidebar slid in over the page can be resized by
++  // its edge, as the shown one can.
++  LbUpdateResizeArea(state_controller_->IsCollapsed());
+ 
+   if (expand) {
+     expand_on_hover_start_time_ = base::TimeTicks::Now();
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -139,6 +139,11 @@
+   }
+ 
+   bool is_expanded_on_hover() const { return is_expanded_on_hover_; }
++  // Little Browser: whether a hidden sidebar can slide in (expand on hover is
++  // on); the layout keeps Chromium's column of icons otherwise.
++  bool lb_slides_in() const {
++    return state_controller_->IsExpandOnHoverEnabled();
++  }
+   ShadowFrameView* shadow_frame() { return shadow_frame_; }
+   int uncollapsed_width() const {
+     return target_collapse_state_.uncollapsed_width;
+@@ -202,6 +207,9 @@
+   gfx::Rect GetTabStripDraggableBounds() const override;
+ 
+   void OnExpandOnHoverEnabledChanged(bool enabled);
++  // Little Browser: shows or hides the resize area and sets its width
++  // (lb::SidebarResizeAreaFor).
++  void LbUpdateResizeArea(bool collapsed);
+   void UpdateExpandOnHoverState(std::optional<bool> hovered = std::nullopt);
+   void OnMouseVelocityHeuristicInterval();
+   void CalculateMouseVelocityForExpandOnHover();
+@@ -274,6 +282,10 @@
+   int keep_expanded_lock_count_ = 0;
+   std::unique_ptr<ExpandOnHoverLock> omnibox_open_lock_;
+   std::unique_ptr<ExpandOnHoverLock> link_drag_lock_;
++  // Little Browser: keeps a slid-in hidden sidebar out while its edge is
++  // dragged, and whether the drag under way is such a drag.
++  std::unique_ptr<ExpandOnHoverLock> lb_slid_in_resize_lock_;
++  bool lb_slid_in_drag_ = false;
+   base::flat_set<raw_ptr<VerticalTabStripExpandOnHoverLock>> hover_locks_;
+ 
+   std::unique_ptr<TabHoverCardController::ScopedHideHoverCardLock>

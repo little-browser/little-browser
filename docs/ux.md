@@ -10,7 +10,7 @@ tabs per space), pinned tabs as a list, the first-run search-engine and password
 the ad blocker, Peek, the little window, the quit warning, Chromium's own tab groups and pinned
 groups, bookmarks in the command bar, and import from other browsers with its first-run offer
 (section 13). Everything else here — auto-archive, group suggestions and auto-grouping, the distinct
-incognito look, top-mode additions, hiding the sidebar with Cmd+S, Cmd+D to pin, the ⌥⌘G shortcut
+incognito look, top-mode additions, the Cmd+S shortcut to hide the sidebar, Cmd+D to pin, the ⌥⌘G shortcut
 for groups, the footer's Downloads button and the whole mobile section — is specified but not built.
 
 ---
@@ -73,9 +73,15 @@ Sidebar zones, top to bottom:
 
 - **Page area** is inset by 8 px with rounded corners and a soft shadow; this frames the page and
   makes the sidebar feel like part of the window, not a toolbar.
-- **Hide the sidebar** with Cmd+S. The page then fills the window; moving the pointer to the left
-  edge slides the sidebar in *over* the page, and it slides out when the pointer leaves.
-- **Sidebar width** is draggable (200–400 px).
+- **Hide the sidebar** with its toggle in the title row, or Cmd+S. The page then fills the window
+  and nothing of the sidebar stays on screen. Resting the pointer on the window's left edge slides
+  the sidebar in *over* the page, at the sidebar's width, and it slides out when the pointer
+  leaves. Dragging its edge while it is slid in resizes it there; it stays hidden, and the new
+  width is the sidebar's when it is shown again. Showing it while it is slid in keeps it at its
+  width while the page makes room. With Chromium's "Expand on hover" turned off (the toggle's
+  right-click menu), nothing would slide a hidden sidebar in, so it stays a column of icons
+  beside the page instead.
+- **Sidebar width** is draggable, shown or slid in (Chromium's limits, 126–400 px).
 - Light/dark follows the OS; space colour is a subtle tint, never a saturated block.
 - **Ads** are blocked on every site by the built-in blocker. When a site doesn't work, or to
   support it, the site-info panel (the icon left of the address) → "Cookies and site data" has an
@@ -268,8 +274,9 @@ collapsing, renaming and Ungroup are the same.
   colour. Once all its tabs are asleep the menu offers **Remove group** instead, which removes the
   group with its tabs.
 - One-click suggestions and both automatic rules group only today tabs.
-- With tabs on top, and in the collapsed strip, a pinned group's tabs show as ordinary pinned
-  icons, in order, and grouping pinned tabs there makes a today group, as Chromium does.
+- With tabs on top, and in a hidden sidebar slid in over the page, a pinned group's tabs show as
+  ordinary pinned tabs, in order, and grouping pinned tabs there makes a today group, as Chromium
+  does.
 - Extensions see a pinned group's tabs as pinned tabs in no group (`chrome.tabGroups` lists only
   today groups).
 

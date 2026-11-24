@@ -23,6 +23,12 @@
 #include "chrome/browser/ui/tabs/tab_menu_model.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/multi_contents_view.h"
+#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+#include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_title.h"
@@ -31,6 +37,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/demo/demo_report.h"
+#include "lb/browser/tabs/sidebar_width.h"
 #include "lb/browser/tabs/tab_names.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
@@ -38,15 +45,182 @@
 #include "lb/browser/ui/views/command_bar/command_bar.h"
 #include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+#include "ui/compositor/layer.h"
+#include "ui/events/event.h"
+#include "ui/events/event_constants.h"
+#include "ui/gfx/geometry/point_f.h"
 #include "ui/menus/simple_menu_model.h"
+#include "ui/views/controls/resize_area.h"
 #include "ui/views/widget/widget.h"
 
 namespace lb {
 
 namespace {
 
+constexpr char kHiddenMode[] = "hidden-sidebar";
 constexpr char kNamesMode[] = "tab-names";
 constexpr char kSnapshotSwitch[] = "lb-ui-snapshot-sidebar";
+
+// --------------------------------------------------------------- hidden-sidebar
+
+VerticalTabStripRegionView* Region(BrowserWindowInterface* browser) {
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser);
+  return view ? view->vertical_tab_strip_region_view_for_testing() : nullptr;
+}
+
+// The page's left edge in the window.
+int PageLeft(BrowserWindowInterface* browser) {
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser);
+  return view && view->multi_contents_view() ? view->multi_contents_view()->bounds().x() : -1;
+}
+
+struct HiddenRun {
+  base::WeakPtr<BrowserWindowInterface> browser;
+  std::string detail;
+  bool ok = true;
+  int width = 0;  // the sidebar's width before the drag
+  std::unique_ptr<ExpandOnHoverLock> slide_in;
+
+  void Expect(bool condition, const std::string& what) {
+    if (!condition) {
+      ok = false;
+      detail += " FAIL(" + what + ")";
+    }
+  }
+  std::string State(VerticalTabStripRegionView* region) {
+    return "strip=" + base::NumberToString(region->width()) +
+           " opacity=" + base::NumberToString(region->layer()->opacity()) +
+           " page_x=" + base::NumberToString(PageLeft(browser.get()));
+  }
+};
+
+HiddenRun& TheHiddenRun() {
+  static base::NoDestructor<HiddenRun> run;
+  return *run;
+}
+
+void HiddenWithoutHover();
+
+void HiddenSlidOut() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  run.detail += " | let go: " + run.State(region);
+  run.Expect(region->width() == kHiddenSidebarEdgeWidth, "slides out to the edge band");
+  run.Expect(region->layer()->opacity() == 0.0f, "not drawn once slid out");
+  // With expand on hover off nothing would slide it in: it stays Chromium's column of icons.
+  if (auto* state = tabs::VerticalTabStripStateController::From(run.browser.get())) {
+    state->SetExpandOnHoverEnabled(false);
+  }
+  PostDemoTask(base::BindOnce(&HiddenWithoutHover), base::Seconds(1));
+}
+
+void HiddenWithoutHover() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  auto* state =
+      run.browser ? tabs::VerticalTabStripStateController::From(run.browser.get()) : nullptr;
+  if (!region || !state) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  run.detail += " | no hover: " + run.State(region);
+  run.Expect(region->width() == tabs::kVerticalTabStripCollapsedWidth,
+             "Chromium's column without expand on hover");
+  run.Expect(region->layer()->opacity() == 1.0f, "drawn without expand on hover");
+  run.Expect(PageLeft(run.browser.get()) >= tabs::kVerticalTabStripCollapsedWidth - 1,
+             "the column takes its room");
+  // Leave the sidebar as it was.
+  state->SetExpandOnHoverEnabled(true);
+  state->SetUncollapsedWidth(run.width);
+  state->RequestCollapse(false);
+  ReportDemo(kHiddenMode, run.ok, run.detail);
+}
+
+void HiddenResized() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  auto* state =
+      run.browser ? tabs::VerticalTabStripStateController::From(run.browser.get()) : nullptr;
+  if (!region || !state) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  const int wider = SlidInSidebarWidth(run.width + 60, tabs::kVerticalTabStripUncollapsedMinWidth,
+                                       tabs::kVerticalTabStripUncollapsedMaxWidth);
+  run.detail += " | dragged: " + run.State(region) +
+                " saved_width=" + base::NumberToString(state->GetUncollapsedWidth());
+  run.Expect(region->width() == wider, "widened in place");
+  run.Expect(state->GetUncollapsedWidth() == wider, "the new width is the sidebar's");
+  run.Expect(state->IsCollapsed(), "still hidden");
+  run.Expect(PageLeft(run.browser.get()) <= 1, "the page stays put under it");
+  // Its edge can be dragged again: the resize area stays while it is slid in.
+  run.Expect(region->resize_area_for_testing()->GetVisible(), "resize area kept after a drag");
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kSnapshotSwitch)) {
+    // Keep it slid in for the capture, which quits the app.
+    ReportDemo(kHiddenMode, run.ok, run.detail + " (captured slid in)");
+    MaybeScheduleUiSnapshot(region->GetWidget(), kSnapshotSwitch);
+    return;
+  }
+  // Let go, and the pointer leaves it (the real pointer may rest over it, which keeps it out).
+  run.slide_in.reset();
+  region->OnMouseExited(ui::MouseEvent(ui::EventType::kMouseExited, gfx::PointF(), gfx::PointF(),
+                                       base::TimeTicks::Now(), ui::EF_NONE, ui::EF_NONE));
+  PostDemoTask(base::BindOnce(&HiddenSlidOut), base::Milliseconds(1500));
+}
+
+void HiddenSlidIn() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  run.detail += " | slid in: " + run.State(region);
+  run.Expect(region->is_expanded_on_hover(), "slid in");
+  run.Expect(region->width() == run.width, "slides in to the sidebar's width");
+  run.Expect(region->layer()->opacity() == 1.0f, "drawn while slid in");
+  run.Expect(PageLeft(run.browser.get()) <= 1, "over the page, which doesn't move");
+  // Drag its edge 60 px to the right, as the resize area does.
+  region->OnResize(30, /*done_resizing=*/false);
+  region->OnResize(60, /*done_resizing=*/true);
+  PostDemoTask(base::BindOnce(&HiddenResized), base::Seconds(1));
+}
+
+void HiddenCollapsed() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  auto* state =
+      run.browser ? tabs::VerticalTabStripStateController::From(run.browser.get()) : nullptr;
+  if (!region || !state) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  run.width = state->GetUncollapsedWidth();
+  run.detail = "hidden: " + run.State(region);
+  run.Expect(state->IsCollapsed(), "hidden");
+  run.Expect(region->width() == kHiddenSidebarEdgeWidth, "only the edge band");
+  run.Expect(region->layer()->opacity() == 0.0f, "not drawn");
+  run.Expect(PageLeft(run.browser.get()) <= 1, "the page takes the window's width");
+  // What the pointer at the window's edge does.
+  run.slide_in = region->GetExpandOnHoverLock(ExpandOnHoverLockType::kKeepExpanded);
+  PostDemoTask(base::BindOnce(&HiddenSlidIn), base::Milliseconds(1500));
+}
+
+void RunHiddenSidebarDemo(BrowserWindowInterface* browser) {
+  FailDemoAfter(kHiddenMode, base::Seconds(30));
+  auto* state = tabs::VerticalTabStripStateController::From(browser);
+  if (!state || !Region(browser)) {
+    ReportDemo(kHiddenMode, false, "no vertical tab strip");
+    return;
+  }
+  TheHiddenRun().browser = browser->GetWeakPtr();
+  state->RequestCollapse(true);
+  PostDemoTask(base::BindOnce(&HiddenCollapsed), base::Seconds(2));
+}
 
 // --------------------------------------------------------------- tab-names
 
@@ -354,6 +528,10 @@ void RunTabNamesDemo(BrowserWindowInterface* browser) {
 }  // namespace
 
 bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string& mode) {
+  if (mode == kHiddenMode) {
+    RunHiddenSidebarDemo(browser);
+    return true;
+  }
   if (mode == kNamesMode) {
     RunTabNamesDemo(browser);
     return true;

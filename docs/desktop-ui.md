@@ -32,6 +32,24 @@ space between the tabs and the footer. The header, footer and row switch to thei
 icons-only form (`lb::IsSidebarCompact`) while the strip is collapsed and not expanded on hover;
 an expanded strip dragged narrow keeps the full form, as its tabs do.
 
+**Hidden sidebar.** Hiding the sidebar is Chromium's collapse, but where Chromium keeps a column
+of icons beside the page, ours takes no room (`patches/lb/hidden-sidebar-ui.patch`). The tabbed
+layout asks `lb::LayOutSidebar` (`lb/browser/tabs/sidebar_width.h`) for the strip's widths: the
+page's inset follows Chromium's collapse animation down to none, and a collapsed strip is a band
+`kHiddenSidebarEdgeWidth` (6 px) wide at the window's edge whose layer has opacity 0, so it is
+not drawn but still takes the pointer (no row has any width inside it). Chromium's expand on hover
+then slides it in over the page, to the user's width instead of Chromium's default; showing the
+sidebar while it is slid in keeps the strip at that width while the page's inset grows. With
+expand on hover turned off, `LayOutSidebar` leaves Chromium's collapsed strip as it is, a column of
+icons. The resize area follows `lb::SidebarResizeAreaFor`: it also shows, full width, while the
+strip is slid in, including after a resize (setting the width notifies a collapse change). Whether
+a drag of the edge resizes a slid-in sidebar is decided once, when it starts
+(`lb::ResizesSlidInSidebar`); such a drag starts from the sidebar's width, holds a keep-expanded
+lock, never uncollapses the strip, and on letting go saves the width as the sidebar's
+(`lb::SlidInSidebarWidth`, never narrower than Chromium's minimum); if the sidebar is shown
+meanwhile, the drag ends there. So the compact form and the collapsed strip's icon tiles only show
+for an instant while the strip animates, or with expand on hover off.
+
 **Tab names and pinned links.** A tab's name and a pinned tab's link (`lb::TabCustom`, rules in
 `lb/browser/tabs/tab_names.h`) are kept by the tab, in a map by its `TabHandle`
 (`lb/browser/ui/tabs/tab_custom_data.h`), not with its page: a sleeping tab is discarded, which on
@@ -215,7 +233,7 @@ sidebar switches space, once per gesture and without wrap-around.
 - **Tint.** A space's colour tints each window on its own (`BrowserWidget::SetUserColorOverride`),
   so two windows of one profile can show different spaces.
 - **Animation.** The sidebar contents slide and fade on a space switch (180 ms).
-- **Collapsed strip.** The header hides; pinned tabs stay as icon tiles.
+- **Hidden sidebar.** Nothing shows; slid in over the page it has its full form.
 - **Editing.** Right-click a space → Rename…, Icon, Colour, Delete; the same actions are
   commands. The new-space dialog (`new_space_dialog.*`) asks for name, profile (existing or new),
   colour and icon.
