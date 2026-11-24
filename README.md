@@ -1,7 +1,10 @@
 # Little Browser
 
 A minimal, private, fast browser — Chromium on macOS, Windows, Linux and Android; WebKit on iOS.
-Sidebar-first UI inspired by Arc. Open source under [MPL-2.0](LICENSE).
+Sidebar-first UI inspired by Arc, which is being discontinued: spaces, pinned tabs, tab groups,
+Peek link previews and a command bar, and it imports your Arc spaces and tabs. See
+[littlebrowser.app/arc-alternative](https://littlebrowser.app/arc-alternative). Open source under
+[MPL-2.0](LICENSE).
 
 > **Status:** the macOS desktop build runs: sidebar with spaces, pinned tabs and groups, command bar,
 > first-run search-engine and password-manager choices, Chrome Web Store extensions (MV3), the
