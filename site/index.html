@@ -10,10 +10,10 @@
   <meta name="description" content="Little Browser is a small, private, open-source browser for Mac, inspired by Arc. A sidebar, spaces, Peek link previews, and nothing about you on our servers. Imports your Arc spaces and tabs.">
   <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="assets/brand/favicon.ico" sizes="any">
-  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
-  <link rel="manifest" href="site.webmanifest">
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="canonical" href="https://littlebrowser.app/">
   <meta property="og:url" content="https://littlebrowser.app/">
   <meta property="og:type" content="website">
@@ -77,7 +77,39 @@
   ]
 }</script>
   <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
-  <link rel="stylesheet" href="styles.css">
+  <!-- i18n:alternates -->
+  <link rel="alternate" hreflang="en" href="https://littlebrowser.app/">
+  <link rel="alternate" hreflang="es" href="https://littlebrowser.app/es/">
+  <link rel="alternate" hreflang="fr" href="https://littlebrowser.app/fr/">
+  <link rel="alternate" hreflang="de" href="https://littlebrowser.app/de/">
+  <link rel="alternate" hreflang="pt-BR" href="https://littlebrowser.app/pt-br/">
+  <link rel="alternate" hreflang="ja" href="https://littlebrowser.app/ja/">
+  <link rel="alternate" hreflang="zh-Hans" href="https://littlebrowser.app/zh/">
+  <link rel="alternate" hreflang="ru" href="https://littlebrowser.app/ru/">
+  <link rel="alternate" hreflang="uk" href="https://littlebrowser.app/uk/">
+  <link rel="alternate" hreflang="be" href="https://littlebrowser.app/be/">
+  <link rel="alternate" hreflang="el" href="https://littlebrowser.app/el/">
+  <link rel="alternate" hreflang="vi" href="https://littlebrowser.app/vi/">
+  <link rel="alternate" hreflang="hi" href="https://littlebrowser.app/hi/">
+  <link rel="alternate" hreflang="x-default" href="https://littlebrowser.app/">
+  <script>(() => { try {
+    if (document.documentElement.lang !== 'en') return;
+    const alt = {};
+    for (const l of document.querySelectorAll('link[rel=alternate][hreflang]')) alt[l.hreflang.toLowerCase()] = new URL(l.href).pathname;
+    const pick = (raw) => {
+      const t = raw.toLowerCase(), p = t.split('-')[0];
+      if (p === 'en') return 'en';
+      if (p === 'zh') return /^zh(-hans|-cn|-sg)?$/.test(t) ? 'zh-hans' : null;
+      if (p === 'pt') return 'pt-br';
+      return alt[t] ? t : alt[p] ? p : null;
+    };
+    let c = null;
+    try { c = localStorage.getItem('lb-lang'); } catch {}
+    if (!c) for (const raw of navigator.languages || [navigator.language]) { c = pick(raw); if (c) break; }
+    if (c && c !== 'en' && alt[c]) location.replace(alt[c] + location.hash);
+  } catch {} })();</script>
+  <!-- /i18n:alternates -->
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -96,16 +128,36 @@
 <header class="nav">
   <div class="wrap">
     <a class="brand" href="./" aria-label="Little Browser home">
-      <img src="assets/brand/icon.svg" alt="">
+      <img src="/assets/brand/icon.svg" alt="">
       <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
     </a>
     <nav aria-label="Sections">
-      <a href="#features">Features</a>
+      <a href="/features">Features</a>
       <a href="#privacy">Privacy</a>
       <a href="/downloads">Download</a>
       <a href="/arc-alternative">From Arc</a>
     </nav>
     <a class="gh" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener" aria-label="Source code on GitHub" title="Source code on GitHub"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <!-- i18n:switcher -->
+    <details class="lang">
+      <summary aria-label="Language" title="Language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg></summary>
+      <ul>
+        <li><a href="/" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
+        <li><a href="/es/" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="/fr/" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="/de/" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="/pt-br/" lang="pt-BR" hreflang="pt-BR" data-lang="pt-br">Português (Brasil)</a></li>
+        <li><a href="/ja/" lang="ja" hreflang="ja" data-lang="ja">日本語</a></li>
+        <li><a href="/zh/" lang="zh-Hans" hreflang="zh-Hans" data-lang="zh-hans">简体中文</a></li>
+        <li><a href="/ru/" lang="ru" hreflang="ru" data-lang="ru">Русский</a></li>
+        <li><a href="/uk/" lang="uk" hreflang="uk" data-lang="uk">Українська</a></li>
+        <li><a href="/be/" lang="be" hreflang="be" data-lang="be">Беларуская</a></li>
+        <li><a href="/el/" lang="el" hreflang="el" data-lang="el">Ελληνικά</a></li>
+        <li><a href="/vi/" lang="vi" hreflang="vi" data-lang="vi">Tiếng Việt</a></li>
+        <li><a href="/hi/" lang="hi" hreflang="hi" data-lang="hi">हिन्दी</a></li>
+      </ul>
+    </details>
+    <!-- /i18n:switcher -->
     <div class="theme" role="group" aria-label="Colour theme">
       <button data-t="auto" aria-pressed="true" aria-label="Match system" title="Match system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
       <button data-t="light" aria-pressed="false" aria-label="Light" title="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
@@ -221,50 +273,51 @@
       <div class="grid">
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></div>
-          <h3>One quiet sidebar</h3>
+          <h3><a href="/features/sidebar">One quiet sidebar</a></h3>
           <p>Tabs and spaces sit in one place, built on Chromium's own vertical tabs. Collapse it down to icons when you want more page.</p>
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/><rect x="10" y="4" width="10" height="10" rx="2.5"/><path d="M8 16l2.5-2.5" opacity=".6"/></svg></div>
-          <h3>Peek</h3>
+          <h3><a href="/features/peek">Peek</a></h3>
           <p>Shift+click a link to open a little page over the one you're reading. Press Esc to let it go, or turn it into a tab without reloading.</p>
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="12" r="3"/><circle cx="12" cy="12" r="3" opacity=".6"/><circle cx="18" cy="12" r="3" opacity=".35"/></svg></div>
-          <h3>Spaces</h3>
+          <h3><a href="/features/spaces">Spaces</a></h3>
           <p>Personal, work, a hobby: each space has its own tabs and its own colour, and comes back after a restart. Switch with <kbd>⌃</kbd> <kbd>1</kbd>…<kbd>9</kbd> or a two-finger swipe on the sidebar. A space can run in its own profile to keep logins separate.</p>
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="6" width="14" height="12" rx="2.5"/><path d="M5 9.5h14"/></svg></div>
-          <h3>Little window</h3>
+          <h3><a href="/features/little-window">Little window</a></h3>
           <p>A small window with no tabs at all, for the link from a chat or a quick look-up: <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd>, or a link's menu. Move it into a space when it turns out to matter.</p>
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 12h4M14 12h3"/></svg></div>
-          <h3>Command bar</h3>
+          <h3><a href="/features/command-bar">Command bar</a></h3>
           <p><kbd>⌘</kbd> <kbd>T</kbd> and <kbd>⌘</kbd> <kbd>L</kbd> open one palette for your open tabs, bookmarks, history, commands and searches, all from the keyboard.</p>
         </article>
         <article class="card">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.5-.8z"/></svg></div>
-          <h3>The extensions you use</h3>
+          <h3><a href="/features/extensions">The extensions you use</a></h3>
           <p>On desktop it's Chromium underneath, so DevTools and Picture-in-Picture come along. Install extensions from the Chrome Web Store, and pick a password manager on first run: 1Password, Bitwarden or Proton Pass. Only Manifest V3 extensions run, as in Chrome itself.</p>
         </article>
         <article class="card wide">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12h12M12 7l5 5-5 5"/><path d="M20 5v14" opacity=".6"/></svg></div>
-          <h3>Move in from Arc, Chrome, Edge or Safari</h3>
+          <h3><a href="/features/import">Move in from Arc, Chrome, Edge or Safari</a></h3>
           <p>Bring your bookmarks, history, search shortcuts, addresses and open tabs from Chrome, Edge, Brave and other Chromium browsers, Firefox, Safari or a bookmarks file. From Arc your spaces, pinned tabs, Favourites and profiles come along too. Your extensions reinstall from the Chrome Web Store, and you can choose to stay signed in. Passwords stay with your password manager.</p>
         </article>
         <article class="card wide">
           <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/></svg></div>
-          <h3>Updates itself</h3>
+          <h3><a href="/features/updates">Updates itself</a></h3>
           <p>On a Mac it checks for a new version every four hours and asks before installing it, after checking the update's signature. A security update can't be skipped, so fixes from upstream Chromium reach you soon after they ship.</p>
         </article>
       </div>
+      <p class="section-more"><a href="/features">See all features</a>, including tab groups, the ad blocker and what each platform has.</p>
     </div>
   </section>
 
   <section id="privacy" class="privacy">
-    <img class="mark-bg" src="assets/brand/mark.svg" alt="">
+    <img class="mark-bg" src="/assets/brand/mark.svg" alt="">
     <div class="wrap">
       <div class="section-head">
         <span class="eyebrow">Privacy</span>
@@ -305,7 +358,7 @@
       </div>
       <div class="faqs">
         <details class="faq"><summary>Is Little Browser an Arc alternative?</summary><p>Yes. It was inspired by Arc and has a sidebar, spaces, pinned tabs, tab groups, Peek and a command bar. It imports your Arc spaces and tabs. It is independent and not affiliated with The Browser Company. <a href="/arc-alternative">See how it compares</a>.</p></details>
-        <details class="faq"><summary>What is Peek?</summary><p>Shift+click a link to read it in a card over your page, then close it or keep it as a tab without reloading. <a href="/peek">More about Peek</a>.</p></details>
+        <details class="faq"><summary>What is Peek?</summary><p>Shift+click a link to read it in a card over your page, then close it or keep it as a tab without reloading. <a href="/features/peek">More about Peek</a>.</p></details>
         <details class="faq"><summary>Which computers does it run on?</summary><p>The beta is for Macs with Apple silicon. Windows, Linux, iPhone and Android versions are not available yet.</p></details>
         <details class="faq"><summary>Does it need an account?</summary><p>No. There's no account, no telemetry and no analytics. See the <a href="/privacy">privacy policy</a>.</p></details>
       </div>
@@ -316,23 +369,29 @@
 <footer>
   <div class="wrap">
     <a class="brand" href="./" aria-label="Little Browser home">
-      <img src="assets/brand/icon-small.svg" alt="">
+      <img src="/assets/brand/icon-small.svg" alt="">
       <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
     </a>
     <nav aria-label="Footer">
       <a href="/downloads">Download</a>
+      <a href="/releases">Release notes</a>
       <a href="/privacy">Privacy policy</a>
       <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">Source code</a>
     </nav>
     <nav class="topics" aria-label="About Little Browser">
-      <b>Learn more</b>
+      <b>Features</b>
+      <a href="/features">All features</a>
+      <a href="/features/spaces">Spaces</a>
+      <a href="/features/peek">Peek</a>
+      <a href="/features/tab-groups">Tab groups</a>
+      <a href="/features/command-bar">Command bar</a>
+      <a href="/features/ad-blocker">Ad blocker</a>
+      <a href="/features/import">Import</a>
       <a href="/arc-alternative">Arc alternative</a>
-      <a href="/peek">Peek</a>
-      <a href="/spaces">Spaces</a>
     </nav>
     <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · This site uses no cookies or analytics.</span>
   </div>
 </footer>
-<script src="site.js"></script>
+<script src="/site.js"></script>
 </body>
 </html>

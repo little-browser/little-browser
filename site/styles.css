@@ -429,11 +429,9 @@ kbd {
 .releases .file { color: var(--accent); font-weight: 600; text-decoration: none; }
 .releases .file:hover { text-decoration: underline; }
 .releases .dim { color: var(--ink-dim); font-weight: 400; }
-/* A release's notes, under its version. */
-.releases .notes { margin-top: 8px; max-width: 34em; white-space: normal; font-size: 14px; }
-.releases .notes summary { cursor: pointer; color: var(--ink-dim); font-size: 13px; }
-.releases .notes ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
-/* The checksum in full, with a button that copies it. */
+/* A release's notes are on /releases. */
+.releases .notes-link { margin-top: 6px; font-size: 13px; }
+.releases .notes-link a { color: var(--ink-dim); }
 .releases .counts { margin-top: 2px; font-size: 12px; }
 .releases .sha-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--ink-dim); }
 .releases .sha { font-size: 12px; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
@@ -544,3 +542,65 @@ footer nav.topics b { color: var(--ink); font-weight: 600; }
 #faq .faq summary { cursor: pointer; font-weight: 600; }
 #faq .faq p { margin: 10px 0 0; color: var(--ink-dim); }
 #faq .faq a { color: var(--accent); }
+
+/* Feature pages (/features/…), the features hub and the release notes. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.crumbs { font-size: 14px; color: var(--ink-dim); }
+.crumbs a { color: var(--accent); }
+.feature .legal-lead, .feature .sub { color: var(--ink-dim); margin-top: -10px; }
+.feature.hub .wrap, .feature.releases-page .wrap { max-width: 980px; }
+.feature.hub h2 { margin-top: 34px; }
+.card.link { text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+.card.link:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); transform: translateY(-1px); }
+.card.link h3 { color: var(--ink); }
+.card.link .more { color: var(--accent); font-size: 14px; font-weight: 600; }
+.section-more { margin-top: 28px; color: var(--ink-dim); }
+.section-more a, .card h3 a { color: inherit; text-decoration: none; }
+.section-more a { color: var(--accent); font-weight: 600; }
+.card h3 a:hover { text-decoration: underline; }
+.state { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.state.on { background: color-mix(in srgb, #3f8c5a 18%, var(--surface)); color: color-mix(in srgb, #3f8c5a 85%, var(--ink)); }
+.state.off { background: transparent; border: 1px solid var(--line); color: var(--ink-dim); }
+.avail { width: 100%; border-collapse: collapse; font-size: 16px; }
+.avail th, .avail td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.avail th { font-weight: 600; width: 11em; }
+.related { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.related .rel { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); text-decoration: none; color: inherit; }
+.related .rel:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.related .rel b { color: var(--accent); }
+.related .rel span { color: var(--ink-dim); font-size: 14px; }
+.matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.matrix { width: 100%; border-collapse: collapse; font-size: 14px; }
+.matrix th, .matrix td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.matrix thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-dim); }
+.matrix tbody tr:last-child > * { border-bottom: 0; }
+.matrix tbody th a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.matrix tbody th a:hover { color: var(--accent); }
+.release-list { display: grid; gap: 18px; }
+.release { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; display: grid; gap: 10px; scroll-margin-top: 80px; }
+.release:target { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.release h2 { margin: 0; font-size: 22px; }
+.release h2 a { color: inherit; text-decoration: none; }
+.release .when { color: var(--ink-dim); font-size: 14px; }
+.release ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.release .none { color: var(--ink-dim); margin: 0; }
+.release .get { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 15px; }
+.release .get a { font-weight: 600; }
+
+/* Language switcher (the globe in the header): a <details>, so it works without script. */
+.lang { position: relative; }
+.lang summary {
+  list-style: none; cursor: pointer; line-height: 0; padding: 8px; border-radius: 10px;
+  color: var(--ink-dim); border: 1px solid var(--line); background: var(--bg-alt);
+}
+.lang summary::-webkit-details-marker { display: none; }
+.lang summary:hover, .lang[open] summary { color: var(--ink); }
+.lang summary svg { width: 16px; height: 16px; }
+.lang ul {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20; margin: 0; padding: 6px; list-style: none;
+  min-width: 190px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 28px hsl(0 0% 0% / 0.16);
+}
+.lang li a { display: block; padding: 8px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 15px; }
+.lang li a:hover { background: var(--accent-soft); }
+.lang li a[aria-current] { font-weight: 600; color: var(--accent); }

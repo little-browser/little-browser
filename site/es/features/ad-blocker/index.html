@@ -1,0 +1,279 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bloqueador de anuncios y protección contra rastreo integrados — Little Browser</title>
+  <meta name="description" content="Little Browser bloquea anuncios y rastreadores de forma nativa, bloquea las cookies de terceros, elimina los parámetros de rastreo de los enlaces y no envía telemetría.">
+  <link rel="canonical" href="https://littlebrowser.app/es/features/ad-blocker">
+  <meta property="og:url" content="https://littlebrowser.app/es/features/ad-blocker">
+  <meta property="og:type" content="article">
+  <meta property="og:locale" content="es">
+  <meta property="og:site_name" content="Little Browser">
+  <meta property="og:title" content="Bloqueador de anuncios y protección contra rastreo integrados — Little Browser">
+  <meta property="og:description" content="Little Browser bloquea anuncios y rastreadores de forma nativa, bloquea las cookies de terceros, elimina los parámetros de rastreo de los enlaces y no envía telemetría.">
+  <meta property="og:image" content="https://littlebrowser.app/assets/brand/icon-512.png">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Little Browser",
+      "applicationCategory": "BrowserApplication",
+      "operatingSystem": "macOS",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "license": "https://mozilla.org/MPL/2.0/",
+      "url": "https://littlebrowser.app/"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Inicio",
+          "item": "https://littlebrowser.app/es/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Funciones",
+          "item": "https://littlebrowser.app/es/features"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Bloqueador de anuncios y protecci\u00f3n contra rastreo",
+          "item": "https://littlebrowser.app/es/features/ad-blocker"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "\u00bfLittle Browser bloquea los anuncios?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "S\u00ed, en todos los sitios, con EasyList, EasyPrivacy, los filtros de uBlock y la lista de Peter Lowe. Puedes permitir los anuncios en un solo sitio desde el panel de informaci\u00f3n del sitio o desde la barra de comandos."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u00bfBloquea las cookies de terceros?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "S\u00ed, por defecto, junto con la partici\u00f3n del almacenamiento de Chromium."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u00bfQu\u00e9 son los par\u00e1metros de rastreo?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Fragmentos extra de un enlace, como utm_source o fbclid, que le dicen a un sitio de d\u00f3nde vienes. Little Browser elimina los que solo sirven para rastrear, de modo que la direcci\u00f3n que ves y el historial que guardas quedan limpios."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u00bfLittle Browser recopila datos de uso?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. No tiene telemetr\u00eda. Los informes de fallos est\u00e1n desactivados a menos que los actives."
+          }
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- i18n:alternates -->
+  <link rel="alternate" hreflang="en" href="https://littlebrowser.app/features/ad-blocker">
+  <link rel="alternate" hreflang="es" href="https://littlebrowser.app/es/features/ad-blocker">
+  <link rel="alternate" hreflang="fr" href="https://littlebrowser.app/fr/features/ad-blocker">
+  <link rel="alternate" hreflang="de" href="https://littlebrowser.app/de/features/ad-blocker">
+  <link rel="alternate" hreflang="pt-BR" href="https://littlebrowser.app/pt-br/features/ad-blocker">
+  <link rel="alternate" hreflang="ja" href="https://littlebrowser.app/ja/features/ad-blocker">
+  <link rel="alternate" hreflang="zh-Hans" href="https://littlebrowser.app/zh/features/ad-blocker">
+  <link rel="alternate" hreflang="ru" href="https://littlebrowser.app/ru/features/ad-blocker">
+  <link rel="alternate" hreflang="uk" href="https://littlebrowser.app/uk/features/ad-blocker">
+  <link rel="alternate" hreflang="be" href="https://littlebrowser.app/be/features/ad-blocker">
+  <link rel="alternate" hreflang="el" href="https://littlebrowser.app/el/features/ad-blocker">
+  <link rel="alternate" hreflang="vi" href="https://littlebrowser.app/vi/features/ad-blocker">
+  <link rel="alternate" hreflang="hi" href="https://littlebrowser.app/hi/features/ad-blocker">
+  <link rel="alternate" hreflang="x-default" href="https://littlebrowser.app/features/ad-blocker">
+  <script>(() => { try {
+    if (document.documentElement.lang !== 'en') return;
+    const alt = {};
+    for (const l of document.querySelectorAll('link[rel=alternate][hreflang]')) alt[l.hreflang.toLowerCase()] = new URL(l.href).pathname;
+    const pick = (raw) => {
+      const t = raw.toLowerCase(), p = t.split('-')[0];
+      if (p === 'en') return 'en';
+      if (p === 'zh') return /^zh(-hans|-cn|-sg)?$/.test(t) ? 'zh-hans' : null;
+      if (p === 'pt') return 'pt-br';
+      return alt[t] ? t : alt[p] ? p : null;
+    };
+    let c = null;
+    try { c = localStorage.getItem('lb-lang'); } catch {}
+    if (!c) for (const raw of navigator.languages || [navigator.language]) { c = pick(raw); if (c) break; }
+    if (c && c !== 'en' && alt[c]) location.replace(alt[c] + location.hash);
+  } catch {} })();</script>
+  <!-- /i18n:alternates -->
+  <link rel="stylesheet" href="/styles.css">
+  <script>window.LB_STRINGS = {"iPhone and iPad": "iPhone y iPad", "Copy SHA-256": "Copiar SHA-256", "Copied": "Copiado", "{0} · download below": "{0} · descarga abajo", "latest": "última", "What's new": "Novedades", "Version {0}": "Versión {0}", "Chromium {0}": "Chromium {0}", "No changes you would notice in this release.": "Esta versión no incluye cambios que notes.", "Download for {0}": "Descargar para {0}", "The first build is on its way.": "La primera compilación está en camino.", "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Este Mac tiene un chip Intel; por ahora Little Browser necesita Apple silicon (M1 o posterior).", "Not available for {0} yet; the beta is macOS only.": "Aún no está disponible para {0}; la beta es solo para macOS.", "{0} download": "{0} descarga", "{0} downloads": "{0} descargas", "{0} update": "{0} actualización", "{0} updates": "{0} actualizaciones"};</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wm" viewBox="-4 0 324 46">
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 4V40"/><path d="M10.5 16V40"/><path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/><path d="M56 4V40"/>
+      <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/><path d="M108.5 4V40"/><circle cx="120.5" cy="28" r="12"/>
+      <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/><circle cx="176" cy="28" r="12"/><path d="M198 16L205 40L213 22L221 40L228 16"/>
+      <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+      <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/><path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+    </g>
+    <circle cx="10.5" cy="6.5" r="3.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/es/" aria-label="Página de inicio de Little Browser">
+      <img src="/assets/brand/icon.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Secciones">
+      <a href="/es/features">Funciones</a>
+      <a href="/es/#privacy">Privacidad</a>
+      <a href="/es/downloads">Descargar</a>
+      <a href="/es/arc-alternative">Desde Arc</a>
+    </nav>
+    <a class="gh" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener" aria-label="Código fuente en GitHub" title="Código fuente en GitHub"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <!-- i18n:switcher -->
+    <details class="lang">
+      <summary aria-label="Idioma" title="Idioma"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg></summary>
+      <ul>
+        <li><a href="/features/ad-blocker" lang="en" hreflang="en" data-lang="en">English</a></li>
+        <li><a href="/es/features/ad-blocker" lang="es" hreflang="es" data-lang="es" aria-current="true">Español</a></li>
+        <li><a href="/fr/features/ad-blocker" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="/de/features/ad-blocker" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="/pt-br/features/ad-blocker" lang="pt-BR" hreflang="pt-BR" data-lang="pt-br">Português (Brasil)</a></li>
+        <li><a href="/ja/features/ad-blocker" lang="ja" hreflang="ja" data-lang="ja">日本語</a></li>
+        <li><a href="/zh/features/ad-blocker" lang="zh-Hans" hreflang="zh-Hans" data-lang="zh-hans">简体中文</a></li>
+        <li><a href="/ru/features/ad-blocker" lang="ru" hreflang="ru" data-lang="ru">Русский</a></li>
+        <li><a href="/uk/features/ad-blocker" lang="uk" hreflang="uk" data-lang="uk">Українська</a></li>
+        <li><a href="/be/features/ad-blocker" lang="be" hreflang="be" data-lang="be">Беларуская</a></li>
+        <li><a href="/el/features/ad-blocker" lang="el" hreflang="el" data-lang="el">Ελληνικά</a></li>
+        <li><a href="/vi/features/ad-blocker" lang="vi" hreflang="vi" data-lang="vi">Tiếng Việt</a></li>
+        <li><a href="/hi/features/ad-blocker" lang="hi" hreflang="hi" data-lang="hi">हिन्दी</a></li>
+      </ul>
+    </details>
+    <!-- /i18n:switcher -->
+    <div class="theme" role="group" aria-label="Tema de color">
+      <button data-t="auto" aria-pressed="true" aria-label="Igual que el sistema" title="Igual que el sistema"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+      <button data-t="light" aria-pressed="false" aria-label="Claro" title="Claro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
+      <button data-t="dark" aria-pressed="false" aria-label="Oscuro" title="Oscuro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 14.2A7.8 7.8 0 1 1 9.8 4.5a6.2 6.2 0 0 0 9.7 9.7z"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="legal feature">
+    <div class="wrap">
+      <nav class="crumbs" aria-label="Ruta de navegación"><a href="/es/features">Funciones</a> <span aria-hidden="true">/</span> <span>Bloqueador de anuncios y protección contra rastreo</span></nav>
+      <h1>Bloqueador de anuncios y protección contra rastreo integrados</h1>
+      <p class="lead">Los anuncios y rastreadores se bloquean en todos los sitios, las cookies de terceros están desactivadas y los parámetros de rastreo se eliminan de los enlaces que sigues.</p>
+      <p>Los ajustes de privacidad de Little Browser vienen activados desde el principio, y no hay nada a lo que registrarse. Esta página cuenta lo que hace el navegador con los anuncios y los rastreadores. La <a href="/privacy">política de privacidad</a> trata la parte de los datos.</p>
+      <h2>Un bloqueador de anuncios incluido</h2>
+      <ul>
+        <li><b>En todos los sitios.</b> Usa el filtro de subrecursos propio de Chromium, así que una petición que coincide con una lista nunca se realiza.</li>
+        <li><b>Las listas habituales.</b> EasyList, EasyPrivacy, los filtros de uBlock y la lista de Peter Lowe, descargadas directamente de sus responsables por HTTPS cada cuatro días.</li>
+        <li><b>Sin huecos vacíos.</b> El ocultado de elementos elimina lo que queda de un anuncio, como un marco vacío o una etiqueta de «Publicidad».</li>
+        <li><b>Sin scripts de las listas.</b> Las reglas que ejecutarían scripts en todas las páginas no se aplican, así que una lista no puede ejecutar código en las páginas que visitas.</li>
+        <li><b>Permitir un sitio.</b> Cuando un sitio falla, o quieres apoyarlo, usa el interruptor <b>Anuncios</b> del panel de información del sitio o «Permitir anuncios en este sitio» de la barra de comandos. Eso desactiva el bloqueo y el ocultado en ese sitio.</li>
+      </ul>
+      <p>No se guarda ningún registro de lo que se bloqueó.</p>
+      <h2>Protección contra rastreo</h2>
+      <ul>
+        <li><b>Las cookies de terceros están bloqueadas,</b> junto con la partición del almacenamiento de Chromium.</li>
+        <li><b>Los parámetros de rastreo se eliminan.</b> Los enlaces pierden <code>utm_*</code>, <code>fbclid</code>, <code>gclid</code>, <code>mc_eid</code> y otros parámetros que solo sirven para rastrear, así que la barra de direcciones y tu historial muestran la dirección limpia.</li>
+        <li><b>HTTPS primero.</b> Las páginas se cargan por HTTPS, con una advertencia antes de abrir un sitio por HTTP sin cifrar.</li>
+        <li><b>Sin telemetría.</b> Sin estadísticas de uso, sin pruebas de campo de Google y con informes de fallos solo si los activas.</li>
+        <li><b>Las sugerencias de búsqueda están desactivadas</b> hasta que las actives.</li>
+      </ul>
+      <p>Si prefieres usar una extensión, <a href="/es/features/extensions">uBlock Origin Lite</a> también sigue funcionando.</p>
+
+      <h2>Disponibilidad</h2>
+      <p>Cada función está pensada para llegar a todas las plataformas. Así está hoy el bloqueador de anuncios y la protección contra rastreo.</p>
+      <table class="avail"><caption class="visually-hidden">Disponibilidad por plataforma</caption><tbody>
+          <tr><th scope="row">macOS</th><td><span class="state on">Beta</span> Mac con Apple silicon</td></tr>
+          <tr><th scope="row">Windows</th><td><span class="state plan">Planeado</span></td></tr>
+          <tr><th scope="row">Linux</th><td><span class="state plan">Planeado</span></td></tr>
+          <tr><th scope="row">iPhone y iPad</th><td><span class="state plan">Planeado</span></td></tr>
+          <tr><th scope="row">Android</th><td><span class="state plan">Planeado</span></td></tr>
+        </tbody></table>
+
+      <h2>Relacionado</h2>
+      <div class="related">
+        <a class="rel" href="/es/features/extensions"><b>Extensiones de Chrome</b><span>En el escritorio, por debajo es Chromium. Instala extensiones desde la Chrome Web Store y elige un gestor de contraseñas al empezar.</span></a>
+        <a class="rel" href="/es/features/peek"><b>Peek</b><span>Haz Shift+clic en un enlace para abrirlo en una tarjeta sobre la página que estás leyendo. Ciérrala, o consérvala como pestaña sin recargar.</span></a>
+        <a class="rel" href="/es/features/updates"><b>Actualizaciones automáticas</b><span>Una comprobación cada cuatro horas, un aviso antes de instalar nada, y correcciones de seguridad de Chromium en cuestión de días.</span></a>
+      </div>
+
+      <h2>Preguntas</h2>
+      <details class="faq"><summary>¿Little Browser bloquea los anuncios?</summary><p>Sí, en todos los sitios, con EasyList, EasyPrivacy, los filtros de uBlock y la lista de Peter Lowe. Puedes permitir los anuncios en un solo sitio desde el panel de información del sitio o desde la barra de comandos.</p></details>
+      <details class="faq"><summary>¿Bloquea las cookies de terceros?</summary><p>Sí, por defecto, junto con la partición del almacenamiento de Chromium.</p></details>
+      <details class="faq"><summary>¿Qué son los parámetros de rastreo?</summary><p>Fragmentos extra de un enlace, como utm_source o fbclid, que le dicen a un sitio de dónde vienes. Little Browser elimina los que solo sirven para rastrear, de modo que la dirección que ves y el historial que guardas quedan limpios.</p></details>
+      <details class="faq"><summary>¿Little Browser recopila datos de uso?</summary><p>No. No tiene telemetría. Los informes de fallos están desactivados a menos que los actives.</p></details>
+
+      <div class="ctas">
+        <a class="btn primary" href="/es/downloads">Descargar Little Browser</a>
+        <a class="btn ghost" href="/es/features">Todas las funciones</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/es/" aria-label="Página de inicio de Little Browser">
+      <img src="/assets/brand/icon-small.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Pie de página">
+      <a href="/es/downloads">Descargar</a>
+      <a href="/es/releases">Notas de la versión</a>
+      <a href="/privacy">Política de privacidad</a>
+      <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">Código fuente</a>
+    </nav>
+    <nav class="topics" aria-label="Acerca de Little Browser">
+      <b>Funciones</b>
+      <a href="/es/features">Todas las funciones</a>
+      <a href="/es/features/spaces">Espacios</a>
+      <a href="/es/features/peek">Peek</a>
+      <a href="/es/features/tab-groups">Grupos de pestañas</a>
+      <a href="/es/features/command-bar">Barra de comandos</a>
+      <a href="/es/features/ad-blocker">Bloqueador de anuncios</a>
+      <a href="/es/features/import">Importar</a>
+      <a href="/es/arc-alternative">Alternativa a Arc</a>
+    </nav>
+    <span>© El equipo de Little Browser · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · Este sitio no usa cookies ni analíticas.</span>
+  </div>
+</footer>
+<script src="/site.js"></script>
+</body>
+</html>

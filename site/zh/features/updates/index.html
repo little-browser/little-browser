@@ -1,0 +1,262 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>自动、带签名的更新，紧跟 Chromium 安全修复 — Little Browser</title>
+  <meta name="description" content="Little Browser 每四小时检查一次更新，安装前先询问，验证每个更新的签名，并在数日内跟进 Chromium 的安全版本。">
+  <link rel="canonical" href="https://littlebrowser.app/zh/features/updates">
+  <meta property="og:url" content="https://littlebrowser.app/zh/features/updates">
+  <meta property="og:type" content="article">
+  <meta property="og:locale" content="zh_Hans">
+  <meta property="og:site_name" content="Little Browser">
+  <meta property="og:title" content="自动、带签名的更新，紧跟 Chromium 安全修复 — Little Browser">
+  <meta property="og:description" content="Little Browser 每四小时检查一次更新，安装前先询问，验证每个更新的签名，并在数日内跟进 Chromium 的安全版本。">
+  <meta property="og:image" content="https://littlebrowser.app/assets/brand/icon-512.png">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Little Browser",
+      "applicationCategory": "BrowserApplication",
+      "operatingSystem": "macOS",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "license": "https://mozilla.org/MPL/2.0/",
+      "url": "https://littlebrowser.app/"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "\u9996\u9875",
+          "item": "https://littlebrowser.app/zh/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "\u529f\u80fd",
+          "item": "https://littlebrowser.app/zh/features"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "\u81ea\u52a8\u66f4\u65b0",
+          "item": "https://littlebrowser.app/zh/features/updates"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Little Browser \u591a\u4e45\u66f4\u65b0\u4e00\u6b21\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u6bcf\u56db\u5c0f\u65f6\u68c0\u67e5\u4e00\u6b21\uff0c\u5e76\u8ddf\u968f Chromium \u7684\u7a33\u5b9a\u7248\u53d1\u5e03\uff1a\u6bcf\u56db\u5468\u4e00\u4e2a\u65b0\u7684\u4e3b\u7248\u672c\uff0c\u5b89\u5168\u4fee\u590d\u6570\u65e5\u5185\u8ddf\u8fdb\u3002"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u53ef\u4ee5\u8df3\u8fc7\u66f4\u65b0\u5417\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u5e38\u89c4\u66f4\u65b0\u53ef\u4ee5\u8df3\u8fc7\uff0c\u6216\u8005\u7b2c\u4e8c\u5929\u518d\u63d0\u9192\u3002\u5b89\u5168\u66f4\u65b0\u65e0\u6cd5\u8df3\u8fc7\u3002"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u66f4\u65b0\u68c0\u67e5\u4f1a\u53d1\u9001\u4ec0\u4e48\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u53ea\u6709\u5f53\u524d\u7248\u672c\u548c\u4f60\u7684\u5e73\u53f0\u3002\u6ca1\u6709\u5176\u4ed6\u5185\u5bb9\uff0c\u4e5f\u6ca1\u6709\u7cfb\u7edf\u914d\u7f6e\u4fe1\u606f\u3002"
+          }
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- i18n:alternates -->
+  <link rel="alternate" hreflang="en" href="https://littlebrowser.app/features/updates">
+  <link rel="alternate" hreflang="es" href="https://littlebrowser.app/es/features/updates">
+  <link rel="alternate" hreflang="fr" href="https://littlebrowser.app/fr/features/updates">
+  <link rel="alternate" hreflang="de" href="https://littlebrowser.app/de/features/updates">
+  <link rel="alternate" hreflang="pt-BR" href="https://littlebrowser.app/pt-br/features/updates">
+  <link rel="alternate" hreflang="ja" href="https://littlebrowser.app/ja/features/updates">
+  <link rel="alternate" hreflang="zh-Hans" href="https://littlebrowser.app/zh/features/updates">
+  <link rel="alternate" hreflang="ru" href="https://littlebrowser.app/ru/features/updates">
+  <link rel="alternate" hreflang="uk" href="https://littlebrowser.app/uk/features/updates">
+  <link rel="alternate" hreflang="be" href="https://littlebrowser.app/be/features/updates">
+  <link rel="alternate" hreflang="el" href="https://littlebrowser.app/el/features/updates">
+  <link rel="alternate" hreflang="vi" href="https://littlebrowser.app/vi/features/updates">
+  <link rel="alternate" hreflang="hi" href="https://littlebrowser.app/hi/features/updates">
+  <link rel="alternate" hreflang="x-default" href="https://littlebrowser.app/features/updates">
+  <script>(() => { try {
+    if (document.documentElement.lang !== 'en') return;
+    const alt = {};
+    for (const l of document.querySelectorAll('link[rel=alternate][hreflang]')) alt[l.hreflang.toLowerCase()] = new URL(l.href).pathname;
+    const pick = (raw) => {
+      const t = raw.toLowerCase(), p = t.split('-')[0];
+      if (p === 'en') return 'en';
+      if (p === 'zh') return /^zh(-hans|-cn|-sg)?$/.test(t) ? 'zh-hans' : null;
+      if (p === 'pt') return 'pt-br';
+      return alt[t] ? t : alt[p] ? p : null;
+    };
+    let c = null;
+    try { c = localStorage.getItem('lb-lang'); } catch {}
+    if (!c) for (const raw of navigator.languages || [navigator.language]) { c = pick(raw); if (c) break; }
+    if (c && c !== 'en' && alt[c]) location.replace(alt[c] + location.hash);
+  } catch {} })();</script>
+  <!-- /i18n:alternates -->
+  <link rel="stylesheet" href="/styles.css">
+  <script>window.LB_STRINGS = {"iPhone and iPad": "iPhone 和 iPad", "Copy SHA-256": "复制 SHA-256", "Copied": "已复制", "{0} · download below": "{0} · 请在下方下载", "latest": "最新", "What's new": "新增内容", "Version {0}": "版本 {0}", "Chromium {0}": "Chromium {0}", "No changes you would notice in this release.": "此版本没有你会注意到的变化。", "Download for {0}": "下载 {0} 版", "The first build is on its way.": "第一个版本即将发布。", "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "这台 Mac 使用 Intel 芯片；Little Browser 目前需要 Apple 芯片（M1 或更新）。", "Not available for {0} yet; the beta is macOS only.": "暂不支持 {0}；测试版仅限 macOS。", "{0} download": "{0} 次下载", "{0} downloads": "{0} 次下载", "{0} update": "{0} 项更新", "{0} updates": "{0} 项更新"};</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wm" viewBox="-4 0 324 46">
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 4V40"/><path d="M10.5 16V40"/><path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/><path d="M56 4V40"/>
+      <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/><path d="M108.5 4V40"/><circle cx="120.5" cy="28" r="12"/>
+      <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/><circle cx="176" cy="28" r="12"/><path d="M198 16L205 40L213 22L221 40L228 16"/>
+      <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+      <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/><path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+    </g>
+    <circle cx="10.5" cy="6.5" r="3.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/zh/" aria-label="Little Browser 首页">
+      <img src="/assets/brand/icon.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="栏目">
+      <a href="/zh/features">功能</a>
+      <a href="/zh/#privacy">隐私</a>
+      <a href="/zh/downloads">下载</a>
+      <a href="/zh/arc-alternative">从 Arc 迁移</a>
+    </nav>
+    <a class="gh" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener" aria-label="GitHub 上的源代码" title="GitHub 上的源代码"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <!-- i18n:switcher -->
+    <details class="lang">
+      <summary aria-label="语言" title="语言"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg></summary>
+      <ul>
+        <li><a href="/features/updates" lang="en" hreflang="en" data-lang="en">English</a></li>
+        <li><a href="/es/features/updates" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="/fr/features/updates" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="/de/features/updates" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="/pt-br/features/updates" lang="pt-BR" hreflang="pt-BR" data-lang="pt-br">Português (Brasil)</a></li>
+        <li><a href="/ja/features/updates" lang="ja" hreflang="ja" data-lang="ja">日本語</a></li>
+        <li><a href="/zh/features/updates" lang="zh-Hans" hreflang="zh-Hans" data-lang="zh-hans" aria-current="true">简体中文</a></li>
+        <li><a href="/ru/features/updates" lang="ru" hreflang="ru" data-lang="ru">Русский</a></li>
+        <li><a href="/uk/features/updates" lang="uk" hreflang="uk" data-lang="uk">Українська</a></li>
+        <li><a href="/be/features/updates" lang="be" hreflang="be" data-lang="be">Беларуская</a></li>
+        <li><a href="/el/features/updates" lang="el" hreflang="el" data-lang="el">Ελληνικά</a></li>
+        <li><a href="/vi/features/updates" lang="vi" hreflang="vi" data-lang="vi">Tiếng Việt</a></li>
+        <li><a href="/hi/features/updates" lang="hi" hreflang="hi" data-lang="hi">हिन्दी</a></li>
+      </ul>
+    </details>
+    <!-- /i18n:switcher -->
+    <div class="theme" role="group" aria-label="颜色主题">
+      <button data-t="auto" aria-pressed="true" aria-label="跟随系统" title="跟随系统"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+      <button data-t="light" aria-pressed="false" aria-label="浅色" title="浅色"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
+      <button data-t="dark" aria-pressed="false" aria-label="深色" title="深色"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 14.2A7.8 7.8 0 1 1 9.8 4.5a6.2 6.2 0 0 0 9.7 9.7z"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="legal feature">
+    <div class="wrap">
+      <nav class="crumbs" aria-label="面包屑导航"><a href="/zh/features">功能</a> <span aria-hidden="true">/</span> <span>自动更新</span></nav>
+      <h1>自动、带签名的更新，紧跟 Chromium 安全修复</h1>
+      <p class="lead">每四小时检查一次，安装前会先询问，Chromium 的安全修复数日内跟进。</p>
+      <p>更新落后的浏览器是一种风险，所以 Little Browser 紧跟 Chromium 的稳定版发布：每四周一个新的主版本，安全修复数日内跟进。</p>
+      <h2>更新的过程</h2>
+      <ul>
+        <li><b>浏览器运行期间每四小时检查一次。</b>检查只发送当前版本和你的平台。</li>
+        <li><b>一个小提示。</b><b>安装更新</b>会下载并提示你重启以完成更新。<b>稍后提醒我</b>会推迟一天。<b>跳过此版本</b>则放过这一版。</li>
+        <li><b>安装前先验证。</b>每个更新的签名都会用内置在应用中的密钥验证，同时验证其 Apple 签名。</li>
+        <li><b>安全更新无法跳过。</b>提示会说明它很重要，并在下一次检查时再次询问。</li>
+      </ul>
+      <p>为更新而重启时，不会询问“退出 Little Browser？”。每个版本的变化见<a href="/zh/releases">发行说明</a>页面。</p>
+      <h2>其他平台</h2>
+      <p>Windows 和 Linux 推出后，更新会包含在内：Windows 使用我们自己的更新程序，Linux 通过软件包仓库。Android 和 iOS 的更新则交给各自的应用商店。</p>
+
+      <h2>平台支持</h2>
+      <p>每项功能都计划覆盖所有平台。以下是自动更新目前的情况。</p>
+      <table class="avail"><caption class="visually-hidden">各平台支持情况</caption><tbody>
+          <tr><th scope="row">macOS</th><td><span class="state on">测试版</span> Apple 芯片 Mac</td></tr>
+          <tr><th scope="row">Windows</th><td><span class="state plan">计划中：我们自己的更新程序</span></td></tr>
+          <tr><th scope="row">Linux</th><td><span class="state plan">计划中：软件包仓库</span></td></tr>
+          <tr><th scope="row">iPhone 和 iPad</th><td><span class="state plan">通过 App Store</span></td></tr>
+          <tr><th scope="row">Android</th><td><span class="state plan">通过应用商店</span></td></tr>
+        </tbody></table>
+
+      <h2>相关内容</h2>
+      <div class="related">
+        <a class="rel" href="/zh/features/ad-blocker"><b>广告拦截和跟踪防护</b><span>所有网站都会拦截广告和跟踪器，第三方 Cookie 默认关闭，你点击的链接也会去掉跟踪参数。</span></a>
+        <a class="rel" href="/zh/features/extensions"><b>Chrome 扩展程序</b><span>桌面版底层是 Chromium。可从 Chrome Web Store 安装扩展程序，首次启动时选择一款密码管理器。</span></a>
+        <a class="rel" href="/zh/features/import"><b>从 Arc、Chrome 等浏览器导入</b><span>带上书签、历史记录、搜索快捷方式、地址和打开的标签页。从 Arc 导入时，空间和固定标签页也会一起带过来。</span></a>
+      </div>
+
+      <h2>常见问题</h2>
+      <details class="faq"><summary>Little Browser 多久更新一次？</summary><p>每四小时检查一次，并跟随 Chromium 的稳定版发布：每四周一个新的主版本，安全修复数日内跟进。</p></details>
+      <details class="faq"><summary>可以跳过更新吗？</summary><p>常规更新可以跳过，或者第二天再提醒。安全更新无法跳过。</p></details>
+      <details class="faq"><summary>更新检查会发送什么？</summary><p>只有当前版本和你的平台。没有其他内容，也没有系统配置信息。</p></details>
+
+      <div class="ctas">
+        <a class="btn primary" href="/zh/downloads">下载 Little Browser</a>
+        <a class="btn ghost" href="/zh/features">全部功能</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/zh/" aria-label="Little Browser 首页">
+      <img src="/assets/brand/icon-small.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="页脚">
+      <a href="/zh/downloads">下载</a>
+      <a href="/zh/releases">发行说明</a>
+      <a href="/privacy">隐私政策</a>
+      <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">源代码</a>
+    </nav>
+    <nav class="topics" aria-label="关于 Little Browser">
+      <b>功能</b>
+      <a href="/zh/features">全部功能</a>
+      <a href="/zh/features/spaces">空间</a>
+      <a href="/zh/features/peek">Peek</a>
+      <a href="/zh/features/tab-groups">标签页组</a>
+      <a href="/zh/features/command-bar">命令栏</a>
+      <a href="/zh/features/ad-blocker">广告拦截</a>
+      <a href="/zh/features/import">导入</a>
+      <a href="/zh/arc-alternative">Arc 替代品</a>
+    </nav>
+    <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · 本站不使用 Cookie 或统计分析。</span>
+  </div>
+</footer>
+<script src="/site.js"></script>
+</body>
+</html>

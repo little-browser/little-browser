@@ -629,8 +629,8 @@ on the macOS runner. A patch to a widely included header can cost almost as much
    (`desktop/scripts/publish-release.sh`): it uploads the same file to
    `downloads.littlebrowser.app/<version>/` and adds it, with its size and SHA-256, to
    `releases.json` in the `beta` channel, with the release's notes. littlebrowser.app reads that
-   file for its download button and its list of releases, which shows each release's notes and
-   each file's full SHA-256 with a button to copy it. The notes (`release_notes.py`) are the
+   file for its download button, its list of builds (each file's full SHA-256 with a button to
+   copy it) and its release notes page, which shows each release's notes under its own anchor. The notes (`release_notes.py`) are the
    `Release-note:` lines of the commits since the last published release, oldest first and
    without those of commits reverted in the meantime, after a line naming the Chromium version
    when it is new and saying when the release has security fixes; `LB_RELEASE_NOTES` on the job

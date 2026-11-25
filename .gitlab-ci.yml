@@ -102,6 +102,15 @@ patch-layers:
   script:
     - python3 -I desktop/scripts/check_series.py
 
+# Gate: the website's translations are complete and the translated copies in site/ are up to date
+# (site/AGENTS.md).
+site-i18n:
+  extends: .check
+  tags: [lb-linux]
+  image: python:3-slim
+  script:
+    - python3 -I desktop/scripts/site_i18n.py check
+
 # Every patch still applies: ungoogled-chromium, platform and our series on a fresh
 # Chromium tarball, for each desktop platform. No compile, so it is cheap enough for every bump or
 # patch merge request.

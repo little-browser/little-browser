@@ -1,0 +1,399 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Little Browser — 受 Arc 启发的平静、注重隐私的浏览器</title>
+  <meta name="description" content="Little Browser 是一款小巧、注重隐私的 Mac 开源浏览器，受 Arc 启发。有侧边栏、空间、Peek 链接预览，我们的服务器上没有任何关于你的信息。可导入你的 Arc 空间和标签页。">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="canonical" href="https://littlebrowser.app/zh/">
+  <meta property="og:url" content="https://littlebrowser.app/zh/">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="zh_Hans">
+  <meta property="og:site_name" content="Little Browser">
+  <meta property="og:title" content="Little Browser">
+  <meta property="og:description" content="一款平静、注重隐私的开源浏览器。">
+  <meta property="og:image" content="https://littlebrowser.app/assets/brand/icon-512.png">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Little Browser",
+      "applicationCategory": "BrowserApplication",
+      "operatingSystem": "macOS",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "license": "https://mozilla.org/MPL/2.0/",
+      "url": "https://littlebrowser.app/"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Little Browser \u662f Arc \u7684\u66ff\u4ee3\u54c1\u5417\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u662f\u3002\u5b83\u53d7 Arc \u542f\u53d1\uff0c\u6709\u4fa7\u8fb9\u680f\u3001\u7a7a\u95f4\u3001\u56fa\u5b9a\u6807\u7b7e\u9875\u3001\u6807\u7b7e\u9875\u7ec4\u3001Peek \u548c\u547d\u4ee4\u680f\uff0c\u5e76\u53ef\u5bfc\u5165\u4f60\u7684 Arc \u7a7a\u95f4\u548c\u6807\u7b7e\u9875\u3002\u5b83\u662f\u72ec\u7acb\u7684\uff0c\u4e0e The Browser Company \u6ca1\u6709\u5173\u8054\u3002\u770b\u770b\u5b83\u4eec\u7684\u5bf9\u6bd4\u3002"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u4ec0\u4e48\u662f Peek\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Shift+\u70b9\u51fb\u94fe\u63a5\uff0c\u5728\u4f60\u9875\u9762\u4e0a\u65b9\u7684\u5361\u7247\u4e2d\u9605\u8bfb\uff0c\u7136\u540e\u5173\u95ed\uff0c\u6216\u4e0d\u91cd\u65b0\u52a0\u8f7d\u76f4\u63a5\u4fdd\u7559\u4e3a\u6807\u7b7e\u9875\u3002\u8fdb\u4e00\u6b65\u4e86\u89e3 Peek\u3002"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u5b83\u80fd\u5728\u54ea\u4e9b\u7535\u8111\u4e0a\u8fd0\u884c\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u6d4b\u8bd5\u7248\u9762\u5411 Apple \u82af\u7247\u7684 Mac\u3002Windows\u3001Linux\u3001iPhone \u548c Android \u7248\u672c\u6682\u4e0d\u63d0\u4f9b\u3002"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u9700\u8981\u8d26\u6237\u5417\uff1f",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u4e0d\u9700\u8981\u3002\u6ca1\u6709\u8d26\u6237\uff0c\u6ca1\u6709\u9065\u6d4b\uff0c\u4e5f\u6ca1\u6709\u7edf\u8ba1\u5206\u6790\u3002\u53c2\u89c1\u9690\u79c1\u653f\u7b56\u3002"
+          }
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- i18n:alternates -->
+  <link rel="alternate" hreflang="en" href="https://littlebrowser.app/">
+  <link rel="alternate" hreflang="es" href="https://littlebrowser.app/es/">
+  <link rel="alternate" hreflang="fr" href="https://littlebrowser.app/fr/">
+  <link rel="alternate" hreflang="de" href="https://littlebrowser.app/de/">
+  <link rel="alternate" hreflang="pt-BR" href="https://littlebrowser.app/pt-br/">
+  <link rel="alternate" hreflang="ja" href="https://littlebrowser.app/ja/">
+  <link rel="alternate" hreflang="zh-Hans" href="https://littlebrowser.app/zh/">
+  <link rel="alternate" hreflang="ru" href="https://littlebrowser.app/ru/">
+  <link rel="alternate" hreflang="uk" href="https://littlebrowser.app/uk/">
+  <link rel="alternate" hreflang="be" href="https://littlebrowser.app/be/">
+  <link rel="alternate" hreflang="el" href="https://littlebrowser.app/el/">
+  <link rel="alternate" hreflang="vi" href="https://littlebrowser.app/vi/">
+  <link rel="alternate" hreflang="hi" href="https://littlebrowser.app/hi/">
+  <link rel="alternate" hreflang="x-default" href="https://littlebrowser.app/">
+  <script>(() => { try {
+    if (document.documentElement.lang !== 'en') return;
+    const alt = {};
+    for (const l of document.querySelectorAll('link[rel=alternate][hreflang]')) alt[l.hreflang.toLowerCase()] = new URL(l.href).pathname;
+    const pick = (raw) => {
+      const t = raw.toLowerCase(), p = t.split('-')[0];
+      if (p === 'en') return 'en';
+      if (p === 'zh') return /^zh(-hans|-cn|-sg)?$/.test(t) ? 'zh-hans' : null;
+      if (p === 'pt') return 'pt-br';
+      return alt[t] ? t : alt[p] ? p : null;
+    };
+    let c = null;
+    try { c = localStorage.getItem('lb-lang'); } catch {}
+    if (!c) for (const raw of navigator.languages || [navigator.language]) { c = pick(raw); if (c) break; }
+    if (c && c !== 'en' && alt[c]) location.replace(alt[c] + location.hash);
+  } catch {} })();</script>
+  <!-- /i18n:alternates -->
+  <link rel="stylesheet" href="/styles.css">
+  <script>window.LB_STRINGS = {"iPhone and iPad": "iPhone 和 iPad", "Copy SHA-256": "复制 SHA-256", "Copied": "已复制", "{0} · download below": "{0} · 请在下方下载", "latest": "最新", "What's new": "新增内容", "Version {0}": "版本 {0}", "Chromium {0}": "Chromium {0}", "No changes you would notice in this release.": "此版本没有你会注意到的变化。", "Download for {0}": "下载 {0} 版", "The first build is on its way.": "第一个版本即将发布。", "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "这台 Mac 使用 Intel 芯片；Little Browser 目前需要 Apple 芯片（M1 或更新）。", "Not available for {0} yet; the beta is macOS only.": "暂不支持 {0}；测试版仅限 macOS。", "{0} download": "{0} 次下载", "{0} downloads": "{0} 次下载", "{0} update": "{0} 项更新", "{0} updates": "{0} 项更新"};</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wm" viewBox="-4 0 324 46">
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 4V40"/><path d="M10.5 16V40"/><path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/><path d="M56 4V40"/>
+      <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/><path d="M108.5 4V40"/><circle cx="120.5" cy="28" r="12"/>
+      <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/><circle cx="176" cy="28" r="12"/><path d="M198 16L205 40L213 22L221 40L228 16"/>
+      <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+      <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/><path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+    </g>
+    <circle cx="10.5" cy="6.5" r="3.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Little Browser 首页">
+      <img src="/assets/brand/icon.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="栏目">
+      <a href="/zh/features">功能</a>
+      <a href="#privacy">隐私</a>
+      <a href="/zh/downloads">下载</a>
+      <a href="/zh/arc-alternative">从 Arc 迁移</a>
+    </nav>
+    <a class="gh" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener" aria-label="GitHub 上的源代码" title="GitHub 上的源代码"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <!-- i18n:switcher -->
+    <details class="lang">
+      <summary aria-label="语言" title="语言"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg></summary>
+      <ul>
+        <li><a href="/" lang="en" hreflang="en" data-lang="en">English</a></li>
+        <li><a href="/es/" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="/fr/" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="/de/" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="/pt-br/" lang="pt-BR" hreflang="pt-BR" data-lang="pt-br">Português (Brasil)</a></li>
+        <li><a href="/ja/" lang="ja" hreflang="ja" data-lang="ja">日本語</a></li>
+        <li><a href="/zh/" lang="zh-Hans" hreflang="zh-Hans" data-lang="zh-hans" aria-current="true">简体中文</a></li>
+        <li><a href="/ru/" lang="ru" hreflang="ru" data-lang="ru">Русский</a></li>
+        <li><a href="/uk/" lang="uk" hreflang="uk" data-lang="uk">Українська</a></li>
+        <li><a href="/be/" lang="be" hreflang="be" data-lang="be">Беларуская</a></li>
+        <li><a href="/el/" lang="el" hreflang="el" data-lang="el">Ελληνικά</a></li>
+        <li><a href="/vi/" lang="vi" hreflang="vi" data-lang="vi">Tiếng Việt</a></li>
+        <li><a href="/hi/" lang="hi" hreflang="hi" data-lang="hi">हिन्दी</a></li>
+      </ul>
+    </details>
+    <!-- /i18n:switcher -->
+    <div class="theme" role="group" aria-label="颜色主题">
+      <button data-t="auto" aria-pressed="true" aria-label="跟随系统" title="跟随系统"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+      <button data-t="light" aria-pressed="false" aria-label="浅色" title="浅色"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
+      <button data-t="dark" aria-pressed="false" aria-label="深色" title="深色"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 14.2A7.8 7.8 0 1 1 9.8 4.5a6.2 6.2 0 0 0 9.7 9.7z"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-copy">
+        <span class="status-pill"><i></i>测试版 · 适用于 Apple 芯片的 macOS</span>
+        <h1>小巧的浏览器<br>还你一个更平静的网络。</h1>
+        <p class="lead">一切都在一个安静的侧边栏里，生活的每一部分各有一个空间。无需账户，无遥测。测试版现已面向 Apple 芯片 Mac 提供：可能还有一些粗糙之处。</p>
+        <div class="ctas">
+          <a class="btn primary" href="/zh/downloads" data-dl-primary>下载</a>
+          <a class="btn ghost" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>Source on GitHub</a>
+        </div>
+        <p class="dl-meta" data-dl-meta><a href="/zh/downloads">全部下载</a></p>
+        <p class="arc-note">受 Arc 启发，而 Arc 即将停止服务。<a href="/zh/arc-alternative">从 Arc 转过来？</a></p>
+      </div>
+
+      <div class="mock" aria-label="Little Browser 窗口：左侧是侧边栏，右侧是纤细的工具栏和网页">
+        <aside class="m-side">
+          <div class="m-top">
+            <div class="m-lights"><i></i><i></i><i></i></div>
+            <svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h9M2 8h6M2 12h9M14 5.5 11.5 8l2.5 2.5"/></svg>
+            <span class="m-icon-box"><svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h5M2 8h3M2 12h4"/><circle cx="10.5" cy="8.5" r="3"/><path d="m12.7 10.7 1.8 1.8"/></svg></span>
+          </div>
+          <div class="m-url">quietweb.example</div>
+          <div class="m-ws-name"><span class="m-ws-icon">🏡</span><span class="m-ws-label">个人</span></div>
+          <div class="m-sep"></div>
+          <div class="m-tabs">
+            <div class="m-tab pinned"><b style="background:#3f63c2"></b>日历</div>
+            <div class="m-tab pinned"><b style="background:#c2513f"></b>邮件</div>
+          </div>
+          <div class="m-sep"></div>
+          <div class="m-new">+ 新标签页</div>
+          <div class="m-tabs">
+            <div class="m-tab on"><b style="background:#e07b39"></b>安静的网络，是什么样的</div>
+            <div class="m-tab"><b style="background:#2c8c8c"></b>慢悠悠的周日食谱</div>
+          </div>
+          <div class="m-foot">
+            <div class="m-spaces" aria-label="空间">
+              <button data-h="222" title="个人" aria-pressed="true" aria-label="个人空间">🏡</button>
+              <button data-h="150" title="花园" aria-pressed="false" aria-label="花园空间">🌱</button>
+              <button data-h="24" title="工作" aria-pressed="false" aria-label="工作空间">💼</button>
+              <button data-h="300" title="阅读" aria-pressed="false" aria-label="阅读空间">📚</button>
+            </div>
+            <span class="m-plus" aria-hidden="true">+</span>
+          </div>
+        </aside>
+        <div class="m-main">
+        <div class="m-toolbar" aria-hidden="true">
+          <svg class="m-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4 3 8l4 4"/></svg>
+          <svg class="m-icon dim" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          <svg class="m-icon" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.5M13 3v3h-3"/></svg>
+          <div class="m-omni">https://quietweb.example/explained</div>
+          <svg class="m-icon m-wide" viewBox="0 0 16 16"><path d="m8 2 1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3l-3.7 2 .8-4.1L2 6.3l4.2-.5Z"/></svg>
+          <svg class="m-icon m-wide" viewBox="0 0 16 16"><circle cx="8" cy="3.5" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="8" cy="12.5" r=".6"/></svg>
+        </div>
+        <div class="m-page">
+          <article class="m-article">
+            <p class="m-kicker">随笔 · 阅读 6 分钟</p>
+            <h4 class="m-title">安静的网络，是什么样的</h4>
+            <p class="m-byline">作者 Mara Lindqvist · 11月18日</p>
+            <svg class="m-art" viewBox="0 0 400 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+              <rect width="400" height="120" class="sky"/>
+              <circle cx="300" cy="66" r="18" class="sun"/>
+              <path d="M0 92 C60 70 110 74 170 88 S290 104 400 80 V120 H0Z" class="hill1"/>
+              <path d="M0 104 C80 90 150 96 230 108 S340 112 400 102 V120 H0Z" class="hill2"/>
+            </svg>
+            <p>大多数网页都想从你这里要点什么：一次点击、一次注册、你晚上多一点的时间。安静的网络什么都不要。它是那种开头就是食谱的食谱，是那种直接显示时间的时刻表。</p>
+            <p>它并不新。它是去掉那些让你不停滑动的设计之后剩下的东西，也是<a class="m-link" data-peek data-peek-link>慢软件运动</a>背后的想法：工具等着你，而不是追着你。</p>
+            <p>回头看时你最能体会。一个页面加载出来，说完该说的话，就让你离开，如今这几乎显得有些老派，却莫名让人安心。</p>
+            <p class="m-more">Shift+点击链接，不离开当前页面就能看一眼。</p>
+          </article>
+        </div>
+        </div>
+        <!-- Peek: over the whole window, which dims; the page's site above the card, its buttons
+             beside it. -->
+        <div class="m-backdrop"></div>
+        <i class="m-dot"></i>
+        <div class="m-peek-site" aria-hidden="true">slowsoftware.example</div>
+        <div class="m-card" aria-hidden="true">
+            <article class="m-article">
+              <p class="m-kicker">慢软件</p>
+              <h4 class="m-title">等着你的软件</h4>
+              <p>慢软件不是说运行得慢。它指的是只做一件事、你做事时不打扰你、也从不编造理由让你回来的应用。</p>
+              <p>没有连续打卡，没有角标，没有红点。你关掉它，它就是关掉了。</p>
+              <ul class="m-list">
+                <li>打开很快，而且回到你上次离开的地方。</li>
+                <li>给你发任何东西之前都会先问你。</li>
+                <li>明年和今天用起来一模一样。</li>
+              </ul>
+              <p>最后一点比听上去更重要：你烂熟于心的工具，都是从不改动的那些。</p>
+            </article>
+        </div>
+        <div class="m-peek-btns" aria-hidden="true"><span>×</span><span>⤢</span><span>◫</span></div>
+      </div>
+      <p class="mock-caption">A design preview, not a screenshot. Pick a space at the bottom of the sidebar, or <button data-peek>重播 Peek</button>.</p>
+    </div>
+  </section>
+
+  <section id="features" class="alt">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">功能</span>
+        <h2>刻意保持小巧。</h2>
+        <p>只做少数几件事，并认真做好。一条纤细的工具栏，没有书签栏，没有角标，也没有弹窗。网页占据几乎整个窗口。</p>
+      </div>
+      <div class="grid">
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></div>
+          <h3><a href="/zh/features/sidebar">一个安静的侧边栏</a></h3>
+          <p>标签页和空间集中在一处，基于 Chromium 自带的垂直标签页。想要更大的页面时，可以收起为图标。</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/><rect x="10" y="4" width="10" height="10" rx="2.5"/><path d="M8 16l2.5-2.5" opacity=".6"/></svg></div>
+          <h3><a href="/zh/features/peek">Peek</a></h3>
+          <p>Shift+点击链接，在你正在阅读的页面上方打开一个小页面。按 Esc 关闭，或不重新加载直接转为标签页。</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="6" cy="12" r="3"/><circle cx="12" cy="12" r="3" opacity=".6"/><circle cx="18" cy="12" r="3" opacity=".35"/></svg></div>
+          <h3><a href="/zh/features/spaces">空间</a></h3>
+          <p>个人、工作、爱好：每个空间有自己的标签页和颜色，重启后依然保留。用 <kbd>⌃</kbd> <kbd>1</kbd>…<kbd>9</kbd> 或在侧边栏上双指滑动切换。空间可以运行在独立的配置文件中，让登录互相分开。</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="6" width="14" height="12" rx="2.5"/><path d="M5 9.5h14"/></svg></div>
+          <h3><a href="/zh/features/little-window">小窗口</a></h3>
+          <p>完全没有标签页的小窗口，适合聊天里的链接或临时查个东西：<kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd>，或链接的菜单。真有用时，再把它移入某个空间。</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="6" width="18" height="12" rx="3"/><path d="M7 12h4M14 12h3"/></svg></div>
+          <h3><a href="/zh/features/command-bar">命令栏</a></h3>
+          <p><kbd>⌘</kbd> <kbd>T</kbd> 和 <kbd>⌘</kbd> <kbd>L</kbd> 打开同一个面板，用键盘即可搜索打开的标签页、书签、历史记录、命令和搜索内容。</p>
+        </article>
+        <article class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.6 7.1 18.2l.9-5.5-4-3.9 5.5-.8z"/></svg></div>
+          <h3><a href="/zh/features/extensions">你用的扩展程序</a></h3>
+          <p>桌面版底层是 Chromium，所以开发者工具和画中画都在。从 Chrome Web Store 安装扩展程序，首次运行时选择密码管理器：1Password、Bitwarden 或 Proton Pass。和 Chrome 本身一样，只有 Manifest V3 扩展程序可以运行。</p>
+        </article>
+        <article class="card wide">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12h12M12 7l5 5-5 5"/><path d="M20 5v14" opacity=".6"/></svg></div>
+          <h3><a href="/zh/features/import">从 Arc、Chrome、Edge 或 Safari 迁移过来</a></h3>
+          <p>从 Chrome、Edge、Brave 等 Chromium 浏览器、Firefox、Safari 或书签文件带上你的书签、历史记录、搜索快捷方式、地址和打开的标签页。从 Arc 导入时，空间、固定标签页、常用项和配置文件也会一起带过来。你的扩展程序会从 Chrome Web Store 重新安装，也可以选择保持登录状态。密码仍由你的密码管理器保管。</p>
+        </article>
+        <article class="card wide">
+          <div class="glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4h-4"/></svg></div>
+          <h3><a href="/zh/features/updates">自动更新</a></h3>
+          <p>在 Mac 上，它每四小时检查一次新版本，验证更新签名后，安装前先询问你。安全更新无法跳过，因此上游 Chromium 的修复发布后不久就会送到你手上。</p>
+        </article>
+      </div>
+      <p class="section-more"><a href="/zh/features">查看全部功能</a>，包括标签页组、广告拦截，以及各平台的支持情况。</p>
+    </div>
+  </section>
+
+  <section id="privacy" class="privacy">
+    <img class="mark-bg" src="/assets/brand/mark.svg" alt="">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">隐私</span>
+        <h2>默认注重隐私。无需注册任何账户。</h2>
+        <p>我们不会持有任何关于你的可读数据。无需创建账户，也没有保存你历史记录的服务器。</p>
+      </div>
+      <div class="grid">
+        <div class="item"><h3>无遥测</h3><p>没有使用统计、实验或浏览器登录。它以 ungoogled-chromium 为基础，后者移除了 Google 的后台服务。</p></div>
+        <div class="item"><h3>内置广告和跟踪器拦截</h3><p>所有网站都会拦截广告和跟踪器请求，EasyList、EasyPrivacy、uBlock 过滤规则和 Peter Lowe 的列表由维护者保持更新。你可以在网站信息面板中允许某个网站的广告。残留的广告空位也会被隐藏，链接在页面加载前会去掉跟踪参数（utm_source、fbclid、gclid 等）。</p></div>
+        <div class="item"><h3>更严格的默认设置</h3><p>第三方 Cookie 默认被拦截，站点隔离保持开启。HTTPS 优先已开启：网站通过 HTTPS 加载，若以普通 HTTP 打开，会先给出警告。</p></div>
+        <div class="item"><h3>你拥有的同步 <span class="tag">即将推出</span></h3><p>端到端加密，设备到设备，或通过你自己的 iCloud、Google Drive、Dropbox 或 WebDAV。用二维码配对设备。</p></div>
+        <div class="item"><h3>搜索引擎由你选择</h3><p>没有默认项。首次运行时选择，搜索建议保持关闭，因此输入时不会发送任何内容。</p></div>
+        <div class="item"><h3>安全浏览，仅标准模式</h3><p>与本地的哈希前缀列表比对，没有实时查询。威胁列表需要与 Google 签订协议，我们尚未完成，所以目前还没有数据。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap oss">
+      <div class="section-head" style="margin:0">
+        <span class="eyebrow">开源</span>
+        <h2>每一行代码都可以读。</h2>
+        <p>Little Browser 免费，并以 Mozilla Public Licence 2.0 开源。你可以自己检查它做了什么，而不必只听我们说。</p>
+        <p><a class="btn ghost" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>Read the source on GitHub</a></p>
+      </div>
+      <ul>
+        <li><span><b>MPL-2.0。</b>我们的代码是公开的。Chromium、WebKit 和过滤规则列表保留各自的许可证。</span></li>
+        <li><span><b>小而精的补丁集。</b>我们紧贴上游 Chromium，所以安全修复很快就能到达。</span></li>
+        <li><span><b>设计平静。</b>没有推广、“新功能”页面或权限提示。除非你自己动手，否则什么都不会动。</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="alt" id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">常见问题</span>
+        <h2>值得了解。</h2>
+      </div>
+      <div class="faqs">
+        <details class="faq"><summary>Little Browser 是 Arc 的替代品吗？</summary><p>是。它受 Arc 启发，有侧边栏、空间、固定标签页、标签页组、Peek 和命令栏，并可导入你的 Arc 空间和标签页。它是独立的，与 The Browser Company 没有关联。<a href="/zh/arc-alternative">看看它们的对比</a>。</p></details>
+        <details class="faq"><summary>什么是 Peek？</summary><p>Shift+点击链接，在你页面上方的卡片中阅读，然后关闭，或不重新加载直接保留为标签页。<a href="/zh/features/peek">进一步了解 Peek</a>。</p></details>
+        <details class="faq"><summary>它能在哪些电脑上运行？</summary><p>测试版面向 Apple 芯片的 Mac。Windows、Linux、iPhone 和 Android 版本暂不提供。</p></details>
+        <details class="faq"><summary>需要账户吗？</summary><p>不需要。没有账户，没有遥测，也没有统计分析。参见<a href="/privacy">隐私政策</a>。</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Little Browser 首页">
+      <img src="/assets/brand/icon-small.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="页脚">
+      <a href="/zh/downloads">下载</a>
+      <a href="/zh/releases">发行说明</a>
+      <a href="/privacy">隐私政策</a>
+      <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">源代码</a>
+    </nav>
+    <nav class="topics" aria-label="关于 Little Browser">
+      <b>功能</b>
+      <a href="/zh/features">全部功能</a>
+      <a href="/zh/features/spaces">空间</a>
+      <a href="/zh/features/peek">Peek</a>
+      <a href="/zh/features/tab-groups">标签页组</a>
+      <a href="/zh/features/command-bar">命令栏</a>
+      <a href="/zh/features/ad-blocker">广告拦截</a>
+      <a href="/zh/features/import">导入</a>
+      <a href="/zh/arc-alternative">Arc 替代品</a>
+    </nav>
+    <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · 本站不使用 Cookie 或统计分析。</span>
+  </div>
+</footer>
+<script src="/site.js"></script>
+</body>
+</html>

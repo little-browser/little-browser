@@ -17,7 +17,7 @@ Windows, Linux and iOS don't exist yet.
 | `desktop/lb/` | Our own C++ code, linked into the Chromium tree as `src/lb` |
 | `core/` | `lb-core`, the shared Rust library (data model, sync, import readers; later the blocker) |
 | `docs/` | `design.md` (architecture, privacy, sync, release pipeline), `ux.md` (UX spec), `desktop-ui.md` (sidebar internals), `legal/` |
-| `branding/`, `site/` | Logo masters and icon export; the static website |
+| `branding/`, `site/`, `site-i18n/` | Logo masters and icon export; the static website and its translations (`site/AGENTS.md`) |
 | `android/` | Android build of the Chromium fork: GN args, privacy patches, fetch/build scripts (Linux x86_64 hosts) |
 | `ios/` | Placeholder |
 
@@ -39,6 +39,7 @@ cd core && cargo fmt --check && cargo clippy --all-targets -- -D warnings && car
 core/scripts/coverage.sh                  # gate: lb-core line coverage of at least 95%
 desktop/scripts/check_lb_tests.py         # gate: unit tests for //lb:model and //lb:page_names
 desktop/scripts/check_series.py           # gate: patches keep engine and view code apart, platform ones tagged
+desktop/scripts/site_i18n.py check        # gate: website translations complete, translated copies up to date
 python3 -m unittest discover -s desktop/scripts -p 'test_*.py'   # the scripts' own tests
 shellcheck desktop/scripts/*.sh desktop/platforms/*.sh core/scripts/*.sh android/scripts/*.sh
 android/scripts/fetch.sh --patches-only   # after changing android/patches or desktop/VERSIONS

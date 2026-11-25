@@ -93,6 +93,38 @@
   ]
 }</script>
   <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- i18n:alternates -->
+  <link rel="alternate" hreflang="en" href="https://littlebrowser.app/arc-alternative">
+  <link rel="alternate" hreflang="es" href="https://littlebrowser.app/es/arc-alternative">
+  <link rel="alternate" hreflang="fr" href="https://littlebrowser.app/fr/arc-alternative">
+  <link rel="alternate" hreflang="de" href="https://littlebrowser.app/de/arc-alternative">
+  <link rel="alternate" hreflang="pt-BR" href="https://littlebrowser.app/pt-br/arc-alternative">
+  <link rel="alternate" hreflang="ja" href="https://littlebrowser.app/ja/arc-alternative">
+  <link rel="alternate" hreflang="zh-Hans" href="https://littlebrowser.app/zh/arc-alternative">
+  <link rel="alternate" hreflang="ru" href="https://littlebrowser.app/ru/arc-alternative">
+  <link rel="alternate" hreflang="uk" href="https://littlebrowser.app/uk/arc-alternative">
+  <link rel="alternate" hreflang="be" href="https://littlebrowser.app/be/arc-alternative">
+  <link rel="alternate" hreflang="el" href="https://littlebrowser.app/el/arc-alternative">
+  <link rel="alternate" hreflang="vi" href="https://littlebrowser.app/vi/arc-alternative">
+  <link rel="alternate" hreflang="hi" href="https://littlebrowser.app/hi/arc-alternative">
+  <link rel="alternate" hreflang="x-default" href="https://littlebrowser.app/arc-alternative">
+  <script>(() => { try {
+    if (document.documentElement.lang !== 'en') return;
+    const alt = {};
+    for (const l of document.querySelectorAll('link[rel=alternate][hreflang]')) alt[l.hreflang.toLowerCase()] = new URL(l.href).pathname;
+    const pick = (raw) => {
+      const t = raw.toLowerCase(), p = t.split('-')[0];
+      if (p === 'en') return 'en';
+      if (p === 'zh') return /^zh(-hans|-cn|-sg)?$/.test(t) ? 'zh-hans' : null;
+      if (p === 'pt') return 'pt-br';
+      return alt[t] ? t : alt[p] ? p : null;
+    };
+    let c = null;
+    try { c = localStorage.getItem('lb-lang'); } catch {}
+    if (!c) for (const raw of navigator.languages || [navigator.language]) { c = pick(raw); if (c) break; }
+    if (c && c !== 'en' && alt[c]) location.replace(alt[c] + location.hash);
+  } catch {} })();</script>
+  <!-- /i18n:alternates -->
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -116,12 +148,32 @@
       <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
     </a>
     <nav aria-label="Sections">
-      <a href="/#features">Features</a>
+      <a href="/features">Features</a>
       <a href="/#privacy">Privacy</a>
       <a href="/downloads">Download</a>
       <a href="/arc-alternative">From Arc</a>
     </nav>
     <a class="gh" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener" aria-label="Source code on GitHub" title="Source code on GitHub"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <!-- i18n:switcher -->
+    <details class="lang">
+      <summary aria-label="Language" title="Language"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg></summary>
+      <ul>
+        <li><a href="/arc-alternative" lang="en" hreflang="en" data-lang="en" aria-current="true">English</a></li>
+        <li><a href="/es/arc-alternative" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="/fr/arc-alternative" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="/de/arc-alternative" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="/pt-br/arc-alternative" lang="pt-BR" hreflang="pt-BR" data-lang="pt-br">Português (Brasil)</a></li>
+        <li><a href="/ja/arc-alternative" lang="ja" hreflang="ja" data-lang="ja">日本語</a></li>
+        <li><a href="/zh/arc-alternative" lang="zh-Hans" hreflang="zh-Hans" data-lang="zh-hans">简体中文</a></li>
+        <li><a href="/ru/arc-alternative" lang="ru" hreflang="ru" data-lang="ru">Русский</a></li>
+        <li><a href="/uk/arc-alternative" lang="uk" hreflang="uk" data-lang="uk">Українська</a></li>
+        <li><a href="/be/arc-alternative" lang="be" hreflang="be" data-lang="be">Беларуская</a></li>
+        <li><a href="/el/arc-alternative" lang="el" hreflang="el" data-lang="el">Ελληνικά</a></li>
+        <li><a href="/vi/arc-alternative" lang="vi" hreflang="vi" data-lang="vi">Tiếng Việt</a></li>
+        <li><a href="/hi/arc-alternative" lang="hi" hreflang="hi" data-lang="hi">हिन्दी</a></li>
+      </ul>
+    </details>
+    <!-- /i18n:switcher -->
     <div class="theme" role="group" aria-label="Colour theme">
       <button data-t="auto" aria-pressed="true" aria-label="Match system" title="Match system"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
       <button data-t="light" aria-pressed="false" aria-label="Light" title="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
@@ -145,10 +197,10 @@
         <thead><tr><th>In Arc</th><th>In Little Browser</th></tr></thead>
         <tbody>
           <tr><td>Sidebar with vertical tabs</td><td>The same layout, built on Chromium’s own vertical tabs. It collapses to icons, or hides and slides in over the page.</td></tr>
-          <tr><td>Spaces</td><td><a href="/spaces">Spaces</a>, each with its own tabs, icon and colour. Switch with <kbd>⌃</kbd> <kbd>1</kbd>…<kbd>9</kbd> or a two-finger swipe on the sidebar. A space can use its own profile to keep logins apart.</td></tr>
+          <tr><td>Spaces</td><td><a href="/features/spaces">Spaces</a>, each with its own tabs, icon and colour. Switch with <kbd>⌃</kbd> <kbd>1</kbd>…<kbd>9</kbd> or a two-finger swipe on the sidebar. A space can use its own profile to keep logins apart.</td></tr>
           <tr><td>Pinned tabs and Favorites</td><td>Pinned tabs, per space.</td></tr>
           <tr><td>Folders</td><td>Tab groups: named, collapsible runs of tabs, among today’s tabs or the pinned ones.</td></tr>
-          <tr><td>Peek (Shift+click a link)</td><td><a href="/peek">Peek</a>: the same gesture. Open it as a tab without a reload, or in split view.</td></tr>
+          <tr><td>Peek (Shift+click a link)</td><td><a href="/features/peek">Peek</a>: the same gesture. Open it as a tab without a reload, or in split view.</td></tr>
           <tr><td>Little Arc</td><td>The little window: a small window with no tabs, for a link from a chat or a quick look-up. <kbd>⌥</kbd> <kbd>⌘</kbd> <kbd>N</kbd>.</td></tr>
           <tr><td>Command bar</td><td>The command bar: <kbd>⌘</kbd> <kbd>T</kbd> and <kbd>⌘</kbd> <kbd>L</kbd> search tabs, bookmarks, history and commands from one place.</td></tr>
           <tr><td>Split view</td><td>Chromium’s split view, two tabs side by side.</td></tr>
@@ -173,7 +225,7 @@
       <details class="faq"><summary>Is Arc being discontinued?</summary><p>Yes. Its makers, The Browser Company, are sunsetting Arc: new accounts stopped on October 22, 2026, and on December 22, 2026 Arc stops working on macOS and Windows. See <a href="https://arc.net/" rel="noopener">Arc’s own announcement</a> for the timeline.</p></details>
       <details class="faq"><summary>What is the best Arc alternative for Mac?</summary><p>It depends what you liked about Arc. If it was the sidebar, spaces and Peek, without an account or AI, Little Browser is built for that. It is a beta for Macs with Apple silicon, open source, and keeps your data on your device.</p></details>
       <details class="faq"><summary>Can I import my Arc spaces and tabs?</summary><p>Yes. Little Browser’s import reads Arc’s spaces, profiles, open tabs, pinned tabs and Favourites, plus bookmarks, history, search shortcuts and extensions. Import while Arc is still installed, which is before December 22, 2026.</p></details>
-      <details class="faq"><summary>Does Little Browser have Peek?</summary><p>Yes. Shift+click a link to open it in a card over the page you’re reading, as in Arc. <a href="/peek">More about Peek</a>.</p></details>
+      <details class="faq"><summary>Does Little Browser have Peek?</summary><p>Yes. Shift+click a link to open it in a card over the page you’re reading, as in Arc. <a href="/features/peek">More about Peek</a>.</p></details>
       <details class="faq"><summary>Does Little Browser need an account?</summary><p>No. There’s no account, no sign-in and no telemetry. Sync between devices is designed but not built yet.</p></details>
       <details class="faq"><summary>What isn’t in Little Browser?</summary><p>Arc’s Boosts, Easels and AI features. It also runs only on Macs with Apple silicon for now; Windows, Linux, iPhone and Android versions are not available yet.</p></details>
 
@@ -194,14 +246,20 @@
     </a>
     <nav aria-label="Footer">
       <a href="/downloads">Download</a>
+      <a href="/releases">Release notes</a>
       <a href="/privacy">Privacy policy</a>
       <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">Source code</a>
     </nav>
     <nav class="topics" aria-label="About Little Browser">
-      <b>Learn more</b>
+      <b>Features</b>
+      <a href="/features">All features</a>
+      <a href="/features/spaces">Spaces</a>
+      <a href="/features/peek">Peek</a>
+      <a href="/features/tab-groups">Tab groups</a>
+      <a href="/features/command-bar">Command bar</a>
+      <a href="/features/ad-blocker">Ad blocker</a>
+      <a href="/features/import">Import</a>
       <a href="/arc-alternative">Arc alternative</a>
-      <a href="/peek">Peek</a>
-      <a href="/spaces">Spaces</a>
     </nav>
     <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · This site uses no cookies or analytics.</span>
   </div>

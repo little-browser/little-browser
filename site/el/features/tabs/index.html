@@ -1,0 +1,268 @@
+<!doctype html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at https://mozilla.org/MPL/2.0/. -->
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Καρφιτσωμένες καρτέλες, ονόματα καρτελών και αυτόματη αρχειοθέτηση — Little Browser</title>
+  <meta name="description" content="Οι καρφιτσωμένες καρτέλες κοιμούνται αντί να κλείνουν και θυμούνται τη σελίδα στην οποία ανήκουν. Μετονομάστε οποιαδήποτε καρτέλα και αφήστε τις παλιές καρτέλες να αρχειοθετούνται μόνες τους.">
+  <link rel="canonical" href="https://littlebrowser.app/el/features/tabs">
+  <meta property="og:url" content="https://littlebrowser.app/el/features/tabs">
+  <meta property="og:type" content="article">
+  <meta property="og:locale" content="el">
+  <meta property="og:site_name" content="Little Browser">
+  <meta property="og:title" content="Καρφιτσωμένες καρτέλες, ονόματα καρτελών και αυτόματη αρχειοθέτηση — Little Browser">
+  <meta property="og:description" content="Οι καρφιτσωμένες καρτέλες κοιμούνται αντί να κλείνουν και θυμούνται τη σελίδα στην οποία ανήκουν. Μετονομάστε οποιαδήποτε καρτέλα και αφήστε τις παλιές καρτέλες να αρχειοθετούνται μόνες τους.">
+  <meta property="og:image" content="https://littlebrowser.app/assets/brand/icon-512.png">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/assets/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Little Browser",
+      "applicationCategory": "BrowserApplication",
+      "operatingSystem": "macOS",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "license": "https://mozilla.org/MPL/2.0/",
+      "url": "https://littlebrowser.app/"
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "\u0391\u03c1\u03c7\u03b9\u03ba\u03ae",
+          "item": "https://littlebrowser.app/el/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "\u039b\u03b5\u03b9\u03c4\u03bf\u03c5\u03c1\u03b3\u03af\u03b5\u03c2",
+          "item": "https://littlebrowser.app/el/features"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "\u039a\u03b1\u03c1\u03c6\u03b9\u03c4\u03c3\u03c9\u03bc\u03ad\u03bd\u03b5\u03c2 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b5\u03c2 \u03ba\u03b1\u03b9 \u03bf\u03bd\u03cc\u03bc\u03b1\u03c4\u03b1 \u03ba\u03b1\u03c1\u03c4\u03b5\u03bb\u03ce\u03bd",
+          "item": "https://littlebrowser.app/el/features/tabs"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "\u03a4\u03b9 \u03b3\u03af\u03bd\u03b5\u03c4\u03b1\u03b9 \u03cc\u03c4\u03b1\u03bd \u03ba\u03bb\u03b5\u03af\u03bd\u03c9 \u03bc\u03b9\u03b1 \u03ba\u03b1\u03c1\u03c6\u03b9\u03c4\u03c3\u03c9\u03bc\u03ad\u03bd\u03b7 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b1;",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u039a\u03bf\u03b9\u03bc\u03ac\u03c4\u03b1\u03b9: \u03ba\u03c1\u03b1\u03c4\u03ac \u03c4\u03b7 \u03b8\u03ad\u03c3\u03b7 \u03c4\u03b7\u03c2, \u03b7 \u03c3\u03b5\u03bb\u03af\u03b4\u03b1 \u03c4\u03b7\u03c2 \u03be\u03b5\u03c6\u03bf\u03c1\u03c4\u03ce\u03bd\u03b5\u03b9 \u03ba\u03b1\u03b9 \u03be\u03b5\u03b8\u03c9\u03c1\u03b9\u03ac\u03b6\u03b5\u03b9. \u0391\u03bd \u03c4\u03b7\u03bd \u03c0\u03b1\u03c4\u03ae\u03c3\u03b5\u03c4\u03b5, \u03b7 \u03c3\u03b5\u03bb\u03af\u03b4\u03b1 \u03c4\u03b7\u03c2 \u03c6\u03bf\u03c1\u03c4\u03ce\u03bd\u03b5\u03b9 \u03be\u03b1\u03bd\u03ac. \u0397 \u03b1\u03c6\u03b1\u03af\u03c1\u03b5\u03c3\u03b7 \u03bc\u03b9\u03b1\u03c2 \u03ba\u03b1\u03c1\u03c6\u03b9\u03c4\u03c3\u03c9\u03bc\u03ad\u03bd\u03b7\u03c2 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b1\u03c2 \u03b8\u03ad\u03bb\u03b5\u03b9 \u03b4\u03b5\u03cd\u03c4\u03b5\u03c1\u03bf \u03b2\u03ae\u03bc\u03b1, \u03ce\u03c3\u03c4\u03b5 \u03bd\u03b1 \u03bc\u03b7\u03bd \u03c7\u03ac\u03c3\u03b5\u03c4\u03b5 \u03bc\u03af\u03b1 \u03ba\u03b1\u03c4\u03ac \u03bb\u03ac\u03b8\u03bf\u03c2."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u039c\u03c0\u03bf\u03c1\u03ce \u03bd\u03b1 \u03bc\u03b5\u03c4\u03bf\u03bd\u03bf\u03bc\u03ac\u03c3\u03c9 \u03bc\u03b9\u03b1 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b1;",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u039d\u03b1\u03b9. \u039a\u03ac\u03bd\u03c4\u03b5 \u03b4\u03b5\u03be\u03af \u03ba\u03bb\u03b9\u03ba \u03ba\u03b1\u03b9 \u03b5\u03c0\u03b9\u03bb\u03ad\u03be\u03c4\u03b5 Rename Tab. \u03a4\u03bf \u03cc\u03bd\u03bf\u03bc\u03b1 \u03b1\u03bd\u03c4\u03b9\u03ba\u03b1\u03b8\u03b9\u03c3\u03c4\u03ac \u03c4\u03bf\u03bd \u03c4\u03af\u03c4\u03bb\u03bf \u03c4\u03b7\u03c2 \u03c3\u03b5\u03bb\u03af\u03b4\u03b1\u03c2 \u03c3\u03c4\u03b7\u03bd \u03c0\u03bb\u03b1\u03ca\u03bd\u03ae \u03b3\u03c1\u03b1\u03bc\u03bc\u03ae \u03ba\u03b1\u03b9 \u03c3\u03c4\u03b7 \u03b3\u03c1\u03b1\u03bc\u03bc\u03ae \u03b5\u03bd\u03c4\u03bf\u03bb\u03ce\u03bd \u03ba\u03b1\u03b9 \u03b4\u03b9\u03b1\u03c4\u03b7\u03c1\u03b5\u03af\u03c4\u03b1\u03b9 \u03bc\u03b5\u03c4\u03ac \u03b1\u03c0\u03cc \u03b5\u03c0\u03b1\u03bd\u03b5\u03ba\u03ba\u03b9\u03bd\u03ae\u03c3\u03b5\u03b9\u03c2."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "\u039a\u03bb\u03b5\u03af\u03bd\u03b5\u03b9 \u03c4\u03bf Little Browser \u03c4\u03b9\u03c2 \u03c0\u03b1\u03bb\u03b9\u03ad\u03c2 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b5\u03c2 \u03bc\u03bf\u03c5;",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "\u039c\u03cc\u03bd\u03bf \u03c4\u03b9\u03c2 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b5\u03c2 \u03c4\u03b7\u03c2 \u03b7\u03bc\u03ad\u03c1\u03b1\u03c2, \u03ba\u03b1\u03b9 \u03bc\u03cc\u03bd\u03bf \u03b1\u03bd \u03b1\u03c6\u03ae\u03c3\u03b5\u03c4\u03b5 \u03c4\u03b7\u03bd \u03b1\u03c5\u03c4\u03cc\u03bc\u03b1\u03c4\u03b7 \u03b1\u03c1\u03c7\u03b5\u03b9\u03bf\u03b8\u03ad\u03c4\u03b7\u03c3\u03b7 \u03b5\u03bd\u03b5\u03c1\u03b3\u03ae. \u039f\u03b9 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b5\u03c2 \u03c0\u03bf\u03c5 \u03b4\u03b5\u03bd \u03ad\u03c7\u03b5\u03c4\u03b5 \u03c7\u03c1\u03b7\u03c3\u03b9\u03bc\u03bf\u03c0\u03bf\u03b9\u03ae\u03c3\u03b5\u03b9 \u03b3\u03b9\u03b1 24 \u03ce\u03c1\u03b5\u03c2 \u03b1\u03c0\u03cc \u03c0\u03c1\u03bf\u03b5\u03c0\u03b9\u03bb\u03bf\u03b3\u03ae \u03bc\u03b5\u03c4\u03b1\u03ba\u03b9\u03bd\u03bf\u03cd\u03bd\u03c4\u03b1\u03b9 \u03c3\u03b5 \u03b1\u03c1\u03c7\u03b5\u03af\u03bf \u03c3\u03c4\u03bf \u03bf\u03c0\u03bf\u03af\u03bf \u03bc\u03c0\u03bf\u03c1\u03b5\u03af \u03bd\u03b1 \u03b1\u03bd\u03b1\u03b6\u03b7\u03c4\u03ae\u03c3\u03b5\u03b9 \u03b7 \u03b3\u03c1\u03b1\u03bc\u03bc\u03ae \u03b5\u03bd\u03c4\u03bf\u03bb\u03ce\u03bd. \u039f\u03b9 \u03ba\u03b1\u03c1\u03c6\u03b9\u03c4\u03c3\u03c9\u03bc\u03ad\u03bd\u03b5\u03c2 \u03ba\u03b1\u03c1\u03c4\u03ad\u03bb\u03b5\u03c2 \u03b4\u03b5\u03bd \u03b1\u03c1\u03c7\u03b5\u03b9\u03bf\u03b8\u03b5\u03c4\u03bf\u03cd\u03bd\u03c4\u03b1\u03b9 \u03c0\u03bf\u03c4\u03ad."
+          }
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>try { const t = localStorage.getItem('lb-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- i18n:alternates -->
+  <link rel="alternate" hreflang="en" href="https://littlebrowser.app/features/tabs">
+  <link rel="alternate" hreflang="es" href="https://littlebrowser.app/es/features/tabs">
+  <link rel="alternate" hreflang="fr" href="https://littlebrowser.app/fr/features/tabs">
+  <link rel="alternate" hreflang="de" href="https://littlebrowser.app/de/features/tabs">
+  <link rel="alternate" hreflang="pt-BR" href="https://littlebrowser.app/pt-br/features/tabs">
+  <link rel="alternate" hreflang="ja" href="https://littlebrowser.app/ja/features/tabs">
+  <link rel="alternate" hreflang="zh-Hans" href="https://littlebrowser.app/zh/features/tabs">
+  <link rel="alternate" hreflang="ru" href="https://littlebrowser.app/ru/features/tabs">
+  <link rel="alternate" hreflang="uk" href="https://littlebrowser.app/uk/features/tabs">
+  <link rel="alternate" hreflang="be" href="https://littlebrowser.app/be/features/tabs">
+  <link rel="alternate" hreflang="el" href="https://littlebrowser.app/el/features/tabs">
+  <link rel="alternate" hreflang="vi" href="https://littlebrowser.app/vi/features/tabs">
+  <link rel="alternate" hreflang="hi" href="https://littlebrowser.app/hi/features/tabs">
+  <link rel="alternate" hreflang="x-default" href="https://littlebrowser.app/features/tabs">
+  <script>(() => { try {
+    if (document.documentElement.lang !== 'en') return;
+    const alt = {};
+    for (const l of document.querySelectorAll('link[rel=alternate][hreflang]')) alt[l.hreflang.toLowerCase()] = new URL(l.href).pathname;
+    const pick = (raw) => {
+      const t = raw.toLowerCase(), p = t.split('-')[0];
+      if (p === 'en') return 'en';
+      if (p === 'zh') return /^zh(-hans|-cn|-sg)?$/.test(t) ? 'zh-hans' : null;
+      if (p === 'pt') return 'pt-br';
+      return alt[t] ? t : alt[p] ? p : null;
+    };
+    let c = null;
+    try { c = localStorage.getItem('lb-lang'); } catch {}
+    if (!c) for (const raw of navigator.languages || [navigator.language]) { c = pick(raw); if (c) break; }
+    if (c && c !== 'en' && alt[c]) location.replace(alt[c] + location.hash);
+  } catch {} })();</script>
+  <!-- /i18n:alternates -->
+  <link rel="stylesheet" href="/styles.css">
+  <script>window.LB_STRINGS = {"iPhone and iPad": "iPhone και iPad", "Copy SHA-256": "Αντιγραφή SHA-256", "Copied": "Αντιγράφηκε", "{0} · download below": "{0} · λήψη παρακάτω", "latest": "τελευταία", "What's new": "Τι νέο υπάρχει", "Version {0}": "Έκδοση {0}", "Chromium {0}": "Chromium {0}", "No changes you would notice in this release.": "Καμία αλλαγή που να προσέξετε σε αυτήν την έκδοση.", "Download for {0}": "Λήψη για {0}", "The first build is on its way.": "Η πρώτη έκδοση είναι καθ' οδόν.", "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Αυτό το Mac έχει επεξεργαστή Intel· το Little Browser χρειάζεται προς το παρόν Apple silicon (M1 ή νεότερο).", "Not available for {0} yet; the beta is macOS only.": "Δεν είναι ακόμη διαθέσιμο για {0}· η beta είναι μόνο για macOS.", "{0} download": "{0} λήψη", "{0} downloads": "{0} λήψεις", "{0} update": "{0} ενημέρωση", "{0} updates": "{0} ενημερώσεις"};</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="wm" viewBox="-4 0 324 46">
+    <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 4V40"/><path d="M10.5 16V40"/><path d="M24.5 6V34q0 6 6 6M38.5 6V34q0 6 6 6M19.5 16H45.5"/><path d="M56 4V40"/>
+      <path d="M66 28H90A12 12 0 1 0 86.5 36.5"/><path d="M108.5 4V40"/><circle cx="120.5" cy="28" r="12"/>
+      <path d="M143 40V16M143 28A12 12 0 0 1 155 16"/><circle cx="176" cy="28" r="12"/><path d="M198 16L205 40L213 22L221 40L228 16"/>
+      <path d="M255.5 19C253.5 16.5 250.5 16 247.5 16C242.5 16 239.5 18.5 239.5 22C239.5 26 243.5 27 247.5 28C251.5 29 256.5 30 256.5 34C256.5 37.5 252.5 40 247.5 40C244.5 40 240.5 39 238.5 36"/>
+      <path d="M267 28H291A12 12 0 1 0 287.5 36.5"/><path d="M301.5 40V16M301.5 28A12 12 0 0 1 313.5 16"/>
+    </g>
+    <circle cx="10.5" cy="6.5" r="3.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/el/" aria-label="Αρχική σελίδα του Little Browser">
+      <img src="/assets/brand/icon.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="140" height="20"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Ενότητες">
+      <a href="/el/features">Λειτουργίες</a>
+      <a href="/el/#privacy">Απόρρητο</a>
+      <a href="/el/downloads">Λήψη</a>
+      <a href="/el/arc-alternative">Από το Arc</a>
+    </nav>
+    <a class="gh" href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener" aria-label="Πηγαίος κώδικας στο GitHub" title="Πηγαίος κώδικας στο GitHub"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <!-- i18n:switcher -->
+    <details class="lang">
+      <summary aria-label="Γλώσσα" title="Γλώσσα"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg></summary>
+      <ul>
+        <li><a href="/features/tabs" lang="en" hreflang="en" data-lang="en">English</a></li>
+        <li><a href="/es/features/tabs" lang="es" hreflang="es" data-lang="es">Español</a></li>
+        <li><a href="/fr/features/tabs" lang="fr" hreflang="fr" data-lang="fr">Français</a></li>
+        <li><a href="/de/features/tabs" lang="de" hreflang="de" data-lang="de">Deutsch</a></li>
+        <li><a href="/pt-br/features/tabs" lang="pt-BR" hreflang="pt-BR" data-lang="pt-br">Português (Brasil)</a></li>
+        <li><a href="/ja/features/tabs" lang="ja" hreflang="ja" data-lang="ja">日本語</a></li>
+        <li><a href="/zh/features/tabs" lang="zh-Hans" hreflang="zh-Hans" data-lang="zh-hans">简体中文</a></li>
+        <li><a href="/ru/features/tabs" lang="ru" hreflang="ru" data-lang="ru">Русский</a></li>
+        <li><a href="/uk/features/tabs" lang="uk" hreflang="uk" data-lang="uk">Українська</a></li>
+        <li><a href="/be/features/tabs" lang="be" hreflang="be" data-lang="be">Беларуская</a></li>
+        <li><a href="/el/features/tabs" lang="el" hreflang="el" data-lang="el" aria-current="true">Ελληνικά</a></li>
+        <li><a href="/vi/features/tabs" lang="vi" hreflang="vi" data-lang="vi">Tiếng Việt</a></li>
+        <li><a href="/hi/features/tabs" lang="hi" hreflang="hi" data-lang="hi">हिन्दी</a></li>
+      </ul>
+    </details>
+    <!-- /i18n:switcher -->
+    <div class="theme" role="group" aria-label="Θέμα χρωμάτων">
+      <button data-t="auto" aria-pressed="true" aria-label="Όπως το σύστημα" title="Όπως το σύστημα"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+      <button data-t="light" aria-pressed="false" aria-label="Ανοιχτό" title="Ανοιχτό"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg></button>
+      <button data-t="dark" aria-pressed="false" aria-label="Σκούρο" title="Σκούρο"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 14.2A7.8 7.8 0 1 1 9.8 4.5a6.2 6.2 0 0 0 9.7 9.7z"/></svg></button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="legal feature">
+    <div class="wrap">
+      <nav class="crumbs" aria-label="Διαδρομή πλοήγησης"><a href="/el/features">Λειτουργίες</a> <span aria-hidden="true">/</span> <span>Καρφιτσωμένες καρτέλες και ονόματα καρτελών</span></nav>
+      <h1>Καρφιτσωμένες καρτέλες, ονόματα καρτελών και αυτόματη αρχειοθέτηση</h1>
+      <p class="lead">Καρφιτσωμένες καρτέλες που μένουν, ονόματα της επιλογής σας και ένα αρχείο που κρατά σύντομη τη λίστα της ημέρας.</p>
+      <p>Κάθε <a href="/el/features/spaces">χώρος</a> έχει δύο είδη καρτελών: τις καρφιτσωμένες καρτέλες, που είναι το μόνιμο σύνολό του, και τις καρτέλες της ημέρας, που είναι όλες οι υπόλοιπες.</p>
+      <h2>Καρφιτσωμένες καρτέλες</h2>
+      <ul>
+        <li><b>Το κλείσιμο τις βάζει σε ύπνο.</b> Κλείστε μια καρφιτσωμένη καρτέλα και κρατά τη θέση της, ξεφορτώνει τη σελίδα της και ξεθωριάζει. Πατήστε την και η σελίδα φορτώνει ξανά.</li>
+        <li><b>Θυμούνται έναν σύνδεσμο.</b> Μια καρφιτσωμένη καρτέλα επιστρέφει στη σελίδα όπου καρφιτσώθηκε, ακόμη κι αν έχετε φύγει από αυτήν, ακόμη και μετά από επανεκκίνηση. Χρησιμοποιήστε το <b>Use Current Page as Link</b> ή το <b>Edit Link…</b> για να τον αλλάξετε.</li>
+        <li><b>Καρφίτσωμα με σύρσιμο ή πλήκτρο.</b> Σύρετε μια καρτέλα πάνω από το «+ New Tab», πατήστε <kbd>⌘</kbd> <kbd>D</kbd> ή χρησιμοποιήστε το μενού δεξιού κλικ.</li>
+      </ul>
+      <h2>Ονόματα</h2>
+      <p>Κάντε δεξί κλικ σε οποιαδήποτε καρτέλα και επιλέξτε <b>Rename Tab…</b>. Το όνομά σας αντικαθιστά τον τίτλο της σελίδας στην πλαϊνή γραμμή και στη γραμμή εντολών, και η γραμμή εντολών βρίσκει την καρτέλα με το όνομά της και με τον τίτλο της σελίδας. Τα ονόματα μένουν μετά από επανεκκινήσεις, αλλαγές χώρου και ύπνο.</p>
+      <h2>Αυτόματη αρχειοθέτηση</h2>
+      <p>Οι καρτέλες της ημέρας που δεν έχετε χρησιμοποιήσει για λίγο κλείνουν και μετακινούνται στο αρχείο, στο οποίο μπορεί να αναζητήσει η <a href="/el/features/command-bar">γραμμή εντολών</a>. Έτσι η πλαϊνή γραμμή μένει σύντομη και η μνήμη χαμηλή. Επιλέξτε 12 ώρες, <b>24 ώρες (η προεπιλογή)</b>, 7 ημέρες, 30 ημέρες ή ποτέ. Οι καρφιτσωμένες καρτέλες δεν αρχειοθετούνται ποτέ.</p>
+      <h2>Επίσης στην πλαϊνή γραμμή</h2>
+      <ul>
+        <li><b>Διαχωρισμένη προβολή</b>, του ίδιου του Chromium: δύο καρτέλες δίπλα δίπλα σε μία γραμμή.</li>
+        <li>Ένα εικονίδιο ηχείου στις καρτέλες που παίζουν ήχο· πατήστε το για σίγαση.</li>
+        <li>Το <kbd>Ctrl</kbd> <kbd>Tab</kbd> περνά από τις καρτέλες με τη σειρά που τις δείχνει η πλαϊνή γραμμή.</li>
+      </ul>
+
+      <h2>Διαθεσιμότητα</h2>
+      <p>Κάθε λειτουργία προορίζεται να φτάσει σε κάθε πλατφόρμα. Εδώ φαίνεται πού βρίσκονται σήμερα οι καρφιτσωμένες καρτέλες και τα ονόματα καρτελών.</p>
+      <table class="avail"><caption class="visually-hidden">Διαθεσιμότητα ανά πλατφόρμα</caption><tbody>
+          <tr><th scope="row">macOS</th><td><span class="state on">Beta</span> Mac με Apple silicon</td></tr>
+          <tr><th scope="row">Windows</th><td><span class="state plan">Σχεδιάζεται</span></td></tr>
+          <tr><th scope="row">Linux</th><td><span class="state plan">Σχεδιάζεται</span></td></tr>
+          <tr><th scope="row">iPhone και iPad</th><td><span class="state plan">Σχεδιάζεται: καρφιτσωμένες γραμμές και καρτέλες της ημέρας ως κάρτες</span></td></tr>
+          <tr><th scope="row">Android</th><td><span class="state plan">Σχεδιάζεται: καρφιτσωμένες γραμμές και καρτέλες της ημέρας ως κάρτες</span></td></tr>
+        </tbody></table>
+
+      <h2>Σχετικά</h2>
+      <div class="related">
+        <a class="rel" href="/el/features/tab-groups"><b>Ομάδες καρτελών</b><span>Ονομασμένες, πτυσσόμενες σειρές καρτελών ανάμεσα στις καρτέλες της ημέρας ή στις καρφιτσωμένες, που προτείνονται όταν τρεις καρτέλες ανήκουν μαζί.</span></a>
+        <a class="rel" href="/el/features/spaces"><b>Χώροι</b><span>Προσωπικά, δουλειά, ένα χόμπι: κάθε χώρος έχει δικές του καρτέλες, όνομα και χρώμα, και επιστρέφει μετά από επανεκκίνηση.</span></a>
+        <a class="rel" href="/el/features/command-bar"><b>Γραμμή εντολών</b><span>Μία παλέτα στο κέντρο του παραθύρου για ανοιχτές καρτέλες, σελιδοδείκτες, ιστορικό, εντολές και αναζητήσεις, όλα από το πληκτρολόγιο.</span></a>
+      </div>
+
+      <h2>Ερωτήσεις</h2>
+      <details class="faq"><summary>Τι γίνεται όταν κλείνω μια καρφιτσωμένη καρτέλα;</summary><p>Κοιμάται: κρατά τη θέση της, η σελίδα της ξεφορτώνει και ξεθωριάζει. Αν την πατήσετε, η σελίδα της φορτώνει ξανά. Η αφαίρεση μιας καρφιτσωμένης καρτέλας θέλει δεύτερο βήμα, ώστε να μην χάσετε μία κατά λάθος.</p></details>
+      <details class="faq"><summary>Μπορώ να μετονομάσω μια καρτέλα;</summary><p>Ναι. Κάντε δεξί κλικ και επιλέξτε Rename Tab. Το όνομα αντικαθιστά τον τίτλο της σελίδας στην πλαϊνή γραμμή και στη γραμμή εντολών και διατηρείται μετά από επανεκκινήσεις.</p></details>
+      <details class="faq"><summary>Κλείνει το Little Browser τις παλιές καρτέλες μου;</summary><p>Μόνο τις καρτέλες της ημέρας, και μόνο αν αφήσετε την αυτόματη αρχειοθέτηση ενεργή. Οι καρτέλες που δεν έχετε χρησιμοποιήσει για 24 ώρες από προεπιλογή μετακινούνται σε αρχείο στο οποίο μπορεί να αναζητήσει η γραμμή εντολών. Οι καρφιτσωμένες καρτέλες δεν αρχειοθετούνται ποτέ.</p></details>
+
+      <div class="ctas">
+        <a class="btn primary" href="/el/downloads">Λήψη του Little Browser</a>
+        <a class="btn ghost" href="/el/features">Όλες οι λειτουργίες</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="/el/" aria-label="Αρχική σελίδα του Little Browser">
+      <img src="/assets/brand/icon-small.svg" alt="">
+      <svg viewBox="-4 0 324 46" width="112" height="16"><use href="#wm"/></svg>
+    </a>
+    <nav aria-label="Υποσέλιδο">
+      <a href="/el/downloads">Λήψη</a>
+      <a href="/el/releases">Σημειώσεις έκδοσης</a>
+      <a href="/privacy">Πολιτική απορρήτου</a>
+      <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">Πηγαίος κώδικας</a>
+    </nav>
+    <nav class="topics" aria-label="Σχετικά με το Little Browser">
+      <b>Λειτουργίες</b>
+      <a href="/el/features">Όλες οι λειτουργίες</a>
+      <a href="/el/features/spaces">Χώροι</a>
+      <a href="/el/features/peek">Peek</a>
+      <a href="/el/features/tab-groups">Ομάδες καρτελών</a>
+      <a href="/el/features/command-bar">Γραμμή εντολών</a>
+      <a href="/el/features/ad-blocker">Αποκλεισμός διαφημίσεων</a>
+      <a href="/el/features/import">Εισαγωγή</a>
+      <a href="/el/arc-alternative">Εναλλακτική του Arc</a>
+    </nav>
+    <span>© Η ομάδα του Little Browser · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · Αυτός ο ιστότοπος δεν χρησιμοποιεί cookies ούτε αναλυτικά στοιχεία.</span>
+  </div>
+</footer>
+<script src="/site.js"></script>
+</body>
+</html>

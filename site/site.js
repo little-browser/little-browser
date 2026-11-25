@@ -11,6 +11,28 @@
     set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
   };
 
+  // Language: the page's own translations (window.LB_STRINGS, written into each translated page),
+  // and the /<lang> prefix of its address, for links this script makes.
+  const t = (s, ...args) => {
+    let r = (window.LB_STRINGS && window.LB_STRINGS[s]) || s;
+    args.forEach((v, i) => { r = r.split(`{${i}}`).join(v); });
+    return r;
+  };
+  const base = (location.pathname.match(/^\/(?:es|fr|de|pt-br|ja|zh|ru|uk|be|el|vi|hi)(?=\/|$)/) || [''])[0];
+  // Choosing a language is remembered, so the first-visit guess (head script) doesn't override it.
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('.lang a[data-lang]');
+    if (a) store.set('lb-lang', a.dataset.lang);
+  });
+  document.addEventListener('click', (e) => {
+    const d = document.querySelector('.lang[open]');
+    if (d && !d.contains(e.target)) d.removeAttribute('open');
+  });
+  document.addEventListener('keydown', (e) => {
+    const d = document.querySelector('.lang[open]');
+    if (d && e.key === 'Escape') { d.removeAttribute('open'); d.querySelector('summary').focus(); }
+  });
+
   // Theme: auto (system) / light / dark.
   const applyTheme = (t) => {
     if (t === 'light' || t === 'dark') root.dataset.theme = t;
@@ -88,12 +110,13 @@
   const primary = document.querySelector('[data-dl-primary]');
   const meta = document.querySelector('[data-dl-meta]');
   const list = document.querySelector('[data-releases-list]');
-  if (primary || list) {
+  const notesList = document.querySelector('[data-release-notes]');
+  if (primary || list || notesList) {
     const RELEASES = 'https://downloads.littlebrowser.app/releases.json';
     const STATS = 'https://downloads.littlebrowser.app/stats.json';
     const DOWNLOAD_ORIGIN = 'https://downloads.littlebrowser.app';
     const PLATFORMS = {
-      macos: 'macOS', windows: 'Windows', linux: 'Linux', ios: 'iPhone and iPad', android: 'Android',
+      macos: 'macOS', windows: 'Windows', linux: 'Linux', ios: t('iPhone and iPad'), android: 'Android',
     };
     const ARCHES = { arm64: 'Apple silicon', x64: 'Intel' };
     // Store pages for the platforms that ship through a store. An entry here takes over the
@@ -140,7 +163,7 @@
       return n;
     };
     // "beta" -> "Beta": the release's channel, as written by the release pipeline.
-    const channel = (r) => (r && r.channel ? r.channel[0].toUpperCase() + r.channel.slice(1) : 'Beta');
+    const channel = (r) => t(r && r.channel ? r.channel[0].toUpperCase() + r.channel.slice(1) : 'Beta');
     const svg = (cls, d) => {
       const n = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       n.setAttribute('viewBox', '0 0 16 16');
@@ -158,11 +181,11 @@
     };
     // The full SHA-256, and a button that copies it.
     const shaRow = (sha) => {
-      const button = el('button', { type: 'button', className: 'copy', title: 'Copy SHA-256' },
+      const button = el('button', { type: 'button', className: 'copy', title: t('Copy SHA-256') },
         svg('icon', 'M5.5 5.5V3.5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M3.5 5.5h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z'),
         svg('done', 'M3.5 8.5l3 3 6-7'));
       const code = el('code', { className: 'sha' }, sha);
-      button.setAttribute('aria-label', 'Copy SHA-256');
+      button.setAttribute('aria-label', t('Copy SHA-256'));
       button.addEventListener('click', async () => {
         let copied = false;
         try { await navigator.clipboard.writeText(sha); copied = true; } catch {}
@@ -179,8 +202,8 @@
         if (!copied) return;
         sel.removeAllRanges();
         button.classList.add('copied');
-        button.title = 'Copied';
-        setTimeout(() => { button.classList.remove('copied'); button.title = 'Copy SHA-256'; }, 1500);
+        button.title = t('Copied');
+        setTimeout(() => { button.classList.remove('copied'); button.title = t('Copy SHA-256'); }, 1500);
       });
       return el('div', { className: 'sha-row' }, 'SHA-256 ', code, button);
     };
@@ -208,11 +231,13 @@
         const v = stats[table] && stats[table][key];
         return Number.isInteger(v) && v > 0 ? v : 0;
       };
-      const plural = (v, word) => `${v.toLocaleString('en')} ${word}${v === 1 ? '' : 's'}`;
+      const plural = (v, one, many) => t(v === 1 ? one : many, v.toLocaleString(document.documentElement.lang || 'en'));
       const downloads = n('downloads');
       const updates = n('updates');
-      return [plural(downloads, 'download'), updates ? plural(updates, 'update') : ''].filter(Boolean).join(' · ');
+      return [plural(downloads, '{0} download', '{0} downloads'), updates ? plural(updates, '{0} update', '{0} updates') : ''].filter(Boolean).join(' · ');
     };
+
+    const releaseId = (r) => `v${r.version}`;
 
     (async () => {
       const [{ os, arch }, releases, stats] = await Promise.all([
@@ -227,7 +252,7 @@
         if (STORES[id]) status.replaceChildren(el('a', { href: STORES[id].url }, STORES[id].label));
         else {
           const newest = rows.find((r) => r.files.some((f) => f.platform === id));
-          if (newest) status.textContent = `${channel(newest)} · download below`;
+          if (newest) status.textContent = t('{0} · download below', channel(newest));
         }
         if (id === os) card.classList.add('yours');
       }
@@ -252,18 +277,38 @@
           }
           const version = el('td', {}, el('b', {}, r.version));
           if (r.channel) version.append(el('span', { className: 'tag' }, r.channel));
-          if (i === 0) version.append(el('span', { className: 'tag latest' }, 'latest'));
-          // What changed: open on the newest release, folded on the others.
-          const notes = Array.isArray(r.notes) ? r.notes.filter((n) => typeof n === 'string' && n) : [];
-          if (notes.length) {
-            const ul = el('ul');
-            for (const n of notes) ul.append(el('li', {}, n));
-            const summary = el('summary', {}, "What's new");
-            summary.setAttribute('aria-label', `What's new in ${r.version}`);
-            version.append(el('details', { className: 'notes', open: i === 0 }, summary, ul));
-          }
+          if (i === 0) version.append(el('span', { className: 'tag latest' }, t('latest')));
+          // What changed lives on /releases, one anchor per version.
+          version.append(el('div', { className: 'notes-link' }, el('a', { href: `${base}/releases#${releaseId(r)}` }, t("What's new"))));
           tbody.append(el('tr', {}, version, el('td', {}, r.date || ''), el('td', {}, r.chromium || ''), files));
         });
+      }
+
+      // Release notes (/releases): every release, newest first, each with its own anchor.
+      if (notesList && rows.length) {
+        document.querySelector('[data-releases-empty]').hidden = true;
+        rows.forEach((r, i) => {
+          const notes = Array.isArray(r.notes) ? r.notes.filter((n) => typeof n === 'string' && n) : [];
+          const h = el('h2', {}, el('a', { href: `#${releaseId(r)}` }, t('Version {0}', r.version)));
+          if (r.channel) h.append(el('span', { className: 'tag' }, r.channel));
+          if (i === 0) h.append(el('span', { className: 'tag latest' }, t('latest')));
+          const when = [r.date, r.chromium ? t('Chromium {0}', r.chromium) : ''].filter(Boolean).join(' · ');
+          const body = notes.length
+            ? el('ul', {}, ...notes.map((n) => el('li', {}, n)))
+            : el('p', { className: 'none' }, t('No changes you would notice in this release.'));
+          const get = el('div', { className: 'get' });
+          for (const f of r.files || []) {
+            const href = safeUrl(f.url);
+            if (href) get.append(el('a', { href }, t('Download for {0}', label(f))));
+          }
+          const art = el('article', { className: 'release', id: releaseId(r) }, h, el('div', { className: 'when' }, when), body);
+          if (get.children.length) art.append(get);
+          notesList.append(art);
+        });
+        if (location.hash) {
+          const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+          if (t) t.scrollIntoView();
+        }
       }
 
       // The button: this system's store page, or its newest build. Otherwise it goes to the full
@@ -284,14 +329,14 @@
         primary.textContent = STORES[os].label;
       } else if (href) {
         primary.href = href;
-        primary.textContent = `Download for ${PLATFORMS[os]}`;
+        primary.textContent = t('Download for {0}', PLATFORMS[os]);
         meta.replaceChildren(`${channel(latest)} ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, all);
       } else if (!latest) {
-        toAll('The first build is on its way.');
+        toAll(t('The first build is on its way.'));
       } else if (os === 'macos' && arch === 'x64') {
-        toAll('This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.');
+        toAll(t('This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.'));
       } else if (os && os !== 'macos') {
-        toAll(`Not available for ${PLATFORMS[os]} yet; the beta is macOS only.`);
+        toAll(t('Not available for {0} yet; the beta is macOS only.', PLATFORMS[os]));
       } else {
         toAll();
       }
