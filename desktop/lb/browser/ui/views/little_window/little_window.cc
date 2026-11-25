@@ -4,11 +4,14 @@
 
 #include "lb/browser/ui/views/little_window/little_window.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -23,10 +26,12 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/scoped_tabbed_browser_displayer.h"
+#include "chrome/browser/ui/startup/startup_tab_provider.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/common/chrome_switches.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
@@ -215,6 +220,45 @@ void OpenUrlInLittleWindow(Profile* profile, const content::OpenURLParams& open)
   params.window_features.has_x = params.window_features.has_y = true;
   params.window_features.has_width = params.window_features.has_height = true;
   Navigate(&params);
+}
+
+StartupTabs OpenLinksFromOtherAppsInLittleWindows(Profile* profile, const StartupTabs& tabs) {
+  StartupTabs rest;
+  for (const StartupTab& tab : tabs) {
+    if (OpensFromOtherAppInLittleWindow(tab.url, tab.is_untrusted_launch)) {
+      OpenUrlInLittleWindow(profile, tab.url);
+    } else {
+      rest.push_back(tab);
+    }
+  }
+  return rest;
+}
+
+bool OpenCommandLineLinksInLittleWindows(Profile* profile,
+                                         const base::CommandLine& command_line,
+                                         const base::FilePath& cur_dir) {
+  if (!profile) {
+    return false;
+  }
+  const StartupTabs tabs =
+      StartupTabProviderImpl().GetCommandLineTabs(command_line, cur_dir, profile);
+  const CommandLineLinks links = {
+      .links = tabs.size(),
+      .little_window_links = static_cast<size_t>(std::ranges::count_if(
+          tabs,
+          [](const StartupTab& tab) {
+            return OpensFromOtherAppInLittleWindow(tab.url, tab.is_untrusted_launch);
+          })),
+      .app_launch =
+          command_line.HasSwitch(switches::kApp) || command_line.HasSwitch(switches::kAppId),
+      .can_open_window = GetBrowserWindowCreationStatusForProfile(*profile) ==
+                         BrowserWindowInterface::CreationStatus::kOk,
+  };
+  if (!OpensCommandLineInLittleWindows(links)) {
+    return false;
+  }
+  OpenLinksFromOtherAppsInLittleWindows(profile, tabs);
+  return true;
 }
 
 BrowserWindowInterface* ShowInSpaceWindow(Profile* profile,

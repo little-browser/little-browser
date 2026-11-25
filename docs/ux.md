@@ -328,7 +328,11 @@ blue groups, Teal makes cyan); the group menu changes it.
   command bar (“Search or enter an address for a little window”); what you pick opens in a new
   little window. Also: a link's context menu **“Open Link in Little Window”**. A page's own popups
   (`window.open` with a size) are little windows too.
-  (Later: links from other apps.)
+- **Links from other apps** (a mail link, `open <url>` in Terminal, a script running the browser
+  with a URL while it runs) open each in a little window of its own, not in a tab of the main
+  window, in guest or private mode when that was asked for or a policy requires it. Browser pages
+  (chrome://, extension pages) still open as tabs; a script's command line that has one opens all
+  its links as tabs.
 - The command bar for a little window lists addresses, searches and history, not open tabs or
   commands: everything chosen there opens a page.
 - A small window (its page ≈ 960 × 680, smaller on a small screen; each new one a step down and to

@@ -301,8 +301,8 @@ provides (incognito, DevTools, PiP). The rest of the table is specified but not 
 ### 7.4 Little window
 - A minimal window with **no tab strip**: just the page and a compact address/actions bar.
   Shortcut ⌥⌘N, through the command bar.
-- Not built yet: an option to open links coming from **other apps** (mail, chat) in a little window
-  instead of the main window.
+- Links coming from **other apps** (mail, chat, `open <url>`) open in a little window, not the
+  main window.
 - "Open in ‹space›" turns it into a normal tab without reloading (same `WebContents` move).
 - Built on Chromium's popup window type: its one-row toolbar (address only) plus our two buttons.
 - Android equivalent: serve **Custom Tabs** for other apps — a small overlay browser that other apps

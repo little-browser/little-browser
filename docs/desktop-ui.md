@@ -540,7 +540,17 @@ window" (`little_window_menu.mm`, right after "New Incognito window", with ‚å•‚å
 browser window enable it, since the window's menu check asks Chromium's command table, which
 doesn't list our id. `patches/lb/little-window-link-menu.patch` adds "Open Link in Little Window"
 to a link's menu; it opens with the page's referrer and initiator, as "Open Link in New Window"
-does.
+does. Links from other apps open in little windows (`lb::OpensFromOtherAppInLittleWindow`: web
+pages and local files, not browser pages or links Chromium marks untrusted):
+`patches/lb/little-window-other-apps-mac.patch` hooks macOS's (`AppController`'s `openURLs:`, the
+path of mail links and `open <url>`, at `OpenStartupTabsInBrowserWithProfile`) through
+`lb::OpenLinksFromOtherAppsInLittleWindows`, and `patches/lb/little-window-other-apps.patch` a
+second launch's command line (`StartupBrowserCreator::ProcessCommandLineWithProfile`, with the
+profile Chromium's `GetPrivateProfileIfRequested` picks: guest or incognito when asked for or
+required by policy) through `lb::OpenCommandLineLinksInLittleWindows`, which takes it only when
+every link on it qualifies and a window can open in that profile
+(`lb::OpensCommandLineInLittleWindows`).
+The first launch's own command line opens its links as tabs, as Chromium does.
 
 ## Quit warning
 

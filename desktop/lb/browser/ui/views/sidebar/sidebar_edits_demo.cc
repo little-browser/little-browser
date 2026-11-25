@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/command_line.h"
+#include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -18,8 +19,11 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/tab_menu_model.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -43,6 +47,7 @@
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "lb/browser/ui/views/command_bar/command_bar.h"
+#include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "ui/compositor/layer.h"
@@ -59,6 +64,7 @@ namespace {
 
 constexpr char kHiddenMode[] = "hidden-sidebar";
 constexpr char kNamesMode[] = "tab-names";
+constexpr char kOtherAppsMode[] = "other-apps";
 constexpr char kSnapshotSwitch[] = "lb-ui-snapshot-sidebar";
 
 // --------------------------------------------------------------- hidden-sidebar
@@ -525,6 +531,93 @@ void RunTabNamesDemo(BrowserWindowInterface* browser) {
   PostDemoTask(base::BindOnce(&NamesLoaded), base::Seconds(2));
 }
 
+// --------------------------------------------------------------- other-apps
+
+// Pages that never load (nothing listens on port 9): a little window shows its address anyway.
+GURL OtherAppPage(const char* path) {
+  return GURL(std::string("http://127.0.0.1:9/") + path);
+}
+
+struct OtherAppsRun {
+  base::WeakPtr<BrowserWindowInterface> browser;
+  std::string detail;
+  bool ok = true;
+
+  void Expect(bool condition, const std::string& what) {
+    detail += " " + what + "=" + (condition ? "1" : "0");
+    ok = ok && condition;
+  }
+};
+
+OtherAppsRun& TheOtherAppsRun() {
+  static base::NoDestructor<OtherAppsRun> run;
+  return *run;
+}
+
+// The profile's little window showing `url`, if one does.
+BrowserWindowInterface* LittleWindowShowing(Profile* profile, const GURL& url) {
+  BrowserWindowInterface* found = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation([&](BrowserWindowInterface* window) {
+    content::WebContents* shown = window->GetTabStripModel()->GetActiveWebContents();
+    if (window->GetProfile() == profile && WindowKindOf(window) == WindowKind::kLittle && shown &&
+        shown->GetVisibleURL() == url) {
+      found = window;
+      return false;
+    }
+    return true;
+  });
+  return found;
+}
+
+void OtherAppsCheck() {
+  OtherAppsRun& run = TheOtherAppsRun();
+  if (!run.browser) {
+    return;
+  }
+  Profile* profile = run.browser->GetProfile();
+  run.Expect(LittleWindowShowing(profile, OtherAppPage("mail")) != nullptr,
+             "mail_link_in_little_window");
+  run.Expect(LittleWindowShowing(profile, OtherAppPage("script")) != nullptr,
+             "command_line_link_in_little_window");
+  run.Expect(LittleWindowShowing(profile, OtherAppPage("mixed")) == nullptr,
+             "mixed_command_line_left_to_chromium");
+  // Close the little windows it opened.
+  for (const char* path : {"mail", "script"}) {
+    if (BrowserWindowInterface* little = LittleWindowShowing(profile, OtherAppPage(path))) {
+      little->GetWindow()->Close();
+    }
+  }
+  ReportDemo(kOtherAppsMode, run.ok, run.detail);
+}
+
+void RunOtherAppsDemo(BrowserWindowInterface* browser) {
+  FailDemoAfter(kOtherAppsMode, base::Seconds(20));
+  OtherAppsRun& run = TheOtherAppsRun();
+  run.browser = browser->GetWeakPtr();
+  Profile* profile = browser->GetProfile();
+  // Links handed over by macOS (a mail link): the web page opens in a little window, a browser page
+  // is left to open as a tab.
+  StartupTabs links;
+  links.emplace_back(OtherAppPage("mail"));
+  links.emplace_back(GURL("chrome://version/"));
+  const StartupTabs rest = OpenLinksFromOtherAppsInLittleWindows(profile, links);
+  run.Expect(rest.size() == 1 && rest[0].url == GURL("chrome://version/"),
+             "browser_page_left_as_tab");
+  // A second launch's command line with a link: a little window, nothing left to Chromium.
+  base::CommandLine script(base::CommandLine::NO_PROGRAM);
+  script.AppendArg(OtherAppPage("script").spec());
+  run.Expect(OpenCommandLineLinksInLittleWindows(profile, script, base::FilePath()),
+             "command_line_taken");
+  // One with a page that opens as a tab too (about:blank; Chromium drops chrome:// pages from a
+  // command line): all of it goes to Chromium (here: not opened at all).
+  base::CommandLine mixed(base::CommandLine::NO_PROGRAM);
+  mixed.AppendArg(OtherAppPage("mixed").spec());
+  mixed.AppendArg("about:blank");
+  run.Expect(!OpenCommandLineLinksInLittleWindows(profile, mixed, base::FilePath()),
+             "mixed_command_line_not_taken");
+  PostDemoTask(base::BindOnce(&OtherAppsCheck), base::Seconds(2));
+}
+
 }  // namespace
 
 bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string& mode) {
@@ -534,6 +627,10 @@ bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string
   }
   if (mode == kNamesMode) {
     RunTabNamesDemo(browser);
+    return true;
+  }
+  if (mode == kOtherAppsMode) {
+    RunOtherAppsDemo(browser);
     return true;
   }
   return false;

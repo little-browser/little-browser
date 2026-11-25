@@ -99,7 +99,8 @@ lb/browser/ui/
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
   views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
   views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
-  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar and =tab-names (below)
+  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar, =tab-names and =other-apps
+                                       (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog, also opened by itself on first run
@@ -125,7 +126,8 @@ Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker),
 `pinned-groups.patch` (pinned groups), `peek-hooks.patch`
 (Peek), `little-window-toolbar.patch`, `little-window-shortcut.patch`,
-`little-window-link-menu.patch` and `little-window-menu.patch` (the little window),
+`little-window-link-menu.patch`, `little-window-menu.patch`, `little-window-other-apps.patch` and
+`little-window-other-apps-mac.patch` (the little window),
 `space-avatar.patch` (the space's emoji as the avatar), `tracking-params.patch` (tracking
 parameters), `element-hiding.patch` (element hiding's agent in each frame and its browser side);
 vertical tabs are the default via `patches/lb/vertical-tabs-default.patch`.
@@ -178,6 +180,10 @@ audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
 `=tab-search` saves Tab Search as unpinned, opens a second window (it must clear that and show the
 button), runs the pin toggle (it must stay pinned), checks the window menu has no toggle and
 right-clicks the button (no menu may open);
+`=other-apps` checks links from other apps: handed over by macOS, a web page must open in a little
+window and a browser page be left to open as a tab; a second launch's command line with a link
+must open it in a little window, and one that also has a page that opens as a tab (about:blank)
+must be left to Chromium;
 `=hidden-sidebar` hides the sidebar (it must take no room and not be drawn), slides it in over
 the page (to the sidebar's width, the page not moving), drags its edge 60 px wider (it must widen
 in place, stay hidden, save the width and keep its resize area), then lets go as the pointer

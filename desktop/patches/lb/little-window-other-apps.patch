@@ -1,0 +1,33 @@
+# Little Browser: links on the command line of a second launch (another app or a script running
+# the browser while it runs) open in little windows of their own instead of tabs (docs/ux.md
+# section 8), in the profile Chromium would use for them (GetPrivateProfileIfRequested: guest or
+# incognito when asked for or required by policy). lb::OpenCommandLineLinksInLittleWindows takes
+# the command line only when every link on it opens in a little window and a window can open in
+# that profile (lb::OpensCommandLineInLittleWindows); otherwise Chromium handles it.
+--- a/chrome/browser/ui/startup/startup_browser_creator.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator.cc
+@@ -97,6 +97,7 @@
+ #include "content/public/common/content_switches.h"
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/common/switches.h"
++#include "lb/browser/ui/views/little_window/little_window.h"
+ #include "printing/buildflags/buildflags.h"
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -1562,6 +1563,16 @@
+     return;
+   }
+ 
++  // Little Browser: links on a second launch's command line (from another
++  // app) open in little windows, in the profile Chromium would use for them
++  // (guest or incognito when asked for or required by policy).
++  if (mode == StartupProfileMode::kBrowserWindow &&
++      lb::OpenCommandLineLinksInLittleWindows(
++          GetPrivateProfileIfRequested(command_line, {profile, mode}),
++          command_line, cur_dir)) {
++    return;
++  }
++
+   Profiles last_opened_profiles;
+ #if !BUILDFLAG(IS_CHROMEOS)
+   // On ChromeOS multiple profiles doesn't apply.

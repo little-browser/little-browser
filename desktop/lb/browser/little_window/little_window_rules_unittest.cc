@@ -5,6 +5,7 @@
 #include "lb/browser/little_window/little_window_rules.h"
 
 #include "testing/gtest/include/gtest/gtest.h"
+#include "url/gurl.h"
 
 namespace lb {
 namespace {
@@ -61,6 +62,39 @@ TEST(LittleWindowRulesTest, OpenInSpaceLabel) {
   EXPECT_EQ(OpenInSpaceLabel("Work"), u"Open in Work");
   EXPECT_EQ(OpenInSpaceLabel("Ma vie privée"), u"Open in Ma vie privée");
   EXPECT_EQ(OpenInSpaceLabel(""), u"Open in a tab");
+}
+
+TEST(LittleWindowRulesTest, WebPagesAndFilesFromOtherAppsOpenInLittleWindows) {
+  EXPECT_TRUE(OpensFromOtherAppInLittleWindow(GURL("https://example.com/a"), false));
+  EXPECT_TRUE(OpensFromOtherAppInLittleWindow(GURL("http://example.com/"), false));
+  EXPECT_TRUE(OpensFromOtherAppInLittleWindow(GURL("file:///Users/me/page.html"), false));
+}
+
+TEST(LittleWindowRulesTest, BrowserPagesAndUntrustedLinksFromOtherAppsOpenAsTabs) {
+  EXPECT_FALSE(OpensFromOtherAppInLittleWindow(GURL("chrome://settings/"), false));
+  EXPECT_FALSE(OpensFromOtherAppInLittleWindow(GURL("chrome-extension://abc/page.html"), false));
+  EXPECT_FALSE(OpensFromOtherAppInLittleWindow(GURL("about:blank"), false));
+  EXPECT_FALSE(OpensFromOtherAppInLittleWindow(GURL("not a url"), false));
+  EXPECT_FALSE(OpensFromOtherAppInLittleWindow(GURL("https://example.com/"), true));
+}
+
+TEST(LittleWindowRulesTest, CommandLineLinksOpenInLittleWindows) {
+  EXPECT_TRUE(OpensCommandLineInLittleWindows(
+      {.links = 2, .little_window_links = 2, .can_open_window = true}));
+}
+
+TEST(LittleWindowRulesTest, CommandLineGoesToChromiumOtherwise) {
+  // No links (a plain second launch opens a window as Chromium does).
+  EXPECT_FALSE(OpensCommandLineInLittleWindows({.can_open_window = true}));
+  // One of them opens as a tab (chrome://settings): Chromium opens them all, none twice.
+  EXPECT_FALSE(OpensCommandLineInLittleWindows(
+      {.links = 2, .little_window_links = 1, .can_open_window = true}));
+  // An app launch.
+  EXPECT_FALSE(OpensCommandLineInLittleWindows(
+      {.links = 1, .little_window_links = 1, .app_launch = true, .can_open_window = true}));
+  // No window can open in that profile (forced incognito asked for the regular one, shutdown):
+  // Chromium decides, rather than the links being lost.
+  EXPECT_FALSE(OpensCommandLineInLittleWindows({.links = 1, .little_window_links = 1}));
 }
 
 }  // namespace

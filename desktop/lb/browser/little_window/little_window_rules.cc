@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "base/strings/utf_string_conversions.h"
+#include "url/gurl.h"
 
 namespace lb {
 
@@ -42,6 +43,15 @@ std::u16string OpenInSpaceLabel(std::string_view space_name) {
     return u"Open in a tab";
   }
   return u"Open in " + base::UTF8ToUTF16(space_name);
+}
+
+bool OpensCommandLineInLittleWindows(const CommandLineLinks& links) {
+  return links.links > 0 && links.little_window_links == links.links && !links.app_launch &&
+         links.can_open_window;
+}
+
+bool OpensFromOtherAppInLittleWindow(const GURL& url, bool untrusted_launch) {
+  return !untrusted_launch && url.is_valid() && (url.SchemeIsHTTPOrHTTPS() || url.SchemeIsFile());
 }
 
 }  // namespace lb

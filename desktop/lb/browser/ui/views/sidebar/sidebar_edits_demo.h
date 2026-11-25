@@ -29,6 +29,11 @@ namespace lb {
 // link; the space's saved tabs carry both. With --lb-ui-snapshot-sidebar=<png> it captures the
 // named rows at the end.
 //
+// --lb-sidebar-demo=other-apps: links from other apps (docs/ux.md §8). Links handed over by macOS
+// must open the web page in a little window and leave a browser page to open as a tab; a second
+// launch's command line with a link must open it in a little window, and one that also has a page
+// that opens as a tab (about:blank) must be left to Chromium.
+//
 // Returns false for any other mode.
 bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string& mode);
 

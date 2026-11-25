@@ -1,0 +1,37 @@
+# Little Browser: a link another app opens through macOS (a mail link, `open <url>`, a link in
+# another app) opens in a little window of its own instead of a tab in the main window
+# (docs/ux.md section 8). lb::OpenLinksFromOtherAppsInLittleWindows opens the links its rule takes
+# (web pages and local files) and leaves the rest, which open as tabs, as Chromium opens them.
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -137,6 +137,7 @@
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/browser/extension_system.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "lb/browser/ui/views/little_window/little_window.h"
+ #include "net/base/apple/url_conversions.h"
+ #include "net/base/filename_util.h"
+ #include "ui/base/base_window.h"
+@@ -2659,7 +2660,7 @@
+   [AppController.sharedController setLastProfile:profile];
+ }
+ 
+-void OpenStartupTabsInBrowserWithProfile(const StartupTabs& tabs,
++void OpenStartupTabsInBrowserWithProfile(const StartupTabs& links,
+                                          Profile* profile) {
+   if (!profile)
+     return;  // No suitable profile to open the URLs, do nothing.
+@@ -2667,6 +2668,13 @@
+   if (profile->IsIncognitoProfile()) {
+     profile = ProfileManager::MaybeForceOffTheRecordMode(
+         profile->GetOriginalProfile());
++  }
++  // Little Browser: links from other apps open in little windows; the rest
++  // open as tabs below.
++  const StartupTabs tabs =
++      lb::OpenLinksFromOtherAppsInLittleWindows(profile, links);
++  if (tabs.empty()) {
++    return;
+   }
+   // Use FindTabbedBrowser() to ensure URLs open in a normal tabbed browser
+   // window, not in PWA/app windows which cannot accept new tabs.

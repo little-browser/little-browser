@@ -8,11 +8,17 @@
 #include <memory>
 #include <string>
 
+#include "chrome/browser/ui/startup/startup_tab.h"
 #include "lb/browser/peek/peek_rules.h"
 
 class BrowserWindowInterface;
 class GURL;
 class Profile;
+
+namespace base {
+class CommandLine;
+class FilePath;
+}  // namespace base
 
 namespace content {
 class WebContents;
@@ -41,6 +47,21 @@ void OpenUrlInLittleWindow(Profile* profile, const GURL& url);
 // Opens a link in a new little window of `profile`, with the referrer, initiator and source the
 // page gave it (a link's "Open Link in Little Window").
 void OpenUrlInLittleWindow(Profile* profile, const content::OpenURLParams& open);
+
+// Links from other apps (docs/ux.md section 8), each in a new little window of `profile`:
+//   - Opened through macOS (a mail link, `open <url>`;
+//   patches/lb/little-window-other-apps-mac.patch):
+//     opens those of `tabs` that OpensFromOtherAppInLittleWindow takes, and returns the rest for
+//     Chromium to open as tabs.
+StartupTabs OpenLinksFromOtherAppsInLittleWindows(Profile* profile, const StartupTabs& tabs);
+//   - On the command line of a second launch (patches/lb/little-window-other-apps.patch), in the
+//     profile Chromium would open them in (guest or private when asked for): true if they opened in
+//     little windows (lb::OpensCommandLineInLittleWindows), so Chromium opens nothing. False leaves
+//     the command line to Chromium: no links, a link that opens as a tab, --app, or no window can
+//     open in that profile.
+bool OpenCommandLineLinksInLittleWindows(Profile* profile,
+                                         const base::CommandLine& command_line,
+                                         const base::FilePath& cur_dir);
 
 // Makes `contents` the active tab of the profile's most recently used window with tabs, in the
 // space that window shows, and brings that window to the front; opens a window if there is none.
