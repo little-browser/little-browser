@@ -33,11 +33,21 @@ icons-only form (`lb::IsSidebarCompact`) while the strip is collapsed and not ex
 an expanded strip dragged narrow keeps the full form, as its tabs do.
 
 **Hidden sidebar.** Hiding the sidebar is Chromium's collapse, but where Chromium keeps a column
-of icons beside the page, ours takes no room (`patches/lb/hidden-sidebar-ui.patch`). The tabbed
-layout asks `lb::LayOutSidebar` (`lb/browser/tabs/sidebar_width.h`) for the strip's widths: the
-page's inset follows Chromium's collapse animation down to none, and a collapsed strip is a band
-`kHiddenSidebarEdgeWidth` (6 px) wide at the window's edge whose layer has opacity 0, so it is
-not drawn but still takes the pointer (no row has any width inside it). Chromium's expand on hover
+of icons beside the page, ours takes only an edge band (`patches/lb/hidden-sidebar-ui.patch`). The
+tabbed layout asks `lb::LayOutSidebar` (`lb/browser/tabs/sidebar_width.h`) for the strip's widths:
+the page's inset follows Chromium's collapse animation down to `kHiddenSidebarEdgeWidth` (8 px,
+the page card's margin on its right and below it), so the window's background shows there as a
+border where the pointer goes, and a collapsed strip is that band, whose layer has opacity 0, so
+it is not drawn but still takes the pointer. The band and the slid-in strip run the window's full
+height (`SidebarWidths::full_height`: the strip's top is the window's, not Chromium's
+`top_offset` below the toolbar), so the strip's header lays itself out beside the window's
+buttons as the shown sidebar's does. The pointer up to `kSidebarOutsideReach` (60 pt) left of the
+window, within its height, counts as hovering the strip (`lb::InSidebarOutsideZone`, read live
+from the cursor in `VerticalTabStripRegionView::LbPointerNearEdge`). The window gets no pointer
+events out there, so `lb::SidebarEdgeWatcher` (macOS: a global `NSEvent` monitor for pointer
+moves, which only observes and needs no Accessibility permission; none on other platforms yet)
+has the strip re-check on each move; Chromium's own rule then slides it in once the pointer slows
+down, only in the active window (no row has any width inside it). Chromium's expand on hover
 then slides it in over the page, to the user's width instead of Chromium's default; showing the
 sidebar while it is slid in keeps the strip at that width while the page's inset grows. With
 expand on hover turned off, `LayOutSidebar` leaves Chromium's collapsed strip as it is, a column of

@@ -106,6 +106,8 @@ HiddenRun& TheHiddenRun() {
 }
 
 void HiddenWithoutHover();
+void HiddenFromOutside();
+void HiddenLeftOutside();
 
 void HiddenSlidOut() {
   HiddenRun& run = TheHiddenRun();
@@ -117,6 +119,44 @@ void HiddenSlidOut() {
   run.detail += " | let go: " + run.State(region);
   run.Expect(region->width() == kHiddenSidebarEdgeWidth, "slides out to the edge band");
   run.Expect(region->layer()->opacity() == 0.0f, "not drawn once slid out");
+  // The pointer resting just left of the window (lb::InSidebarOutsideZone) slides it in too, in
+  // the active window.
+  run.browser->GetWindow()->Activate();
+  region->LbSetPointerNearEdgeForTesting(true);
+  PostDemoTask(base::BindOnce(&HiddenFromOutside), base::Milliseconds(1500));
+}
+
+void HiddenFromOutside() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  // Chromium slides it in only while the window is active. If macOS kept another app in front
+  // (someone is using the Mac), the check can't run: say so rather than fail.
+  run.detail += " | from outside: " + run.State(region);
+  if (region->GetWidget()->ShouldPaintAsActive()) {
+    run.Expect(region->is_expanded_on_hover(), "slides in from left of the window");
+  } else {
+    run.detail += " (not checked: the window isn't active)";
+  }
+  // The pointer leaves that zone (and isn't over the sidebar): it slides out.
+  region->LbSetPointerNearEdgeForTesting(false);
+  PostDemoTask(base::BindOnce(&HiddenLeftOutside), base::Milliseconds(1500));
+}
+
+void HiddenLeftOutside() {
+  HiddenRun& run = TheHiddenRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  run.detail += " | left outside: " + run.State(region);
+  run.Expect(!region->is_expanded_on_hover() && region->width() == kHiddenSidebarEdgeWidth,
+             "slides out once the pointer leaves the zone");
+  region->LbSetPointerNearEdgeForTesting(std::nullopt);
   // With expand on hover off nothing would slide it in: it stays Chromium's column of icons.
   if (auto* state = tabs::VerticalTabStripStateController::From(run.browser.get())) {
     state->SetExpandOnHoverEnabled(false);
@@ -162,7 +202,7 @@ void HiddenResized() {
   run.Expect(region->width() == wider, "widened in place");
   run.Expect(state->GetUncollapsedWidth() == wider, "the new width is the sidebar's");
   run.Expect(state->IsCollapsed(), "still hidden");
-  run.Expect(PageLeft(run.browser.get()) <= 1, "the page stays put under it");
+  run.Expect(PageLeft(run.browser.get()) == kHiddenSidebarEdgeWidth, "the page stays put under it");
   // Its edge can be dragged again: the resize area stays while it is slid in.
   run.Expect(region->resize_area_for_testing()->GetVisible(), "resize area kept after a drag");
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(kSnapshotSwitch)) {
@@ -189,7 +229,8 @@ void HiddenSlidIn() {
   run.Expect(region->is_expanded_on_hover(), "slid in");
   run.Expect(region->width() == run.width, "slides in to the sidebar's width");
   run.Expect(region->layer()->opacity() == 1.0f, "drawn while slid in");
-  run.Expect(PageLeft(run.browser.get()) <= 1, "over the page, which doesn't move");
+  run.Expect(PageLeft(run.browser.get()) == kHiddenSidebarEdgeWidth,
+             "over the page, which doesn't move");
   // Drag its edge 60 px to the right, as the resize area does.
   region->OnResize(30, /*done_resizing=*/false);
   region->OnResize(60, /*done_resizing=*/true);
@@ -210,7 +251,8 @@ void HiddenCollapsed() {
   run.Expect(state->IsCollapsed(), "hidden");
   run.Expect(region->width() == kHiddenSidebarEdgeWidth, "only the edge band");
   run.Expect(region->layer()->opacity() == 0.0f, "not drawn");
-  run.Expect(PageLeft(run.browser.get()) <= 1, "the page takes the window's width");
+  run.Expect(PageLeft(run.browser.get()) == kHiddenSidebarEdgeWidth,
+             "the page leaves only the edge band");
   // What the pointer at the window's edge does.
   run.slide_in = region->GetExpandOnHoverLock(ExpandOnHoverLockType::kKeepExpanded);
   PostDemoTask(base::BindOnce(&HiddenSlidIn), base::Milliseconds(1500));

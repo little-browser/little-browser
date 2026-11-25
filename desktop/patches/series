@@ -69,4 +69,4 @@ lb/element-hiding.patch              # element hiding: each frame gets the CSS t
 lb/no-lens-chip.patch                 # no Google Lens promo chip in the address bar (it crashed on parked tabs)
 lb/tab-names.patch                   # a tab can be renamed; a pinned tab keeps a link to go back to
 lb/tab-names-ui.patch                # a renamed tab is read by its name (accessible label)
-lb/hidden-sidebar-ui.patch            # a hidden sidebar takes no room and slides in, resizable, over the page
+lb/hidden-sidebar-ui.patch            # a hidden sidebar keeps only an edge band and slides in, full height and resizable, over the page

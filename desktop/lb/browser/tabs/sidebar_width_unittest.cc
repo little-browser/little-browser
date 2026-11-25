@@ -5,6 +5,8 @@
 #include "lb/browser/tabs/sidebar_width.h"
 
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/gfx/geometry/point.h"
+#include "ui/gfx/geometry/rect.h"
 
 namespace lb {
 namespace {
@@ -23,6 +25,7 @@ TEST(SidebarWidthTest, ShownSidebarIsChromiums) {
   EXPECT_EQ(widths.page_inset, kWidth);
   EXPECT_EQ(widths.strip, kWidth);
   EXPECT_TRUE(widths.drawn);
+  EXPECT_FALSE(widths.full_height);  // Chromium places it
 }
 
 TEST(SidebarWidthTest, ShownSidebarSqueezedByANarrowWindowKeepsItsWidth) {
@@ -33,24 +36,56 @@ TEST(SidebarWidthTest, ShownSidebarSqueezedByANarrowWindowKeepsItsWidth) {
   EXPECT_TRUE(widths.drawn);
 }
 
-TEST(SidebarWidthTest, HiddenSidebarTakesNoRoomAndIsNotDrawn) {
-  const SidebarWidths widths = Lay(kCollapsed);
-  EXPECT_EQ(widths.page_inset, 0);
-  EXPECT_EQ(widths.strip, kHiddenSidebarEdgeWidth);
-  EXPECT_FALSE(widths.drawn);
+// In fullscreen the page has no card margins: hidden, it takes the whole width, the band over it.
+TEST(SidebarWidthTest, HiddenSidebarWithoutACardLeavesThePageTheWholeWidth) {
+  const SidebarWidths hidden = LayOutSidebar(
+      {.strip = kCollapsed, .collapsed = kCollapsed, .uncollapsed = kWidth, .page_is_card = false});
+  EXPECT_EQ(hidden.page_inset, 0);
+  EXPECT_EQ(hidden.strip, kHiddenSidebarEdgeWidth);
+  EXPECT_FALSE(hidden.drawn);
+  EXPECT_TRUE(hidden.full_height);
+  // Hiding still animates to it, and is drawn until the end.
+  const SidebarWidths end = LayOutSidebar({.strip = kCollapsed + 1,
+                                           .collapsed = kCollapsed,
+                                           .uncollapsed = kWidth,
+                                           .page_is_card = false});
+  EXPECT_GT(end.page_inset, 0);
+  EXPECT_TRUE(end.drawn);
+  // Slid in over the page: as with a card.
+  const SidebarWidths slid = LayOutSidebar({.strip = kCollapsed,
+                                            .collapsed = kCollapsed,
+                                            .uncollapsed = kWidth,
+                                            .slide_in = 1.0,
+                                            .page_is_card = false});
+  EXPECT_EQ(slid.page_inset, 0);
+  EXPECT_EQ(slid.strip, kWidth);
+  EXPECT_TRUE(slid.drawn);
 }
 
-TEST(SidebarWidthTest, HidingAnimatesFromTheWidthToNothing) {
+// The page leaves the edge band, where the window's background shows the pointer where to go.
+TEST(SidebarWidthTest, HiddenSidebarLeavesOnlyTheEdgeBandAndIsNotDrawn) {
+  const SidebarWidths widths = Lay(kCollapsed);
+  EXPECT_EQ(widths.page_inset, kHiddenSidebarEdgeWidth);
+  EXPECT_EQ(widths.strip, kHiddenSidebarEdgeWidth);
+  EXPECT_FALSE(widths.drawn);
+  // The whole left edge slides it in, beside the toolbar row too.
+  EXPECT_TRUE(widths.full_height);
+}
+
+TEST(SidebarWidthTest, HidingAnimatesFromTheWidthToTheEdgeBand) {
   // Halfway through Chromium's animation, halfway through ours.
   const SidebarWidths half = Lay(kCollapsed + (kWidth - kCollapsed) / 2);
-  EXPECT_EQ(half.page_inset, kWidth / 2);
-  EXPECT_EQ(half.strip, kWidth / 2);
+  EXPECT_EQ(half.page_inset, kHiddenSidebarEdgeWidth + (kWidth - kHiddenSidebarEdgeWidth) / 2);
+  EXPECT_EQ(half.strip, half.page_inset);
   EXPECT_TRUE(half.drawn);
-  // Near the end the strip keeps the edge band, so the pointer can still reach it.
+  // Just before the end it is still drawn, a little wider than the band.
   const SidebarWidths end = Lay(kCollapsed + 1);
-  EXPECT_EQ(end.page_inset, 1);
-  EXPECT_EQ(end.strip, kHiddenSidebarEdgeWidth);
+  EXPECT_GT(end.page_inset, kHiddenSidebarEdgeWidth);
+  EXPECT_EQ(end.strip, end.page_inset);
   EXPECT_TRUE(end.drawn);
+  // Hiding is Chromium's animation, top and all.
+  EXPECT_FALSE(half.full_height);
+  EXPECT_FALSE(end.full_height);
 }
 
 TEST(SidebarWidthTest, InsetNeverPassesTheWidth) {
@@ -59,13 +94,16 @@ TEST(SidebarWidthTest, InsetNeverPassesTheWidth) {
 
 TEST(SidebarWidthTest, SlidesInToTheUsersWidthOverThePage) {
   const SidebarWidths half = Lay(kCollapsed, 0.5);
-  EXPECT_EQ(half.page_inset, 0);
+  EXPECT_EQ(half.page_inset, kHiddenSidebarEdgeWidth);
   EXPECT_EQ(half.strip, kHiddenSidebarEdgeWidth + (kWidth - kHiddenSidebarEdgeWidth) / 2);
   EXPECT_TRUE(half.drawn);
 
   const SidebarWidths full = Lay(kCollapsed, 1.0);
-  EXPECT_EQ(full.page_inset, 0);
+  EXPECT_EQ(full.page_inset, kHiddenSidebarEdgeWidth);
   EXPECT_EQ(full.strip, kWidth);
+  // Slid in, it runs the window's full height, as Arc's does.
+  EXPECT_TRUE(half.full_height);
+  EXPECT_TRUE(full.full_height);
 
   // A wider sidebar slides in wider (Chromium's own goes to its default width).
   EXPECT_EQ(Lay(kCollapsed, 1.0, 380).strip, 380);
@@ -93,6 +131,8 @@ TEST(SidebarWidthTest, ShowingASlidInSidebarKeepsItsWidth) {
     const SidebarWidths widths = Lay(strip, /*slide_in=*/1.0 - shown);
     EXPECT_EQ(widths.strip, kWidth) << shown;
     EXPECT_TRUE(widths.drawn);
+    // It stays full height until it is no longer slid in, so its top doesn't jump down.
+    EXPECT_TRUE(widths.full_height) << shown;
   }
 }
 
@@ -103,6 +143,42 @@ TEST(SidebarWidthTest, WithoutExpandOnHoverAHiddenSidebarIsChromiumsColumn) {
   EXPECT_EQ(widths.page_inset, kCollapsed);
   EXPECT_EQ(widths.strip, kCollapsed);
   EXPECT_TRUE(widths.drawn);
+  EXPECT_FALSE(widths.full_height);
+}
+
+// The pointer up to 60 pt left of the window, within its height, slides a hidden sidebar in.
+TEST(SidebarWidthTest, OutsideZoneIsLeftOfTheWindowWithinItsHeight) {
+  const gfx::Rect window(300, 100, 1200, 800);
+  const gfx::Rect display(0, 0, 1920, 1080);
+  EXPECT_TRUE(InSidebarOutsideZone({299, 100}, window, display));
+  EXPECT_TRUE(InSidebarOutsideZone({300 - kSidebarOutsideReach, 899}, window, display));
+  EXPECT_TRUE(InSidebarOutsideZone({270, 500}, window, display));
+  // Farther left, above or below the window: not in it.
+  EXPECT_FALSE(InSidebarOutsideZone({300 - kSidebarOutsideReach - 1, 500}, window, display));
+  EXPECT_FALSE(InSidebarOutsideZone({270, 99}, window, display));
+  EXPECT_FALSE(InSidebarOutsideZone({270, 900}, window, display));
+  // The window itself is the strip's: not the zone.
+  EXPECT_FALSE(InSidebarOutsideZone({300, 500}, window, display));
+  EXPECT_FALSE(InSidebarOutsideZone({800, 500}, window, display));
+  // Right of the window: nothing.
+  EXPECT_FALSE(InSidebarOutsideZone({1520, 500}, window, display));
+}
+
+TEST(SidebarWidthTest, NoOutsideZoneWithoutAWindow) {
+  EXPECT_FALSE(InSidebarOutsideZone({-10, 5}, gfx::Rect(), gfx::Rect(0, 0, 1920, 1080)));
+}
+
+// A window at its display's left edge has no zone, even with another display to its left, where
+// the pointer would be on that display's right edge (its windows' scrollbars).
+TEST(SidebarWidthTest, OutsideZoneStaysOnTheWindowsDisplay) {
+  const gfx::Rect right_display(1920, 0, 1920, 1080);
+  const gfx::Rect maximized(1920, 25, 1920, 1055);
+  EXPECT_FALSE(InSidebarOutsideZone({1900, 500}, maximized, right_display));
+  EXPECT_FALSE(InSidebarOutsideZone({1919, 500}, maximized, right_display));
+  // Partly off: only the part on its display counts.
+  const gfx::Rect near_edge(1950, 25, 1200, 800);
+  EXPECT_TRUE(InSidebarOutsideZone({1930, 500}, near_edge, right_display));
+  EXPECT_FALSE(InSidebarOutsideZone({1900, 500}, near_edge, right_display));
 }
 
 TEST(SidebarWidthTest, ResizeArea) {

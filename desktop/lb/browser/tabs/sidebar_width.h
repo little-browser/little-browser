@@ -5,14 +5,32 @@
 #ifndef LB_BROWSER_TABS_SIDEBAR_WIDTH_H_
 #define LB_BROWSER_TABS_SIDEBAR_WIDTH_H_
 
+namespace gfx {
+class Point;
+class Rect;
+}  // namespace gfx
+
 namespace lb {
 
 // A hidden sidebar (docs/ux.md §2) is Chromium's collapsed vertical strip, which Chromium keeps
-// as a column of icons beside the page. Ours takes no room: the page fills the window, and the
-// strip is an invisible band this wide at the window's left edge, where the pointer slides it in
-// (Chromium's expand on hover). With expand on hover turned off nothing would slide it in, so it
-// stays Chromium's column of icons.
-inline constexpr int kHiddenSidebarEdgeWidth = 6;
+// as a column of icons beside the page. Ours is only a band this wide at the window's left edge:
+// the page leaves it, so the window's background shows there as it does right of and below the
+// page (as wide as that margin, lb::kContentsCardInset), and the pointer on it slides the sidebar
+// in (Chromium's expand on hover). With expand on hover turned off nothing would slide it in, so
+// it stays Chromium's column of icons.
+inline constexpr int kHiddenSidebarEdgeWidth = 8;
+
+// The pointer also slides it in from just outside the window: up to this far left of the window's
+// left edge, within the window's height, on the window's own display (docs/ux.md §2). Where the
+// window touches its display's left edge there is no zone, also with another display beside it,
+// and the edge band alone does.
+inline constexpr int kSidebarOutsideReach = 60;
+// Whether the pointer at `pointer` is in that zone left of `window` on `display` (the bounds of
+// the display the window is on; all in screen coordinates). The window itself isn't in it: there
+// the strip takes the pointer.
+bool InSidebarOutsideZone(const gfx::Point& pointer,
+                          const gfx::Rect& window,
+                          const gfx::Rect& display);
 
 // Where Chromium's layout has the strip, as it would draw it.
 struct ChromiumSidebarWidths {
@@ -29,21 +47,30 @@ struct ChromiumSidebarWidths {
   bool shown = false;
   // Expand on hover is on, so a hidden sidebar can slide in.
   bool slides_in = true;
+  // The page is an inset card (lb::ContentsCardBounds, not in fullscreen): a hidden sidebar's band
+  // shows beside it as the window's background, as the card's other margins do. Without the card
+  // the page takes the whole width and the band lies, invisible, over it.
+  bool page_is_card = true;
 };
 
 // Where Little Browser lays the strip out instead.
 struct SidebarWidths {
-  // How much of the window's width beside the page the strip takes: none while hidden.
+  // How much of the window's width beside the page the strip takes: the edge band while hidden
+  // (none when the page isn't a card).
   int page_inset = 0;
   // The strip's own width: the page inset, at least the edge band, and slid in over the page to
   // the user's width.
   int strip = 0;
-  // Whether the strip is drawn: not while it is only the invisible edge band.
+  // Whether the strip is drawn: not while it is only the edge band (the window's background).
   bool drawn = false;
+  // Whether the strip runs the window's full height, over the toolbar row too: while it is only
+  // the edge band (so the whole edge slides it in) and while it is slid in over the page. Beside
+  // the page (shown, or Chromium's column of icons), Chromium places its top.
+  bool full_height = false;
 };
 
 // The strip's widths as Little Browser lays them out. Hiding and showing keep Chromium's
-// animation, mapped so that the page takes the whole window once the strip is hidden; sliding in
+// animation, mapped so that the page leaves only the edge band once the strip is hidden; sliding in
 // goes to the width the user gave the sidebar, not Chromium's default. Showing a sidebar that is
 // slid in keeps it at that width while the page makes room beside it.
 SidebarWidths LayOutSidebar(const ChromiumSidebarWidths& chromium);

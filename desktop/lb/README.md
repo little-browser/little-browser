@@ -45,7 +45,7 @@ lb/browser/tabs/tab_to_show.*       which tab to show when the shown pinned tab 
 lb/browser/tabs/pinned_groups.*     pinned groups' rules: unbroken runs, a moved tab's group, rows,
                                     the group menu, session data (unit tested)
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
-lb/browser/tabs/sidebar_width.*     a hidden sidebar's widths: no room beside the page, slid in to the
+lb/browser/tabs/sidebar_width.*     a hidden sidebar's widths: only the edge band, slid in (full height) to the
                                     user's width, resized while slid in, its resize area (unit tested)
 lb/browser/tabs/tab_names.*         tab names and pinned links: saved form, cleaning, when a link is
                                     taken or dropped, "left its link", the tab menu's items (unit tested)
@@ -116,6 +116,8 @@ lb/browser/ui/
   views/profiles/space_avatar_demo.*   --lb-sidebar-demo=space-avatar (below)
   views/browser_modal_dialog.*      base for our browser-modal dialogs (deletes itself when closed)
   views/frame/contents_card.h       the page as an inset rounded card next to the sidebar
+  views/sidebar/sidebar_edge_watcher*  macOS: pointer moves outside the window, so a hidden sidebar
+                                     slides in from just left of it
 ```
 
 Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
@@ -184,10 +186,13 @@ right-clicks the button (no menu may open);
 window and a browser page be left to open as a tab; a second launch's command line with a link
 must open it in a little window, and one that also has a page that opens as a tab (about:blank)
 must be left to Chromium;
-`=hidden-sidebar` hides the sidebar (it must take no room and not be drawn), slides it in over
+`=hidden-sidebar` hides the sidebar (it must take only the edge band, the page leaving that band,
+and not be drawn), slides it in over
 the page (to the sidebar's width, the page not moving), drags its edge 60 px wider (it must widen
 in place, stay hidden, save the width and keep its resize area), then lets go as the pointer
-leaves (it must slide out), turns expand on hover off (it must be Chromium's column of icons) and
+leaves (it must slide out), puts a stand-in pointer just left of the window (it must slide in,
+when the window is active; otherwise the log says it wasn't checked) and takes it away (it must
+slide out), turns expand on hover off (it must be Chromium's column of icons) and
 puts the sidebar back as it was;
 `=tab-names` renames a tab (its row must show the name), checks the tab menu's items, renames it
 again through the command bar, pins it (its link must be its page), loads another page (Use

@@ -74,9 +74,13 @@ Sidebar zones, top to bottom:
 - **Page area** is inset by 8 px with rounded corners and a soft shadow; this frames the page and
   makes the sidebar feel like part of the window, not a toolbar.
 - **Hide the sidebar** with its toggle in the title row, or Cmd+S. The page then fills the window
-  and nothing of the sidebar stays on screen. Resting the pointer on the window's left edge slides
-  the sidebar in *over* the page, at the sidebar's width, and it slides out when the pointer
-  leaves. Dragging its edge while it is slid in resizes it there; it stays hidden, and the new
+  but for an 8 px margin on the left, the same as on its right and below it, and nothing of the
+  sidebar stays on screen. Resting the pointer on the window's left edge (that margin, and beside
+  the toolbar row), or up to 60 pt to the left of the window within its height, slides the
+  sidebar in *over* the page and the toolbar, the window's full
+  height, at the sidebar's width, and it slides out when the pointer
+  leaves (the sidebar and that zone). The zone outside works only for the active window while
+  Little Browser is the app in front, and doesn't block clicks there. Dragging its edge while it is slid in resizes it there; it stays hidden, and the new
   width is the sidebar's when it is shown again. Showing it while it is slid in keeps it at its
   width while the page makes room. With Chromium's "Expand on hover" turned off (the toggle's
   right-click menu), nothing would slide a hidden sidebar in, so it stays a column of icons
