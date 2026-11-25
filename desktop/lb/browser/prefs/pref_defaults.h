@@ -13,7 +13,9 @@ namespace lb {
 
 // Changes the defaults of Chromium profile prefs that Little Browser sets differently from its
 // base. Call after Chromium has registered them (lb::RegisterProfilePrefs runs last).
-//   - Addresses are saved and filled (docs/design.md §7.8); ungoogled-chromium turns this off.
+//   - Addresses aren't saved or filled, so a form gives no "Save address?" prompt, until the user
+//     turns on Settings' "Save and fill addresses" (docs/design.md §7.8). Set here, not left to
+//     ungoogled-chromium, which happens to turn it off too, so an update there can't turn it on.
 void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry);
 
 }  // namespace lb

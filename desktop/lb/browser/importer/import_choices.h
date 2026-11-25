@@ -62,8 +62,17 @@ ImportOfferStep NextImportOfferStep(const ImportOfferState& state);
 // The items a source has (the table in docs/ux.md §13).
 uint32_t OfferedImportItems(ImportSourceKind kind);
 
-// The items ticked when a source is picked: all it has, except cookies.
-uint32_t DefaultImportItems(ImportSourceKind kind);
+// The items ticked when a source is picked: all it has, except cookies, and addresses while the
+// profile doesn't save addresses (`addresses_on`, Settings' "Save and fill addresses", off by
+// default).
+uint32_t DefaultImportItems(ImportSourceKind kind, bool addresses_on);
+
+// Whether an item's checkbox can be ticked: every item but addresses, which only can while the
+// profile saves addresses (Chromium drops addresses added while it doesn't).
+bool CanTickImportItem(ImportItem item, bool addresses_on);
+
+// The line under a disabled Addresses checkbox: where to turn saving addresses on.
+std::u16string AddressesOffNote();
 
 // Every item the dialog lists, in its order.
 std::vector<ImportItem> ImportItemsInOrder();

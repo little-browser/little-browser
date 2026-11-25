@@ -31,7 +31,7 @@ lb/browser/importer/                import from other browsers (docs/desktop-ui.
   import_keychain.mm                reads a "<browser> Safe Storage" keychain item
   import_text.*                     makes other browsers' bytes valid UTF-8 for lb-core (unit tested)
   import_demo.*                     --lb-sidebar-demo=import-* (below)
-lb/browser/prefs/pref_defaults.*    Chromium prefs whose default differs here (address autofill on)
+lb/browser/prefs/pref_defaults.*    Chromium prefs whose default differs here (address autofill off)
 lb/browser/privacy/tracking_params.*  a page navigation and its redirects lose their tracking
                                     parameters (lb-core's list), through a loader throttle
 lb/browser/privacy/tracking_params_demo.*  --lb-sidebar-demo=tracking-params (below)

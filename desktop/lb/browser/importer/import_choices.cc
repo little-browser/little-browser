@@ -88,8 +88,22 @@ std::vector<ExtensionGroup> GroupExtensionsByProfile(const std::vector<std::u16s
   return groups;
 }
 
-uint32_t DefaultImportItems(ImportSourceKind kind) {
-  return OfferedImportItems(kind) & ~static_cast<uint32_t>(kImportCookies);
+uint32_t DefaultImportItems(ImportSourceKind kind, bool addresses_on) {
+  uint32_t ticked = OfferedImportItems(kind) & ~static_cast<uint32_t>(kImportCookies);
+  if (!CanTickImportItem(kImportAddresses, addresses_on)) {
+    ticked &= ~static_cast<uint32_t>(kImportAddresses);
+  }
+  return ticked;
+}
+
+bool CanTickImportItem(ImportItem item, bool addresses_on) {
+  return item != kImportAddresses || addresses_on;
+}
+
+std::u16string AddressesOffNote() {
+  return u"To bring addresses along, turn on \u201cSave and fill addresses\u201d in Settings "
+         u"\u2192 "
+         u"Autofill and passwords \u2192 Addresses and more.";
 }
 
 std::vector<ImportItem> ImportItemsInOrder() {

@@ -497,7 +497,8 @@ password manager's job (design.md §7.8), and its own import takes them.
      Chrome-family browsers and Arc, spaces, profiles and tabs are one checkbox, **Spaces,
      profiles and tabs**. Under **Stay signed in (cookies)** a line says that macOS will ask to
      let Little Browser use "‹browser› Safe Storage" from the keychain, once for all its
-     profiles.
+     profiles. While saving addresses is off (the default, design.md §7.8), **Addresses** is
+     unticked and greyed out, with a line under it saying where Settings turns it on.
    - **Import** needs at least one profile or space and one item ticked. For the two file
      choices it opens a file picker first.
 3. **Import.** "Importing from ‹browser›…": for a Chrome-family browser or Arc, the ticked items

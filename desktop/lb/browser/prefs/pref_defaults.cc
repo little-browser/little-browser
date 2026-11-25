@@ -11,7 +11,7 @@
 namespace lb {
 
 void SetProfilePrefDefaults(user_prefs::PrefRegistrySyncable* registry) {
-  registry->SetDefaultPrefValue(autofill::prefs::kAutofillProfileEnabled, base::Value(true));
+  registry->SetDefaultPrefValue(autofill::prefs::kAutofillProfileEnabled, base::Value(false));
 }
 
 }  // namespace lb

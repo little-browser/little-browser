@@ -347,8 +347,9 @@ provides (incognito, DevTools, PiP). The rest of the table is specified but not 
 - iOS: `WKWebsiteDataStore.nonPersistent()`; app switcher snapshot blurred; optional Face ID lock.
 
 ### 7.8 Form autofill
-- Desktop: Chromium address autofill, on by default (ungoogled-chromium turns it off; we turn it
-  back on, `desktop/lb/browser/prefs/pref_defaults.*`), **payment cards disabled**, **password manager disabled and
+- Desktop: Chromium address autofill, **off by default** (`desktop/lb/browser/prefs/pref_defaults.*`),
+  so a form gives no "Save address?" prompt; Settings' "Save and fill addresses" turns it on. The
+  import dialog brings addresses along only while it is on. **Payment cards disabled**, **password manager disabled and
   hidden** (pref off + UI removed, rather than deleting code — far cheaper to maintain). Passwords
   are an extension's job: on first run the user can pick 1Password, Bitwarden or Proton Pass, which
   installs from the Chrome Web Store after Chromium's install prompt ([ux.md](ux.md) §12).

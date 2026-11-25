@@ -411,8 +411,10 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
   "Not now" for Cancel; other windows' first-run questions wait until the dialog and its installs
   are over. The dialog's body is a `views::ScrollView` clipped to 480 high, so a long step
   scrolls under a fixed title and buttons.
-- **Address autofill** is on by default (`browser/prefs/pref_defaults.*`); ungoogled-chromium
-  turns it off, and Chromium then drops imported addresses.
+- **Address autofill** is off by default (`browser/prefs/pref_defaults.*`), and Chromium drops
+  addresses added while it is off, so the choices step greys out Addresses (`lb::CanTickImportItem`,
+  with `lb::AddressesOffNote` under it) while the window's profile doesn't save addresses. An
+  import into another profile that doesn't save them names it in its problem lines.
 - **Check.** The `import-fixture`, `import-arc`, `import-arc-unreadable`, `import-edge`,
   `import-files`, `import-dialog`, `import-choices`, `import-progress`, `import-first-run` and
   `import-first-run-close` demos import the made-up sources in `lb/test/data/import/home`, and

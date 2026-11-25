@@ -26,6 +26,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/select_file_policy/chrome_select_file_policy.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/autofill/core/common/autofill_prefs.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
@@ -253,6 +254,12 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
     } else if (page_ == Page::kChoose) {
       for (const auto& box : choice_boxes_) {
         state.rows.push_back(std::u16string(box->GetText()));
+      }
+      state.ticked_items = CheckedItems();
+      for (const auto& [item, box] : item_boxes_) {
+        if (box->GetEnabled()) {
+          state.tickable_items |= item;
+        }
       }
     }
     state.can_accept = IsDialogButtonEnabled(ui::mojom::DialogButton::kOk);
@@ -498,7 +505,12 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
       AddHeading(kWhatComesAlong);
     }
     const uint32_t offered = OfferedImportItems(kind);
-    const uint32_t ticked = DefaultImportItems(kind);
+    // Addresses go into the profile of the window the dialog is over (never incognito's).
+    BrowserWindowInterface* browser = browser_.get();
+    const bool addresses_on =
+        browser && autofill::prefs::IsAutofillProfileEnabled(
+                       browser->GetProfile()->GetOriginalProfile()->GetPrefs());
+    const uint32_t ticked = DefaultImportItems(kind, addresses_on);
     for (ImportItem item : ImportItemsInOrder()) {
       if (!(offered & item)) {
         continue;
@@ -510,7 +522,12 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
           ImportItemLabel(item),
           base::BindRepeating(&ImportDialog::DialogModelChanged, base::Unretained(this))));
       box->SetChecked(ticked & item);
+      box->SetEnabled(CanTickImportItem(item, addresses_on));
       item_boxes_[item] = box;
+      if (!CanTickImportItem(item, addresses_on)) {
+        views::Label* note = AddText(body_, AddressesOffNote());
+        note->SetProperty(views::kMarginsKey, gfx::Insets::TLBR(0, 24, 0, 0));
+      }
       if (item == kImportCookies && row_ < sources_.size()) {
         views::Label* note =
             AddText(body_, CookiesKeychainNote(base::UTF8ToUTF16(sources_[row_].keychain_service)));

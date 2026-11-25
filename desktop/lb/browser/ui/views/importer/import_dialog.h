@@ -38,6 +38,9 @@ struct ImportDialogState {
   int step = 0;
   // Step 1: its rows (browsers, then the two files). Step 2: the profiles or spaces listed.
   std::vector<std::u16string> rows;
+  // Step 2: the items (ImportItem bits) ticked, and those whose checkbox can be ticked.
+  uint32_t ticked_items = 0;
+  uint32_t tickable_items = 0;
   // Step 3: the extensions list as shown, profile headings as "‹name›:" followed by their
   // extensions' names, " (unticked)" after one that starts unticked.
   std::vector<std::u16string> extensions;

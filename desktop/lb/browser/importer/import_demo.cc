@@ -50,6 +50,7 @@
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/common/autofill_prefs.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/history/core/browser/history_service.h"
@@ -719,6 +720,12 @@ void CheckDialogSteps(Run& run) {
   state = GetImportDialogStateForTesting();
   run.Expect(state && state->step == 2 && state->can_accept && state->rows.empty(),
              "Chrome's single profile isn't listed: " + Rows(state));
+  // Saving addresses is off (the default): Addresses can't be ticked; the rest are ticked.
+  run.Expect(state && !(state->ticked_items & kImportAddresses) &&
+                 !(state->tickable_items & kImportAddresses) &&
+                 (state->ticked_items & kImportBookmarks) &&
+                 (state->tickable_items & kImportBookmarks),
+             "Addresses waits for saving addresses");
 
   // Back, then Arc: its spaces, Work with its profile's name.
   run.Expect(ImportDialogBackForTesting(), "Back goes to the browsers");
@@ -806,6 +813,8 @@ void RunChoices(std::unique_ptr<Run> run) {
                             const bool stepped = ImportDialogNextForTesting(u"Chrome");
                             std::optional<ImportDialogState> state =
                                 GetImportDialogStateForTesting();
+                            run->Expect(state && !(state->tickable_items & kImportAddresses),
+                                        "Addresses greyed out while saving addresses is off");
                             Report(std::move(run), stepped && state && state->step == 2
                                                        ? "the choices step is open"
                                                        : "couldn't open the choices step");
@@ -1187,8 +1196,12 @@ bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode
     FailDemoAfter(kImportMode, base::Seconds(120));
     ChromiumImportRequest request;
     request.profile_dir = source;
-    request.items = kImportBookmarks | kImportHistory | kImportSearchShortcuts | kImportAddresses |
-                    kImportOpenTabs | kImportExtensions;
+    request.items = kImportBookmarks | kImportHistory | kImportSearchShortcuts | kImportOpenTabs |
+                    kImportExtensions;
+    // Addresses only where the profile saves them (off by default), as the dialog does.
+    if (autofill::prefs::IsAutofillProfileEnabled(browser->GetProfile()->GetPrefs())) {
+      request.items |= kImportAddresses;
+    }
     request.space_id = GetWindowSpaceId(browser);
     ImportChromiumProfile(browser->GetProfile(), request, base::BindOnce([](ImportResult result) {
                             // Counts only: never what was imported.
@@ -1205,10 +1218,15 @@ bool MaybeRunImportDemo(BrowserWindowInterface* browser, const std::string& mode
     RunDialog(std::move(run));
     return true;
   }
+  // The choices step as it opens by default: saving addresses off, Addresses greyed out with its
+  // note (the capture shows it).
   if (mode == kChoicesMode) {
     RunChoices(std::move(run));
     return true;
   }
+  // The other demos bring addresses along, which needs saving addresses on (off by default,
+  // docs/design.md §7.8), as the user would turn it on in Settings.
+  browser->GetProfile()->GetPrefs()->SetBoolean(autofill::prefs::kAutofillProfileEnabled, true);
   if (mode == kProgressMode) {
     RunProgress(std::move(run), home);
     return true;

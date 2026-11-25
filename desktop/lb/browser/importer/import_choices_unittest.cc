@@ -38,9 +38,28 @@ TEST(ImportChoicesTest, CookiesStartUnticked) {
        {ImportSourceKind::kChromium, ImportSourceKind::kArc, ImportSourceKind::kFirefox,
         ImportSourceKind::kSafari, ImportSourceKind::kSafariExport,
         ImportSourceKind::kBookmarksFile}) {
-    EXPECT_EQ(DefaultImportItems(kind) & kImportCookies, 0u);
-    EXPECT_EQ(DefaultImportItems(kind) | kImportCookies, OfferedImportItems(kind) | kImportCookies);
+    EXPECT_EQ(DefaultImportItems(kind, /*addresses_on=*/true) & kImportCookies, 0u);
+    EXPECT_EQ(DefaultImportItems(kind, /*addresses_on=*/true) | kImportCookies,
+              OfferedImportItems(kind) | kImportCookies);
   }
+}
+
+// Saving addresses is off by default (docs/design.md §7.8); Chromium would drop imported ones.
+TEST(ImportChoicesTest, AddressesStartUntickedWhileSavingAddressesIsOff) {
+  for (ImportSourceKind kind : {ImportSourceKind::kChromium, ImportSourceKind::kArc}) {
+    EXPECT_EQ(DefaultImportItems(kind, /*addresses_on=*/false) & kImportAddresses, 0u);
+    EXPECT_EQ(DefaultImportItems(kind, /*addresses_on=*/false) | kImportAddresses,
+              DefaultImportItems(kind, /*addresses_on=*/true));
+    EXPECT_NE(DefaultImportItems(kind, /*addresses_on=*/true) & kImportAddresses, 0u);
+  }
+}
+
+TEST(ImportChoicesTest, OnlyAddressesWaitForSavingAddresses) {
+  for (ImportItem item : ImportItemsInOrder()) {
+    EXPECT_TRUE(CanTickImportItem(item, /*addresses_on=*/true));
+    EXPECT_EQ(CanTickImportItem(item, /*addresses_on=*/false), item != kImportAddresses);
+  }
+  EXPECT_NE(AddressesOffNote().find(u"Save and fill addresses"), std::u16string::npos);
 }
 
 TEST(ImportChoicesTest, EveryItemIsListedOnceWithALabel) {

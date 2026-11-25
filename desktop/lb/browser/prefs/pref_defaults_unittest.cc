@@ -13,16 +13,16 @@
 namespace lb {
 namespace {
 
-// Imported and newly entered addresses are saved: without this, Chromium drops them silently.
-TEST(PrefDefaultsTest, AddressesAreSavedByDefault) {
+// Addresses aren't saved by default, so forms don't offer to save them; the user can turn it on.
+TEST(PrefDefaultsTest, AddressesAreNotSavedByDefault) {
   sync_preferences::TestingPrefServiceSyncable prefs;
   autofill::prefs::RegisterProfilePrefs(prefs.registry());
   SetProfilePrefDefaults(prefs.registry());
-  EXPECT_TRUE(autofill::prefs::IsAutofillProfileEnabled(&prefs));
+  EXPECT_FALSE(autofill::prefs::IsAutofillProfileEnabled(&prefs));
 
   // The user's own choice still wins.
-  prefs.SetBoolean(autofill::prefs::kAutofillProfileEnabled, false);
-  EXPECT_FALSE(autofill::prefs::IsAutofillProfileEnabled(&prefs));
+  prefs.SetBoolean(autofill::prefs::kAutofillProfileEnabled, true);
+  EXPECT_TRUE(autofill::prefs::IsAutofillProfileEnabled(&prefs));
 }
 
 // HTTPS-First is on in Balanced mode by default (docs/design.md §5). We keep Chromium's own default
