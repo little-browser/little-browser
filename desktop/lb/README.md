@@ -47,6 +47,8 @@ lb/browser/tabs/pinned_groups.*     pinned groups' rules: unbroken runs, a moved
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one first
 lb/browser/tabs/sidebar_width.*     a hidden sidebar's widths: only the edge band, slid in (full height) to the
                                     user's width, resized while slid in, its resize area (unit tested)
+lb/browser/tabs/load_progress.*     the load progress line's state: grows, never shrinks during a load, fills
+                                    and fades when it ends (unit tested)
 lb/browser/tabs/tab_names.*         tab names and pinned links: saved form, cleaning, when a link is
                                     taken or dropped, "left its link", the tab menu's items (unit tested)
 lb/browser/password/password_manager_choice.*  first-run password managers, when to offer them, what follows an install
@@ -99,8 +101,8 @@ lb/browser/ui/
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
   views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
   views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
-  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar, =tab-names and =other-apps
-                                       (below)
+  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar, =tab-names, =load-progress
+                                       and =other-apps (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / Cmd+Option+N)
   views/importer/import_dialog.*       the import dialog, also opened by itself on first run
@@ -116,6 +118,7 @@ lb/browser/ui/
   views/profiles/space_avatar_demo.*   --lb-sidebar-demo=space-avatar (below)
   views/browser_modal_dialog.*      base for our browser-modal dialogs (deletes itself when closed)
   views/frame/contents_card.h       the page as an inset rounded card next to the sidebar
+  views/frame/load_progress_line.*  the load progress line along the top of the page card
   views/sidebar/sidebar_edge_watcher*  macOS: pointer moves outside the window, so a hidden sidebar
                                      slides in from just left of it
 ```
@@ -123,7 +126,7 @@ lb/browser/ui/
 Hooked into Chromium by `patches/lb/sidebar-hooks.patch`, `new-tab-row.patch`,
 `pinned-list.patch`, `pinned-tab-sleep.patch`, `tab-click-hook.patch`, `sidebar-prefs.patch`,
 `command-hooks.patch`, `session-spaces.patch`, `restore-selected-first.patch`, `tab-names.patch`,
-`tab-names-ui.patch`, `hidden-sidebar-ui.patch`,
+`tab-names-ui.patch`, `hidden-sidebar-ui.patch`, `load-progress-ui.patch` (the load progress line),
 `tab-metrics-detached-guard.patch`, `contents-card.patch`, `ad-blocking.patch`,
 `ad-blocking-settings.patch` and `ad-blocking-page-info.patch` (the ad blocker),
 `pinned-groups.patch` (pinned groups), `peek-hooks.patch`
@@ -186,6 +189,10 @@ right-clicks the button (no menu may open);
 window and a browser page be left to open as a tab; a second launch's command line with a link
 must open it in a little window, and one that also has a page that opens as a tab (about:blank)
 must be left to Chromium;
+`=load-progress` checks the load progress line runs along the toolbar's bottom edge as wide as the
+page card, shows as soon as a page starts loading and is gone once it has, fills 60% of its width
+at a load forced to 60% (`--lb-ui-snapshot-load-progress=<png>` captures that and stops), and still
+runs along the page card with the sidebar hidden;
 `=hidden-sidebar` hides the sidebar (it must take only the edge band, the page leaving that band,
 and not be drawn), slides it in over
 the page (to the sidebar's width, the page not moving), drags its edge 60 px wider (it must widen

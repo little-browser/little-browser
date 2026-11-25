@@ -60,6 +60,16 @@ lock, never uncollapses the strip, and on letting go saves the width as the side
 meanwhile, the drag ends there. So the compact form and the collapsed strip's icon tiles only show
 for an instant while the strip animates, or with expand on hover off.
 
+**Load progress line.** `lb::AddLoadProgressLine` (`lb/browser/ui/views/frame/load_progress_line.*`,
+hooked into `ToolbarView::Init` by `patches/lb/load-progress-ui.patch`) adds a line to the
+toolbar's parent, the top container, along the toolbar's bottom edge and as wide as the page card
+(`multi_contents_view`). The toolbar starts right of the window's buttons while the sidebar is
+hidden, so the line can't live in it, and it isn't drawn over the page, which on macOS could cover
+it; the slid-in sidebar covers it. It follows the active tab's `ShouldShowLoadingUI()` and
+`GetLoadProgress()` through `lb::LoadProgress` (`lb/browser/tabs/load_progress.h`, unit tested):
+it never shrinks during a load, a new load starts over, and a finished one fills and fades. Its
+colour is the theme's primary colour, which the window's space tint sets.
+
 **Tab names and pinned links.** A tab's name and a pinned tab's link (`lb::TabCustom`, rules in
 `lb/browser/tabs/tab_names.h`) are kept by the tab, in a map by its `TabHandle`
 (`lb/browser/ui/tabs/tab_custom_data.h`), not with its page: a sleeping tab is discarded, which on

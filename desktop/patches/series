@@ -70,3 +70,4 @@ lb/no-lens-chip.patch                 # no Google Lens promo chip in the address
 lb/tab-names.patch                   # a tab can be renamed; a pinned tab keeps a link to go back to
 lb/tab-names-ui.patch                # a renamed tab is read by its name (accessible label)
 lb/hidden-sidebar-ui.patch            # a hidden sidebar keeps only an edge band and slides in, full height and resizable, over the page
+lb/load-progress-ui.patch             # a thin line at the top of the page shows its load, in every window

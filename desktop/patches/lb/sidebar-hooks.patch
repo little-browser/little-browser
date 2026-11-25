@@ -3,11 +3,11 @@
 # today's tabs instead of Chromium's new-tab button — and build our files (sidebar, command bar,
 # snapshot tool, pinned tab sleep and pinned groups, extensions demo, first-run dialogs, ad blocker,
 # Peek, little window, import, the space avatar, the tracking-parameters demo, element hiding,
-# tab names and pinned links, the hidden sidebar's edge watcher) with the region view's
-# target.
+# tab names and pinned links, the load progress line, the hidden sidebar's edge watcher) with the
+# region view's target.
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,93 @@
+@@ -537,7 +537,95 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -55,6 +55,8 @@
 +    "//lb/browser/ui/views/browser_modal_dialog.h",
 +    "//lb/browser/ui/views/command_bar/command_bar.cc",
 +    "//lb/browser/ui/views/command_bar/command_bar.h",
++    "//lb/browser/ui/views/frame/load_progress_line.cc",
++    "//lb/browser/ui/views/frame/load_progress_line.h",
 +    "//lb/browser/ui/views/importer/import_dialog.cc",
 +    "//lb/browser/ui/views/importer/import_dialog.h",
 +    "//lb/browser/ui/views/little_window/little_window.cc",
@@ -102,7 +104,7 @@
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +643,22 @@
+@@ -557,6 +645,22 @@
      "//ui/views",
    ]
    deps = [

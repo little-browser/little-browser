@@ -4,6 +4,7 @@
 
 #include "lb/browser/ui/views/sidebar/sidebar_edits_demo.h"
 
+#include <cmath>
 #include <memory>
 #include <string>
 #include <utility>
@@ -18,8 +19,10 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -36,6 +39,7 @@
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_title.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
@@ -47,9 +51,11 @@
 #include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "lb/browser/ui/views/command_bar/command_bar.h"
+#include "lb/browser/ui/views/frame/load_progress_line.h"
 #include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+#include "ui/base/base_window.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
@@ -64,8 +70,10 @@ namespace {
 
 constexpr char kHiddenMode[] = "hidden-sidebar";
 constexpr char kNamesMode[] = "tab-names";
+constexpr char kProgressMode[] = "load-progress";
 constexpr char kOtherAppsMode[] = "other-apps";
 constexpr char kSnapshotSwitch[] = "lb-ui-snapshot-sidebar";
+constexpr char kProgressSnapshotSwitch[] = "lb-ui-snapshot-load-progress";
 
 // --------------------------------------------------------------- hidden-sidebar
 
@@ -602,6 +610,130 @@ void RunTabNamesDemo(BrowserWindowInterface* browser) {
   PostDemoTask(base::BindOnce(&NamesLoaded), base::Seconds(2));
 }
 
+// --------------------------------------------------------------- load-progress
+
+struct ProgressRun {
+  base::WeakPtr<BrowserWindowInterface> browser;
+  std::string detail;
+  bool ok = true;
+
+  void Expect(bool condition, const std::string& what) {
+    detail += " " + what + "=" + (condition ? "1" : "0");
+    ok = ok && condition;
+  }
+};
+
+ProgressRun& TheProgressRun() {
+  static base::NoDestructor<ProgressRun> run;
+  return *run;
+}
+
+// The line runs along the toolbar's bottom edge, as wide as the page card under it.
+void ExpectLineOnThePage(ProgressRun& run, const std::string& when) {
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(run.browser.get());
+  const std::optional<LoadProgressLineShown> shown =
+      GetLoadProgressLineForTesting(run.browser.get());
+  if (!view || !shown) {
+    run.Expect(false, "line_" + when);
+    return;
+  }
+  const gfx::Rect card = view->multi_contents_view()->GetBoundsInScreen();
+  const gfx::Rect toolbar = view->toolbar()->GetBoundsInScreen();
+  run.detail += " " + when + "=[" + shown->bounds.ToString() + " card " + card.ToString() + "]";
+  run.Expect(shown->bounds.height() == kLoadProgressHeight &&
+                 shown->bounds.bottom() == toolbar.bottom() && shown->bounds.x() == card.x() &&
+                 shown->bounds.width() == card.width(),
+             "line_on_page_" + when);
+}
+
+void ProgressLeftFullscreen() {
+  ProgressRun& run = TheProgressRun();
+  if (!run.browser) {
+    return;
+  }
+  ExpectLineOnThePage(run, "after_fullscreen");
+  ReportDemo(kProgressMode, run.ok, run.detail);
+}
+
+void ProgressFullscreen() {
+  ProgressRun& run = TheProgressRun();
+  if (!run.browser) {
+    return;
+  }
+  // macOS fullscreen moves the toolbar's parent into a widget of its own: the line must follow the
+  // page there (it used to convert between the two widgets' views, a CHECK failure).
+  run.Expect(run.browser->GetWindow()->IsFullscreen(), "fullscreen");
+  ExpectLineOnThePage(run, "fullscreen");
+  chrome::ExecuteCommand(run.browser.get(), IDC_FULLSCREEN);
+  PostDemoTask(base::BindOnce(&ProgressLeftFullscreen), base::Seconds(3));
+}
+
+void ProgressHidden() {
+  ProgressRun& run = TheProgressRun();
+  if (!run.browser) {
+    return;
+  }
+  ExpectLineOnThePage(run, "hidden_sidebar");
+  tabs::VerticalTabStripStateController::From(run.browser.get())->RequestCollapse(false);
+  chrome::ExecuteCommand(run.browser.get(), IDC_FULLSCREEN);
+  PostDemoTask(base::BindOnce(&ProgressFullscreen), base::Seconds(3));
+}
+
+void ProgressForced() {
+  ProgressRun& run = TheProgressRun();
+  if (!run.browser) {
+    return;
+  }
+  // Halfway-ish through a load: the drawn part is that much of the line.
+  SetLoadProgressForTesting(run.browser.get(), {.loading = true, .progress = 0.6});
+  const std::optional<LoadProgressLineShown> shown =
+      GetLoadProgressLineForTesting(run.browser.get());
+  run.Expect(shown && shown->opacity == 1.0f &&
+                 std::abs(shown->filled.width() - 0.6 * shown->bounds.width()) <= 1 &&
+                 shown->filled.x() == shown->bounds.x(),
+             "fills_its_progress");
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kProgressSnapshotSwitch)) {
+    ReportDemo(kProgressMode, run.ok, run.detail + " (captured at 60%)");
+    MaybeScheduleUiSnapshot(
+        views::Widget::GetWidgetForNativeWindow(run.browser->GetWindow()->GetNativeWindow()),
+        kProgressSnapshotSwitch);
+    return;
+  }
+  SetLoadProgressForTesting(run.browser.get(), PageLoad());
+  // Hidden sidebar: the line still runs along the page card, which now starts at the edge band.
+  tabs::VerticalTabStripStateController::From(run.browser.get())->RequestCollapse(true);
+  PostDemoTask(base::BindOnce(&ProgressHidden), base::Seconds(2));
+}
+
+void ProgressLoaded() {
+  ProgressRun& run = TheProgressRun();
+  if (!run.browser) {
+    return;
+  }
+  const std::optional<LoadProgressLineShown> shown =
+      GetLoadProgressLineForTesting(run.browser.get());
+  run.Expect(shown && !shown->line.visible && shown->filled.IsEmpty(), "gone_after_load");
+  ProgressForced();
+}
+
+void RunLoadProgressDemo(BrowserWindowInterface* browser) {
+  FailDemoAfter(kProgressMode, base::Seconds(30));
+  ProgressRun& run = TheProgressRun();
+  run.browser = browser->GetWeakPtr();
+  tabs::TabInterface* tab = browser->GetTabStripModel()->GetActiveTab();
+  if (!tab || !GetLoadProgressLineForTesting(browser)) {
+    ReportDemo(kProgressMode, false, "no tab, or no load progress line");
+    return;
+  }
+  ExpectLineOnThePage(run, "shown_sidebar");
+  // A page starting to load shows the line at once.
+  Load(tab, PageA());
+  const std::optional<LoadProgressLineShown> shown = GetLoadProgressLineForTesting(browser);
+  run.Expect(shown && shown->line.visible && shown->line.fraction > 0 && !shown->line.finishing,
+             "shows_while_loading");
+  PostDemoTask(base::BindOnce(&ProgressLoaded), base::Seconds(2));
+}
+
 // --------------------------------------------------------------- other-apps
 
 // Pages that never load (nothing listens on port 9): a little window shows its address anyway.
@@ -698,6 +830,10 @@ bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string
   }
   if (mode == kNamesMode) {
     RunTabNamesDemo(browser);
+    return true;
+  }
+  if (mode == kProgressMode) {
+    RunLoadProgressDemo(browser);
     return true;
   }
   if (mode == kOtherAppsMode) {

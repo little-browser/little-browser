@@ -31,6 +31,11 @@ namespace lb {
 // wakes at its link; the space's saved tabs carry both. With --lb-ui-snapshot-sidebar=<png> it
 // captures the named rows at the end.
 //
+// --lb-sidebar-demo=load-progress: the load progress line runs along the toolbar's bottom edge as
+// wide as the page card, shows while a page loads and is gone after, fills its share of the width
+// at a forced 60% load, and stays on the page card with the sidebar hidden. With
+// --lb-ui-snapshot-load-progress=<png> it captures the line at 60%.
+//
 // --lb-sidebar-demo=other-apps: links from other apps (docs/ux.md §8). Links handed over by macOS
 // must open the web page in a little window and leave a browser page to open as a tab; a second
 // launch's command line with a link must open it in a little window, and one that also has a page

@@ -86,6 +86,12 @@ Sidebar zones, top to bottom:
   right-click menu), nothing would slide a hidden sidebar in, so it stays a column of icons
   beside the page instead.
 - **Sidebar width** is draggable, shown or slid in (Chromium's limits, 126–400 px).
+- **Load progress**: while the shown page loads, a thin line (2 px) in the window's colour runs
+  along the top edge of the page, under the toolbar, as far as the page has loaded. It shows in
+  every window, with the sidebar shown or hidden and in little windows. It never runs back during a
+  load; when the load is done it fills and fades out. Changes within a page ("#" links) don't
+  show it, and switching to a tab that is still loading shows that tab's progress straight away.
+  With reduced motion it jumps to each step and disappears without a fade.
 - Light/dark follows the OS; space colour is a subtle tint, never a saturated block.
 - **Ads** are blocked on every site by the built-in blocker. When a site doesn't work, or to
   support it, the site-info panel (the icon left of the address) → "Cookies and site data" has an
@@ -417,6 +423,7 @@ sidebar layout** is used (section 2); narrower (Split View, Slide Over) uses the
 | Tab switch (loaded tab) | First paint < 50 ms, no animation |
 | Space switch | 180 ms slide |
 | Peek open / expand | 200 / 240 ms |
+| Load progress line catching up / fading out | 200 / 250 ms |
 | Sidebar show / hide | 180 ms |
 | Easing | `cubic-bezier(.2, .8, .2, 1)` (fast out, soft landing); no animation > 300 ms |
 | Reduced motion | Respect the OS setting: replace slides with fades |
