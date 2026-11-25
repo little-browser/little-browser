@@ -29,7 +29,7 @@ build is in `../AGENTS.md`.
   | Sites where ads are allowed or blocked (per profile) | Chromium's "ads" content setting |
   | A window's current space | session window extra data `lb_space` |
   | A pinned tab's pinned group (name, colour, collapsed) | session tab extra data `lb_pinned_group`, and the saved tabs' `group` record |
-  | A tab's name and a pinned tab's link | a map by the tab's `TabHandle` (`lb/browser/ui/tabs/tab_custom_data.h`); session tab extra data `lb_tab`, and the saved tabs' `name` and `pinned_url` |
+  | A tab's name, and a pinned tab's link, its title and whether it wakes at it (`lb::TabCustom`) | a map by the tab's `TabHandle` (`lb/browser/ui/tabs/tab_custom_data.h`); session tab extra data `lb_tab`, and the saved tabs' `name`, `pinned_url`, `pinned_title` and `wakes_at_link` |
 
   Register new prefs in `RegisterProfilePrefs` or `RegisterLocalStatePrefs`; they are wired in
   by `patches/lb/sidebar-prefs.patch`.

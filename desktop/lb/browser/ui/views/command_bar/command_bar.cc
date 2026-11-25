@@ -197,8 +197,9 @@ class CommandBarView : public views::View, public views::TextfieldController {
     BrowserWindowInterface* browser = controller_->browser();
     tabs::TabInterface* const target = controller_->command_bar_tab();
     if (mode_ == CommandBarMode::kRenameTab) {
-      // The tab's own name, or its page's title to start from.
-      field_->SetPlaceholderText(u"Tab name (empty: the page's title)");
+      // The tab's own name, or the title it shows unnamed (a pinned tab's link's title) to start
+      // from.
+      field_->SetPlaceholderText(u"Tab name (empty: its own title)");
       if (target) {
         field_->SetText(TabRowTitle(target, target->GetContents()->GetTitle()));
       }
@@ -340,14 +341,15 @@ class CommandBarView : public views::View, public views::TextfieldController {
     }
     const tabs::TabHandle handle = target->GetHandle();
     if (mode_ == CommandBarMode::kRenameTab) {
-      // The page's own title, as the field starts, leaves the tab unnamed (lb::NameFromInput).
-      const std::u16string name = NameFromInput(query, target->GetContents()->GetTitle());
-      items_.push_back(
-          {name.empty() ? u"Show the page's own title" : u"Rename tab to “" + name + u"”",
-           u"Enter to save", u"", 0,
-           base::BindRepeating(
-               [](tabs::TabHandle tab, std::u16string name) { RenameTab(tab.Get(), name); }, handle,
-               name)});
+      // The title it shows unnamed, as the field starts, leaves the tab unnamed
+      // (lb::NameFromInput).
+      const std::u16string name =
+          NameFromInput(query, TabTitleWithoutName(target, target->GetContents()->GetTitle()));
+      items_.push_back({name.empty() ? u"Show its own title" : u"Rename tab to “" + name + u"”",
+                        u"Enter to save", u"", 0,
+                        base::BindRepeating([](tabs::TabHandle tab,
+                                               std::u16string name) { RenameTab(tab.Get(), name); },
+                                            handle, name)});
       return;
     }
     const std::optional<GURL> url = PinnedUrlFromInput(query);
@@ -482,12 +484,6 @@ class CommandBarView : public views::View, public views::TextfieldController {
                                       }
                                     },
                                     handle)});
-            break;
-          case TabNameCommand::kBackToPinnedUrl:
-            commands.push_back(
-                {u"Back to pinned page", u"Command", u"", 0,
-                 base::BindRepeating([](tabs::TabHandle tab) { GoBackToPinnedUrl(tab.Get()); },
-                                     handle)});
             break;
         }
       }

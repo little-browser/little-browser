@@ -191,9 +191,11 @@ leaves (it must slide out), turns expand on hover off (it must be Chromium's col
 puts the sidebar back as it was;
 `=tab-names` renames a tab (its row must show the name), checks the tab menu's items, renames it
 again through the command bar, pins it (its link must be its page), loads another page (Use
-Current Page as Link and Back to Pinned Page must be enabled), goes back, makes another page the
-link, drags the tab below "+ New Tab" and back (its link must stay), puts it to sleep (its name
-and link must stay with the new page it gets) and checks the space's saved tabs; with
+Current Page as Link must be enabled, there must be no Back to Pinned Page, and the link's title
+must stay), goes back, makes another page the
+link, drags the tab below "+ New Tab" and back (its link must stay), puts it to sleep away from
+its link (its name and link must stay with the new page it gets, and it must be marked to wake at
+its link), checks the space's saved tabs, and shows it again (it must load its link); with
 `--lb-ui-snapshot-sidebar=<png>` the first captures the slid-in sidebar after the drag (and stops
 there), the second the named rows at the end;
 `=sidebar-header` checks the sidebar header holds the space name alone (no address field) and that

@@ -54,7 +54,9 @@ for an instant while the strip animates, or with expand on hover off.
 `lb/browser/tabs/tab_names.h`) are kept by the tab, in a map by its `TabHandle`
 (`lb/browser/ui/tabs/tab_custom_data.h`), not with its page: a sleeping tab is discarded, which on
 desktop gives it a new WebContents. `patches/lb/tab-names.patch` hooks them in: `TabData` takes the
-row's title from `lb::TabRowTitle` (no "Loading…" title for a named tab); `TabMenuModel` gets the
+row's title from `lb::TabRowTitle` (a pinned tab's is its link's title, `TabCustom::pinned_title`,
+taken from the page whenever the tab is on its link, `lb::TakePinnedTitle`; no "Loading…" title
+for a tab with a title of its own); `TabMenuModel` gets the
 items of `lb::TabNameMenuItems` after Pin/Unpin, with command ids from 900 (below the menu's
 submenu ranges; `tabs::TabContextMenuCommand` gets a fixed underlying type so they are valid
 values), which `TabStripModel` hands to `lb::IsTabNameCommandEnabled` and
@@ -70,7 +72,7 @@ tab's link settles (`lb::SettleTabLink`) when it is pinned or unpinned and whene
 (`SidebarController::OnTabPinnedStateChanged` and `OnTabChangedAt`): a pinned tab without one takes
 the page it has committed unless that is blank, and an unpinned tab has none. A tab drag pins and
 unpins tabs as they cross "+ New Tab", so during one links wait, and settle when it ends
-(`lb::OnTabDragEnded`). The space's saved tabs carry both too (`SavedTab::name`, `pinned_url`,
+(`lb::OnTabDragEnded`). The space's saved tabs carry both too (`SavedTab::custom`,
 written and read by the same `lb::WriteTabCustom` and `lb::ReadTabCustom` as the session's data).
 
 **New Tab Group** runs `IDC_CREATE_NEW_TAB_GROUP` through `SidebarController::NewTabGroup()`, which
@@ -168,7 +170,13 @@ and awake tabs and leaving out tabs closed together with it, or a new tab; `lb::
 a collapsed pinned group counts as a collapsed group) and the pinned tab's page is unloaded with Chromium's
 own discard (`TabLifecycleUnitExternal::DiscardTab`, the call `chrome.tabs.discard` makes, which
 has no eligibility policy), marked `NeedsReload()` so it loads again whenever it is shown. A tab
-muted on its own stays muted. A page with a beforeunload handler that the user has typed into
+closed while it showed another page than its link gets `TabCustom::wakes_at_link`
+(`lb::AfterPinnedSleep`), kept with its name and link in the session and the space's saved tabs;
+when its window next shows it, `SidebarController::OnTabStripModelChanged` posts
+`lb::OnTabShownForNames` (not inside the notification: it changes the tab's data and starts a
+load), which loads the link if the tab is still shown (`lb::OnTabShown`). Chromium may already have
+started reloading the old page as the tab was shown; the link's load replaces it. A restored tab
+that is already shown no longer wakes at its link (`lb::RestoredTabCustom`). A tab muted on its own stays muted. A page with a beforeunload handler that the user has typed into
 (`PageNode::HadUserEdits`, the check Chromium's memory saver makes before a discard) may hold
 unsaved input, so it is only hidden, not unloaded; a handler alone doesn't count, as many pages
 register one and never ask. The next close of such a page, or a close while it isn't shown, goes

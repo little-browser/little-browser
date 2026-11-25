@@ -41,8 +41,6 @@ void SetTabCustom(tabs::TabInterface* tab, TabCustom custom);
 void RenameTab(tabs::TabInterface* tab, std::u16string_view name);
 // Sets a pinned tab's link to `url` and loads it there.
 void SetPinnedUrl(tabs::TabInterface* tab, const GURL& url);
-// Loads a pinned tab's link in it again.
-void GoBackToPinnedUrl(tabs::TabInterface* tab);
 
 // The page a pinned tab goes back to: its link, or, until it has committed a real page to take
 // as one, the page it shows (lb::PinnedUrlOrPage). Empty for a tab that isn't pinned.
@@ -53,10 +51,13 @@ bool HasLeftPinnedUrl(const tabs::TabInterface* tab);
 GURL CurrentUrlOf(const tabs::TabInterface* tab);
 
 // Hooks (patches/lb/tab-names.patch, patches/lb/tab-names-ui.patch):
-// The title of `tab`'s row and its accessible name: its name, or `page_title`. Its name also means
-// no "Loading…" title.
+// The title of `tab`'s row and its accessible name: its name; for a pinned tab, its link's page
+// title; or `page_title` (lb::TabTitleToShow). A title of its own (HasTabName) also means no
+// "Loading…" title.
 std::u16string TabRowTitle(const tabs::TabInterface* tab, std::u16string page_title);
 bool HasTabName(const tabs::TabInterface* tab);
+// The title the row shows when the tab has no name: what renaming it back to starts from.
+std::u16string TabTitleWithoutName(const tabs::TabInterface* tab, std::u16string page_title);
 // The tab menu (TabMenuModel) of the tab at `index`: adds Rename Tab… and the pinned link items.
 void AddTabNameMenuItems(ui::SimpleMenuModel* menu, TabStripModel* model, int index);
 // Whether `command_id` is one of those items: whether it is enabled, or nullopt if it isn't one.
@@ -76,6 +77,9 @@ void RestoreTabCustom(tabs::TabInterface* tab,
 // unpins tabs as they cross "+ New Tab", links wait for the drag to end.
 void OnTabPinnedChangedForNames(tabs::TabInterface* tab);
 void OnTabChangedForNames(tabs::TabInterface* tab);
+// Called by SidebarController when its window shows `tab` (it becomes the active tab): a pinned
+// tab closed away from its link loads its link (lb::OnTabShown).
+void OnTabShownForNames(tabs::TabInterface* tab);
 // Called by lb::OnTabDragEnded once Chromium has put a cancelled drag's tabs back.
 void OnTabDragEndedForNames();
 

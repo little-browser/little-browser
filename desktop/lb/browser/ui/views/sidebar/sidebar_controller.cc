@@ -124,7 +124,7 @@ namespace {
 // A saved tab's name and link as session tab extra data, for chrome::AddRestoredTab.
 std::map<std::string, std::string> TabCustomExtraData(const SavedTab& saved) {
   const std::string data =
-      TabCustomToSessionData({saved.name, saved.pinned ? saved.pinned_url : GURL()});
+      TabCustomToSessionData(SettleTabLink(saved.custom, saved.pinned, /*committed_url=*/GURL()));
   if (data.empty()) {
     return {};
   }
@@ -786,6 +786,20 @@ void SidebarController::OnTabStripModelChanged(TabStripModel* tab_strip_model,
     }
   }
   pinned_groups_->Update(moved, closed, left);
+  // A pinned tab closed away from its link loads its link as it is shown again. Not inside the
+  // notification: it changes the tab's data (a tab change of its own) and starts a load, which
+  // observers after this one must not see before the change that showed the tab.
+  if (selection.active_tab_changed() && selection.new_tab) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(
+                       [](tabs::TabHandle handle) {
+                         // Still shown: a tab switched past at once wakes at its link later.
+                         if (tabs::TabInterface* tab = handle.Get(); tab && tab->IsActivated()) {
+                           OnTabShownForNames(tab);
+                         }
+                       },
+                       selection.new_tab->GetHandle()));
+  }
   if (!group_placeholders_.empty() && !placeholder_check_pending_) {
     // Not inside the notification: closing a tab here would change the strip being notified.
     // One check for a burst of changes (a space switch moves every tab).
@@ -909,9 +923,7 @@ void SidebarController::SaveTabs(bool closing) {
       continue;
     }
     SavedTab tab{url, contents->GetTitle(), strip_tab->IsPinned(), strip_tab == active};
-    const TabCustom custom = GetTabCustom(strip_tab);
-    tab.name = custom.name;
-    tab.pinned_url = custom.pinned_url;
+    tab.custom = GetTabCustom(strip_tab);
     if (const std::optional<tab_groups::TabGroupId> group = strip_tab->GetGroup()) {
       tab.group_id = group->ToString();
       if (const TabGroup* tab_group = model->group_model()->GetTabGroup(*group)) {
@@ -1572,7 +1584,9 @@ std::vector<TabEntry> SidebarController::GetAllTabs() const {
     if (const base::ListValue* list = SavedTabs(spaces[s].id)) {
       const std::vector<SavedTab> saved = SavedTabsFromList(*list);
       for (size_t i = 0; i < saved.size(); ++i) {
-        result.push_back({s, TabTitleToShow({saved[i].name, GURL()}, saved[i].title),
+        result.push_back({s,
+                          TabTitleToShow(SettleTabLink(saved[i].custom, saved[i].pinned, GURL()),
+                                         saved[i].title),
                           saved[i].title, saved[i].url, false, tabs::TabHandle(), i});
       }
     }

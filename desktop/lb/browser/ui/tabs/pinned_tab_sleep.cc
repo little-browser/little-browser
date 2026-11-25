@@ -31,8 +31,10 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/tabs/pinned_close.h"
+#include "lb/browser/tabs/tab_names.h"
 #include "lb/browser/tabs/tab_to_show.h"
 #include "lb/browser/ui/tabs/pinned_group_tracker.h"
+#include "lb/browser/ui/tabs/tab_custom_data.h"
 #include "url/gurl.h"
 
 namespace lb {
@@ -124,6 +126,7 @@ void Sleep(tabs::TabInterface::Handle handle) {
   const TabMutedReason muted_reason = GetTabAudioMutedReason(contents);
   const LastMuteMetadata* mute_metadata = LastMuteMetadata::FromWebContents(contents);
   const std::string muted_by = mute_metadata ? mute_metadata->extension_id : std::string();
+  const GURL page = CurrentUrlOf(tab);
 
   // Chromium's own discard, as chrome.tabs.discard does it (no eligibility policy for this
   // reason): the page unloads and loads again when the tab is next shown.
@@ -137,6 +140,8 @@ void Sleep(tabs::TabInterface::Handle handle) {
   if (muted) {
     SetTabAudioMuted(contents, true, muted_reason, muted_by);
   }
+  // Closed away from its link, it wakes at its link (docs/ux.md §6).
+  SetTabCustom(tab, AfterPinnedSleep(GetTabCustom(tab), page));
   // Redraw the tab's row as asleep right away (INVALIDATE_TYPE_LOAD is not deferred), so its
   // button is "−" before the user can click it again.
   contents->NotifyNavigationStateChanged(static_cast<content::InvalidateTypes>(

@@ -23,7 +23,6 @@ constexpr TabNameCommand kCommands[] = {
     TabNameCommand::kRename,
     TabNameCommand::kEditPinnedUrl,
     TabNameCommand::kUsePageAsPinnedUrl,
-    TabNameCommand::kBackToPinnedUrl,
 };
 
 GURL WithoutRef(const GURL& url) {
@@ -40,6 +39,12 @@ void WriteTabCustom(const TabCustom& custom, base::DictValue& record) {
   }
   if (custom.pinned_url.is_valid()) {
     record.Set("pinned_url", custom.pinned_url.spec());
+    if (custom.wakes_at_link) {
+      record.Set("wakes_at_link", true);
+    }
+    if (!custom.pinned_title.empty()) {
+      record.Set("pinned_title", base::UTF16ToUTF8(custom.pinned_title));
+    }
   }
 }
 
@@ -51,6 +56,10 @@ TabCustom ReadTabCustom(const base::DictValue& record) {
   if (const std::string* url = record.FindString("pinned_url")) {
     if (GURL pinned(*url); pinned.is_valid()) {
       custom.pinned_url = std::move(pinned);
+      custom.wakes_at_link = record.FindBool("wakes_at_link").value_or(false);
+      if (const std::string* title = record.FindString("pinned_title")) {
+        custom.pinned_title = base::UTF8ToUTF16(*title);
+      }
     }
   }
   return custom;
@@ -87,7 +96,17 @@ std::u16string NameFromInput(std::u16string_view typed, std::u16string_view page
 }
 
 std::u16string TabTitleToShow(const TabCustom& custom, const std::u16string& page_title) {
-  return custom.name.empty() ? page_title : custom.name;
+  if (!custom.name.empty()) {
+    return custom.name;
+  }
+  if (custom.pinned_url.is_valid() && !custom.pinned_title.empty()) {
+    return custom.pinned_title;
+  }
+  return page_title;
+}
+
+bool HasOwnTitle(const TabCustom& custom) {
+  return !custom.name.empty() || (custom.pinned_url.is_valid() && !custom.pinned_title.empty());
 }
 
 bool HasLeftPinnedUrl(const GURL& pinned_url, const GURL& current_url) {
@@ -104,11 +123,54 @@ GURL PinnedUrlOrPage(const TabCustom& custom, const GURL& current_url) {
 TabCustom SettleTabLink(TabCustom custom, bool pinned, const GURL& committed_url) {
   if (!pinned) {
     custom.pinned_url = GURL();
+    custom.wakes_at_link = false;
+    custom.pinned_title.clear();
   } else if (!custom.pinned_url.is_valid() && committed_url.is_valid() &&
              !IsBlankTabUrl(committed_url)) {
     custom.pinned_url = committed_url;
   }
   return custom;
+}
+
+TabCustom RestoredTabCustom(TabCustom custom, bool pinned, const GURL& committed_url, bool shown) {
+  custom = SettleTabLink(std::move(custom), pinned, committed_url);
+  if (shown) {
+    custom.wakes_at_link = false;
+  }
+  return custom;
+}
+
+TabCustom TakePinnedTitle(TabCustom custom,
+                          const GURL& committed_url,
+                          std::u16string_view page_title) {
+  if (custom.pinned_url.is_valid() && committed_url.is_valid() &&
+      !HasLeftPinnedUrl(custom.pinned_url, committed_url) && !page_title.empty()) {
+    custom.pinned_title = std::u16string(page_title);
+  }
+  return custom;
+}
+
+TabCustom WithPinnedUrl(TabCustom custom, const GURL& url) {
+  if (!custom.pinned_url.is_valid() || HasLeftPinnedUrl(custom.pinned_url, url)) {
+    custom.pinned_title.clear();
+  }
+  custom.pinned_url = url;
+  // The tab is on its new link, or loads it now: nothing to go back to when it is next shown.
+  custom.wakes_at_link = false;
+  return custom;
+}
+
+TabCustom AfterPinnedSleep(TabCustom custom, const GURL& current_url) {
+  if (custom.pinned_url.is_valid()) {
+    custom.wakes_at_link = HasLeftPinnedUrl(custom.pinned_url, current_url);
+  }
+  return custom;
+}
+
+TabShown OnTabShown(TabCustom custom) {
+  const bool load_link = custom.wakes_at_link && custom.pinned_url.is_valid();
+  custom.wakes_at_link = false;
+  return {load_link, std::move(custom)};
 }
 
 std::optional<GURL> PinnedUrlFromInput(std::u16string_view typed) {
@@ -128,7 +190,6 @@ std::vector<TabNameMenuItem> TabNameMenuItems(size_t tabs, bool pinned, bool lef
     items.push_back({TabNameCommand::kEditPinnedUrl, u"Edit Link…"});
     items.push_back(
         {TabNameCommand::kUsePageAsPinnedUrl, u"Use Current Page as Link", left_pinned_url});
-    items.push_back({TabNameCommand::kBackToPinnedUrl, u"Back to Pinned Page", left_pinned_url});
   }
   return items;
 }

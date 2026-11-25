@@ -315,7 +315,27 @@ void NamesFinish() {
     ReportDemo(kNamesMode, false, "the tab went away");
     return;
   }
-  // The space's saved tabs carry the name and the link.
+  // Shown again, the tab closed away from its link loads its link, not the page it was on.
+  run.Expect(CurrentUrlOf(run.tab.Get()) == PageB(), "woke_at_link");
+  run.Expect(!IsAsleep(*run.tab.Get()), "awake");
+  run.Expect(!GetTabCustom(run.tab.Get()).wakes_at_link, "wakes_at_link_cleared");
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kSnapshotSwitch)) {
+    ReportDemo(kNamesMode, run.ok, run.detail + " (captured)");
+    MaybeScheduleUiSnapshot(
+        views::Widget::GetWidgetForNativeWindow(run.browser->GetWindow()->GetNativeWindow()),
+        kSnapshotSwitch);
+    return;
+  }
+  ReportDemo(kNamesMode, run.ok, run.detail);
+}
+
+void NamesSaved() {
+  NamesRun& run = TheNamesRun();
+  if (!run.browser || !run.tab.Get()) {
+    ReportDemo(kNamesMode, false, "the tab went away");
+    return;
+  }
+  // The space's saved tabs carry the name, the link and that it wakes at its link.
   SidebarController* controller = SidebarController::FromBrowser(run.browser.get());
   const base::DictValue& all = g_browser_process->local_state()->GetDict("lb.space_tabs");
   const base::ListValue* saved =
@@ -326,17 +346,14 @@ void NamesFinish() {
     const base::DictValue* dict = record.GetIfDict();
     const std::string* name = dict ? dict->FindString("name") : nullptr;
     const std::string* link = dict ? dict->FindString("pinned_url") : nullptr;
-    saved_ok = saved_ok || (name && *name == "Docs" && link && GURL(*link) == PageB());
+    saved_ok = saved_ok || (name && *name == "Docs" && link && GURL(*link) == PageB() &&
+                            dict->FindBool("wakes_at_link").value_or(false));
   }
   run.Expect(saved_ok, "saved_with_space");
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kSnapshotSwitch)) {
-    ReportDemo(kNamesMode, run.ok, run.detail + " (captured)");
-    MaybeScheduleUiSnapshot(
-        views::Widget::GetWidgetForNativeWindow(run.browser->GetWindow()->GetNativeWindow()),
-        kSnapshotSwitch);
-    return;
-  }
-  ReportDemo(kNamesMode, run.ok, run.detail);
+  // Show it again, as a click on its row does.
+  run.Model()->ActivateTabAt(
+      run.Index(), TabStripUserGestureDetails(TabStripUserGestureDetails::GestureType::kOther));
+  PostDemoTask(base::BindOnce(&NamesFinish), base::Seconds(2));
 }
 
 void NamesUsedPage() {
@@ -403,7 +420,12 @@ void NamesSlept() {
   run.Expect(
       GetTabCustomSessionData(run.tab.Get()->GetContents()).find("Docs") != std::string::npos,
       "session_data_for_new_page");
-  PostDemoTask(base::BindOnce(&NamesFinish), base::Seconds(3));  // the space saves its tabs
+  // Closed on page A, away from its link (page B): it wakes at its link.
+  run.Expect(GetTabCustom(run.tab.Get()).wakes_at_link, "wakes_at_link");
+  run.Expect(GetTabCustomSessionData(run.tab.Get()->GetContents()).find("wakes_at_link") !=
+                 std::string::npos,
+             "wakes_at_link_in_session");
+  PostDemoTask(base::BindOnce(&NamesSaved), base::Seconds(3));  // the space saves its tabs
 }
 
 void NamesLeftAgain() {
@@ -423,6 +445,7 @@ void NamesWentBack() {
     return;
   }
   run.Expect(CurrentUrlOf(run.tab.Get()) == PageA(), "back_to_link");
+  run.Expect(!HasLeftPinnedUrl(run.tab.Get()), "on_link");
   Load(run.tab.Get(), PageB());
   PostDemoTask(base::BindOnce(&NamesLeftAgain), base::Seconds(2));
 }
@@ -436,9 +459,14 @@ void NamesLeftLink() {
   run.Expect(HasLeftPinnedUrl(run.tab.Get()), "left_link");
   const std::string menu = run.MenuItems();
   run.detail += " menu_left=[" + menu + "]";
-  run.Expect(menu == "900:1 901:1 902:1 903:1", "menu_left_ok");
+  run.Expect(menu == "900:1 901:1 902:1", "menu_left_ok");
   run.Expect(run.RowTitle() == u"Docs", "name_kept_on_other_page");
-  run.Run(TabNameCommand::kBackToPinnedUrl);
+  // Unnamed, it would show its link's title, not the page's (docs/ux.md §6).
+  run.Expect(GetTabCustom(run.tab.Get()).pinned_title == u"Alpha page", "link_title_kept");
+  run.Expect(
+      TabTitleWithoutName(run.tab.Get(), run.tab.Get()->GetContents()->GetTitle()) == u"Alpha page",
+      "unnamed_shows_link_title");
+  Load(run.tab.Get(), PageA());
   PostDemoTask(base::BindOnce(&NamesWentBack), base::Seconds(2));
 }
 
@@ -452,7 +480,7 @@ void NamesPinned() {
   run.Expect(GetTabCustom(run.tab.Get()).pinned_url == PageA(), "link_is_page_when_pinned");
   const std::string menu = run.MenuItems();
   run.detail += " menu_pinned=[" + menu + "]";
-  run.Expect(menu == "900:1 901:1 902:0 903:0", "menu_pinned_ok");
+  run.Expect(menu == "900:1 901:1 902:0", "menu_pinned_ok");
   Load(run.tab.Get(), PageB());
   PostDemoTask(base::BindOnce(&NamesLeftLink), base::Seconds(2));
 }
@@ -478,6 +506,7 @@ void NamesRenamedInBar() {
 void NamesBarOpen() {
   NamesRun& run = TheNamesRun();
   const std::optional<std::u16string> text = CommandBarTextForTesting();
+  run.detail += " bar_text=" + (text ? base::UTF16ToUTF8(*text) : std::string("(no bar)"));
   run.Expect(text == u"My Notes", "bar_starts_with_name");
   run.Expect(RunFirstCommandBarResultForTesting(u"  Docs "), "bar_ran");
   PostDemoTask(base::BindOnce(&NamesRenamedInBar), base::Seconds(1));

@@ -212,7 +212,7 @@ base::DictValue SavedTabToDict(const SavedTab& tab) {
                           .Set("layout", tab.split_layout)
                           .Set("ratio", tab.split_ratio));
   }
-  WriteTabCustom({tab.name, tab.pinned_url}, dict);
+  WriteTabCustom(tab.custom, dict);
   return dict;
 }
 
@@ -250,9 +250,7 @@ std::vector<SavedTab> SavedTabsFromList(const base::ListValue& list) {
         tab.split_ratio = ratio > 0 && ratio < 1 ? ratio : 0.5;
       }
     }
-    TabCustom custom = ReadTabCustom(dict);
-    tab.name = std::move(custom.name);
-    tab.pinned_url = std::move(custom.pinned_url);
+    tab.custom = ReadTabCustom(dict);
     tabs.push_back(std::move(tab));
   }
   return tabs;

@@ -298,19 +298,24 @@ TEST(SavedTabsTest, SplitRoundTrip) {
 
 TEST(SavedTabsTest, NameAndPinnedUrlRoundTrip) {
   SavedTab tab{GURL("https://mail.example.com/sent"), u"Sent - Mail", /*pinned=*/true};
-  tab.name = u"Mail";
-  tab.pinned_url = GURL("https://mail.example.com/inbox");
+  tab.custom.name = u"Mail";
+  tab.custom.pinned_url = GURL("https://mail.example.com/inbox");
+  tab.custom.wakes_at_link = true;
+  tab.custom.pinned_title = u"Inbox - Mail";
   base::ListValue list;
   list.Append(SavedTabToDict(tab));
   list.Append(SavedTabToDict({GURL("https://b.com/"), u"B"}));
   const std::vector<SavedTab> tabs = SavedTabsFromList(list);
   ASSERT_EQ(tabs.size(), 2u);
-  EXPECT_EQ(tabs[0].name, u"Mail");
-  EXPECT_EQ(tabs[0].pinned_url, GURL("https://mail.example.com/inbox"));
+  EXPECT_EQ(tabs[0].custom.name, u"Mail");
+  EXPECT_EQ(tabs[0].custom.pinned_url, GURL("https://mail.example.com/inbox"));
+  EXPECT_TRUE(tabs[0].custom.wakes_at_link);
+  EXPECT_EQ(tabs[0].custom.pinned_title, u"Inbox - Mail");
+  EXPECT_TRUE(tabs[1].custom.empty());
   EXPECT_EQ(tabs[0].url, GURL("https://mail.example.com/sent"));
   // Nothing set: nothing written, so records stay small.
-  EXPECT_TRUE(tabs[1].name.empty());
-  EXPECT_FALSE(tabs[1].pinned_url.is_valid());
+  EXPECT_TRUE(tabs[1].custom.name.empty());
+  EXPECT_FALSE(tabs[1].custom.pinned_url.is_valid());
   EXPECT_FALSE(list[1].GetDict().contains("name"));
   EXPECT_FALSE(list[1].GetDict().contains("pinned_url"));
 }
@@ -320,7 +325,7 @@ TEST(SavedTabsTest, NameIsReadAsTypedNamesAreKept) {
   list.Append(base::DictValue().Set("url", "https://a.com/").Set("name", "  Two \n lines "));
   const std::vector<SavedTab> tabs = SavedTabsFromList(list);
   ASSERT_EQ(tabs.size(), 1u);
-  EXPECT_EQ(tabs[0].name, u"Two lines");
+  EXPECT_EQ(tabs[0].custom.name, u"Two lines");
 }
 
 TEST(SavedTabsTest, InvalidPinnedUrlIsDropped) {
@@ -328,7 +333,7 @@ TEST(SavedTabsTest, InvalidPinnedUrlIsDropped) {
   list.Append(base::DictValue().Set("url", "https://a.com/").Set("pinned_url", "nope"));
   const std::vector<SavedTab> tabs = SavedTabsFromList(list);
   ASSERT_EQ(tabs.size(), 1u);
-  EXPECT_FALSE(tabs[0].pinned_url.is_valid());
+  EXPECT_FALSE(tabs[0].custom.pinned_url.is_valid());
 }
 
 TEST(SavedTabsTest, BadSplitRatioFallsBackToHalf) {

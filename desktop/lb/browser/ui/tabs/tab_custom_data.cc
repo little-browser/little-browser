@@ -22,6 +22,7 @@
 #include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "ui/base/page_transition_types.h"
@@ -75,7 +76,12 @@ void WriteSession(tabs::TabInterface* tab) {
   }
 }
 
+// Loads a pinned tab's link (or a new one) in it; it no longer has to wake at its link.
 void LoadUrl(tabs::TabInterface* tab, const GURL& url) {
+  if (TabCustom custom = GetTabCustom(tab); custom.wakes_at_link) {
+    custom.wakes_at_link = false;
+    SetTabCustom(tab, std::move(custom));
+  }
   content::NavigationController::LoadURLParams params(url);
   params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
   tab->GetContents()->GetController().LoadURLWithParams(params);
@@ -115,8 +121,19 @@ GURL CommittedUrlOf(const tabs::TabInterface* tab) {
   return contents ? contents->GetLastCommittedURL() : GURL();
 }
 
+// The title the page set itself (not one made from its address); empty while it has none.
+std::u16string CommittedTitleOf(const tabs::TabInterface* tab) {
+  content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+  content::NavigationEntry* entry =
+      contents ? contents->GetController().GetLastCommittedEntry() : nullptr;
+  return entry ? entry->GetTitle() : std::u16string();
+}
+
+// The tab's link settles, and a pinned tab on its link takes its page's title as the link's.
 void SettleLink(tabs::TabInterface* tab) {
-  SetTabCustom(tab, SettleTabLink(GetTabCustom(tab), tab->IsPinned(), CommittedUrlOf(tab)));
+  const GURL committed = CommittedUrlOf(tab);
+  SetTabCustom(tab, TakePinnedTitle(SettleTabLink(GetTabCustom(tab), tab->IsPinned(), committed),
+                                    committed, CommittedTitleOf(tab)));
 }
 
 }  // namespace
@@ -160,16 +177,9 @@ void SetPinnedUrl(tabs::TabInterface* tab, const GURL& url) {
   if (!tab || !tab->IsPinned() || !url.is_valid()) {
     return;
   }
-  TabCustom custom = GetTabCustom(tab);
-  custom.pinned_url = url;
-  SetTabCustom(tab, std::move(custom));
+  SetTabCustom(tab, WithPinnedUrl(GetTabCustom(tab), url));
+  SettleLink(tab);  // already on the new link: its title is the link's
   if (lb::HasLeftPinnedUrl(url, CurrentUrlOf(tab))) {
-    LoadUrl(tab, url);
-  }
-}
-
-void GoBackToPinnedUrl(tabs::TabInterface* tab) {
-  if (const GURL url = PinnedUrlOf(tab); url.is_valid()) {
     LoadUrl(tab, url);
   }
 }
@@ -199,7 +209,13 @@ std::u16string TabRowTitle(const tabs::TabInterface* tab, std::u16string page_ti
 }
 
 bool HasTabName(const tabs::TabInterface* tab) {
-  return !GetTabCustom(tab).name.empty();
+  return HasOwnTitle(GetTabCustom(tab));
+}
+
+std::u16string TabTitleWithoutName(const tabs::TabInterface* tab, std::u16string page_title) {
+  TabCustom custom = GetTabCustom(tab);
+  custom.name.clear();
+  return TabTitleToShow(custom, page_title);
 }
 
 void AddTabNameMenuItems(ui::SimpleMenuModel* menu, TabStripModel* model, int index) {
@@ -244,9 +260,6 @@ bool ExecuteTabNameCommand(TabStripModel* model, int index, int command_id) {
     case TabNameCommand::kUsePageAsPinnedUrl:
       SetPinnedUrl(tab, CurrentUrlOf(tab));
       break;
-    case TabNameCommand::kBackToPinnedUrl:
-      GoBackToPinnedUrl(tab);
-      break;
   }
   return true;
 }
@@ -269,7 +282,9 @@ void RestoreTabCustom(tabs::TabInterface* tab,
     return;
   }
   if (std::optional<TabCustom> custom = TabCustomFromSessionData(data->second)) {
-    SetTabCustom(tab, SettleTabLink(std::move(*custom), tab->IsPinned(), CommittedUrlOf(tab)));
+    // A restored window shows its selected tab before this runs (lb::RestoredTabCustom).
+    SetTabCustom(tab, RestoredTabCustom(std::move(*custom), tab->IsPinned(), CommittedUrlOf(tab),
+                                        tab->IsActivated()));
   }
 }
 
@@ -296,6 +311,17 @@ void OnTabChangedForNames(tabs::TabInterface* tab) {
   }
   if (!TabDragController::IsActive()) {
     SettleLink(tab);
+  }
+}
+
+void OnTabShownForNames(tabs::TabInterface* tab) {
+  if (!tab || !GetTabCustom(tab).wakes_at_link) {
+    return;
+  }
+  const TabShown shown = OnTabShown(GetTabCustom(tab));
+  SetTabCustom(tab, shown.custom);
+  if (shown.load_link) {
+    LoadUrl(tab, shown.custom.pinned_url);
   }
 }
 

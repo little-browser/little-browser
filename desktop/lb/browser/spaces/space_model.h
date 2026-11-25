@@ -14,6 +14,7 @@
 #include "base/functional/function_ref.h"
 #include "base/values.h"
 #include "components/tab_groups/tab_group_color.h"
+#include "lb/browser/tabs/tab_names.h"
 #include "url/gurl.h"
 
 namespace lb {
@@ -111,9 +112,9 @@ struct SavedTab {
   std::string split_id;
   int split_layout = 0;  // split_tabs::SplitTabLayout
   double split_ratio = 0.5;
-  // The user's name for the tab, and a pinned tab's link (lb/browser/tabs/tab_names.h).
-  std::u16string name;
-  GURL pinned_url;
+  // The user's name for the tab and a pinned tab's link, with what goes with it
+  // (lb/browser/tabs/tab_names.h).
+  TabCustom custom;
 };
 
 base::DictValue SavedTabToDict(const SavedTab& tab);

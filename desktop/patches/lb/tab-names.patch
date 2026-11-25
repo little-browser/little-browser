@@ -2,8 +2,8 @@
 # (docs/ux.md §6). desktop/lb keeps both by the tab (lb/browser/ui/tabs/tab_custom_data.h); this
 # hooks them in:
 # - a named tab's row shows its name instead of the page's title, also while loading;
-# - the tab menu has Rename Tab…, and for a pinned tab Edit Link…, Use Current Page as Link and
-#   Back to Pinned Page, after Pin/Unpin; desktop/lb enables and runs them. Their command ids start
+# - the tab menu has Rename Tab…, and for a pinned tab Edit Link… and Use Current Page as Link,
+#   after Pin/Unpin; desktop/lb enables and runs them. Their command ids start
 #   at 900, so the tab menu's command enum gets a fixed underlying type that makes them valid;
 # - the name and the link are saved as tab extra data, also when Chromium rebuilds its session
 #   file and in tab restore's record of a closed tab or window (a restored tab gets them back

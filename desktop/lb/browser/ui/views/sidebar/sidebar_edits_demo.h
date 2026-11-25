@@ -23,11 +23,11 @@ namespace lb {
 // --lb-ui-snapshot-sidebar=<png> it captures the slid-in sidebar after the drag instead.
 //
 // --lb-sidebar-demo=tab-names: names a tab and checks its row, the tab menu's items, the command
-// bar's rename and the session data; pins it and checks its link: a page left from it enables Use
-// Current Page as Link and Back to Pinned Page, which go back to it or make the page the link; a
-// drag below "+ New Tab" and back keeps the link; asleep (with a new page) it keeps its name and
-// link; the space's saved tabs carry both. With --lb-ui-snapshot-sidebar=<png> it captures the
-// named rows at the end.
+// bar's rename and the session data; pins it and checks its link: on a page left from it, the
+// link's title stays and Use Current Page as Link makes the page the link; a drag below "+ New
+// Tab" and back keeps the link; put to sleep away from its link it keeps its name and link and
+// wakes at its link; the space's saved tabs carry both. With --lb-ui-snapshot-sidebar=<png> it
+// captures the named rows at the end.
 //
 // --lb-sidebar-demo=other-apps: links from other apps (docs/ux.md §8). Links handed over by macOS
 // must open the web page in a little window and leave a browser page to open as a tab; a second
