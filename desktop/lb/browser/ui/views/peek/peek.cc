@@ -66,6 +66,7 @@
 #include "components/zoom/page_zoom.h"
 #include "content/public/browser/eye_dropper.h"
 #include "content/public/browser/file_select_listener.h"
+#include "content/public/browser/keyboard_event_processing_result.h"
 #include "content/public/browser/media_stream_request.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
@@ -81,6 +82,7 @@
 #include "lb/browser/peek/peek_rules.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/little_window/little_window.h"
+#include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/mojom/choosers/file_chooser.mojom.h"
 #include "third_party/blink/public/mojom/frame/fullscreen.mojom.h"
 #include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
@@ -695,6 +697,22 @@ class Peek : public content::WebContentsDelegate,
     return false;
   }
 
+  // Esc closes the Peek before the page sees it (lb::ClosesPeekBeforePage), so a page that
+  // handles Esc itself can't keep it open. Other keys go to the page first.
+  content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
+      content::WebContents* source,
+      const input::NativeWebKeyboardEvent& event) override {
+    const PeekKeyPress key = {
+        .escape = event.windows_key_code == ui::VKEY_ESCAPE,
+        .modified = (event.GetModifiers() & blink::WebInputEvent::kKeyModifiers) != 0,
+        .key_down = event.GetType() == blink::WebInputEvent::Type::kRawKeyDown};
+    // While the Peek expands into a tab or closes it can't close again: the key goes on as usual.
+    if (closing_ || expanding_ || !ClosesPeekBeforePage(key)) {
+      return content::KeyboardEventProcessingResult::NOT_HANDLED;
+    }
+    RequestClose();
+    return content::KeyboardEventProcessingResult::HANDLED;
+  }
   bool HandleKeyboardEvent(content::WebContents* source,
                            const input::NativeWebKeyboardEvent& event) override {
     return view_ && view_->GetFocusManager() &&

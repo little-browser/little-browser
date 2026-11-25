@@ -76,6 +76,18 @@ enum class PeekCommandAction {
 };
 PeekCommandAction PeekCommandActionFor(int command_id);
 
+// A key pressed while the Peek's page has the keyboard, as the window sees it before the page
+// does. Keys an input method takes (Esc that cancels a composition) never get here.
+struct PeekKeyPress {
+  bool escape = false;    // the Esc key
+  bool modified = false;  // with Shift, Control, Option or Command
+  bool key_down = false;  // going down, not coming up
+};
+// Whether the key closes the Peek before its page sees it: Esc alone, as it goes down. The page
+// doesn't get it, so a page that handles Esc itself (to close its own menu or dialog) can't keep
+// the Peek open.
+bool ClosesPeekBeforePage(const PeekKeyPress& key);
+
 // How long the card takes to grow open, and to expand into a tab (docs/ux.md section 11).
 inline constexpr base::TimeDelta kPeekOpenDuration = base::Milliseconds(200);
 inline constexpr base::TimeDelta kPeekExpandDuration = base::Milliseconds(240);

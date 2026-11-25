@@ -237,7 +237,7 @@ Settings page and the Ads page must use our wording (with
 `=peek`, on a fresh profile, writes four local pages and sends real mouse and key events to them:
 Shift+click must open a link in Peek with no new tab, growing to a card as tall as the window and a
 little narrower than the page, with its site shown above it and the ad blocker on its page; Reload
-must act on the Peek's page and View Source do nothing; Esc, the Close button, Cmd+W pressed in
+must act on the Peek's page and View Source do nothing; Esc (though the page takes Esc for itself), the Close button, Cmd+W pressed in
 the page, the Close Tab command and a click on the backdrop must each close it and no tab;
 Shift+click inside the Peek must replace its page; its page must not open a window without a
 click, its alert() must show and its requestFullscreen() be refused; Cmd+click in it must open a

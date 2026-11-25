@@ -83,7 +83,8 @@ constexpr base::TimeDelta kPollEvery = base::Milliseconds(16);
 constexpr base::TimeDelta kStepLimit = base::Seconds(15);
 
 // The page the links are clicked on: the left half is a link to b.html, the right half a
-// target=_blank link to c.html. b.html is all a link to c.html. Both record when they loaded.
+// target=_blank link to c.html. b.html is all a link to c.html, and takes Esc for itself, as a
+// page with its own menus does. Both record when they loaded.
 // d.html asks before it is left ("Leave site?").
 constexpr char kPageA[] =
     "<!doctype html><title>Peek demo</title><script>window.lbLoaded = String(Math.random());"
@@ -92,6 +93,7 @@ constexpr char kPageA[] =
     "<a id=c href='c.html' target=_blank style='left:50vw'>c</a>";
 constexpr char kPageB[] =
     "<!doctype html><title>Peek B</title><script>window.lbLoaded = String(Math.random());"
+    "addEventListener('keydown', (e) => { if (e.key == 'Escape') e.preventDefault(); }, true);"
     "</script><a href='c.html' style='position:fixed;inset:0'>c</a>";
 constexpr char kPageC[] = "<!doctype html><title>Peek C</title><p>c";
 constexpr char kPageD[] =
@@ -416,7 +418,7 @@ class PeekDemo {
     WaitFor("the Peek to settle", Is(&PeekDemo::PeekSettledB), &PeekDemo::PressEsc);
   }
 
-  // 3. Esc closes it.
+  // 3. Esc closes it, though its page takes Esc for itself.
   void PressEsc() {
     PressKey(peek(), ui::VKEY_ESCAPE, ui::DomKey::ESCAPE, ui::DomCode::ESCAPE, 0);
     WaitFor("Esc to close Peek", Is(&PeekDemo::PeekClosed), &PeekDemo::CheckEsc);

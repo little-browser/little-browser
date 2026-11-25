@@ -305,7 +305,9 @@ blue groups, Teal makes cyan); the group menu changes it.
   is *not* reloaded — and the visit goes into history) and **Open in split view** (the card moves
   into the right half and the page becomes a tab in a split view with the one under it; not offered
   when that one is already in a split view, or in a little window). Esc, ⌘W or a left click on the
-  backdrop also close it. A page that asks before it is left ("Leave site?") asks first.
+  backdrop also close it; Esc closes it even on a page that uses Esc itself (to close its own
+  menu, say), as the page never gets it. A page that asks before it is left ("Leave site?") asks
+  first.
 - Only one Peek per window. Shift+click inside it replaces its page. Other links in it that open a
   new tab or window open in the window, as from any tab (the popup blocker included); one that
   opens a tab in front first makes the Peek's page a tab, so the page that opened it stays. Showing

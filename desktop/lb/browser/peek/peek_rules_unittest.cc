@@ -143,6 +143,20 @@ TEST(PeekRulesTest, WindowCommandsPassThrough) {
 const gfx::Rect kWindow(0, 0, 1100, 900);
 const gfx::Rect kPage(100, 50, 1000, 800);
 
+TEST(PeekRulesTest, EscClosesThePeekBeforeThePageSeesIt) {
+  EXPECT_TRUE(ClosesPeekBeforePage({.escape = true, .key_down = true}));
+}
+
+TEST(PeekRulesTest, EscComingUpOrWithModifiersLeavesThePeek) {
+  EXPECT_FALSE(ClosesPeekBeforePage({.escape = true}));
+  EXPECT_FALSE(ClosesPeekBeforePage({.escape = true, .modified = true, .key_down = true}));
+}
+
+TEST(PeekRulesTest, OtherKeysGoToThePage) {
+  EXPECT_FALSE(ClosesPeekBeforePage({.key_down = true}));
+  EXPECT_FALSE(ClosesPeekBeforePage({.modified = true, .key_down = true}));
+}
+
 TEST(PeekRulesTest, CardIsAsTallAsTheWindowAndALittleNarrowerThanThePage) {
   const gfx::Rect card = PeekCardBounds(kPage, kWindow);
   // 8.5% of the page's width on each side; the window's height less the label's row above (32),

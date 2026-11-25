@@ -501,7 +501,10 @@ page into a tab (`PromotesPeekBeforeOpening`), so `window.opener` survives. Whil
 `lb::HandleCommandFirst` (`patches/lb/command-hooks.patch`, before Chromium's command table) sends
 each browser command through `PeekCommandActionFor`: Esc/⌘W close the Peek (after the page's
 beforeunload), reload, back, zoom and Copy URL act on the Peek's page, other page commands do
-nothing, and the window's commands pass.
+nothing, and the window's commands pass. In the Peek's page, Esc closes the Peek before the page
+gets it (the Peek's `PreHandleKeyboardEvent`, `lb::ClosesPeekBeforePage`), so a page that handles
+Esc itself can't keep it open; ⌘W and other keys go to the page first, then to the Peek's
+accelerators.
 
 It is shown in a child widget over the whole browser window: the dimmed backdrop, the card (from
 a margin at the top down to the window's bottom edge, rounded at the top only, and a little

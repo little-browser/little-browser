@@ -67,6 +67,10 @@ bool CanOpenPeekInSplitView(WindowKind window, bool page_in_split_view) {
   return window == WindowKind::kNormal && !page_in_split_view;
 }
 
+bool ClosesPeekBeforePage(const PeekKeyPress& key) {
+  return key.escape && !key.modified && key.key_down;
+}
+
 PeekCommandAction PeekCommandActionFor(int command_id) {
   switch (command_id) {
     case IDC_CLOSE_TAB:
