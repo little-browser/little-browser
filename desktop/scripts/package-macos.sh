@@ -129,6 +129,11 @@ if [ "$RELEASE" = 1 ]; then
     # A throwaway keychain holds the identity for this run only; the trap deletes it.
     KEYCHAIN="$TMP/signing.keychain-db"
     kc_password="$(openssl rand -hex 24)"
+    # The search list as it is now, before anything can fail: the trap puts it back.
+    while IFS= read -r line; do
+      line="${line#"${line%%[![:space:]]*}"}"
+      ORIGINAL_KEYCHAINS+=("${line//\"/}")
+    done < <(security list-keychains -d user)
     security create-keychain -p "$kc_password" "$KEYCHAIN"
     # No auto-lock: notarisation can keep Apple's queue busy for hours before the disk image is signed.
     security set-keychain-settings "$KEYCHAIN"
@@ -143,11 +148,10 @@ if [ "$RELEASE" = 1 ]; then
     curl -fsSL --retry 3 -o "$TMP/DeveloperIDG2CA.cer" "$APPLE_DEVID_CA_URL"
     [ "$(shasum -a 256 "$TMP/DeveloperIDG2CA.cer" | cut -d' ' -f1)" = "$APPLE_DEVID_CA_SHA256" ] ||
       die "Apple's Developer ID intermediate certificate doesn't match its pinned fingerprint"
-    security import "$TMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN" >/dev/null
-    while IFS= read -r line; do
-      line="${line#"${line%%[![:space:]]*}"}"
-      ORIGINAL_KEYCHAINS+=("${line//\"/}")
-    done < <(security list-keychains -d user)
+    # macOS refuses the import when one of the user's keychains already has it, which is fine.
+    if ! security import "$TMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN" >/dev/null 2>"$TMP/import.err"; then
+      grep -q 'already exists' "$TMP/import.err" || die "importing Apple's intermediate: $(cat "$TMP/import.err")"
+    fi
     # The CI user has no login keychain, so the list can be empty (and macOS's bash 3.2 treats an
     # empty array as unset under `set -u`).
     security list-keychains -d user -s "$KEYCHAIN" ${ORIGINAL_KEYCHAINS[@]+"${ORIGINAL_KEYCHAINS[@]}"}
