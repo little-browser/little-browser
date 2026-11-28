@@ -199,9 +199,12 @@ patches switch off). Narrow it once a network audit shows which hosts the built 
 Done by scripts at the end of `fetch.sh`, not by patches — they survive Chromium updates unchanged:
 
 - `../chromium/branding/BRANDING` → product name, company, copyright, macOS bundle ID (`app.littlebrowser.LittleBrowser`).
-- `../chromium/scripts/rebrand_strings.py` replaces "Chromium" (not "Chromium OS", "The Chromium
-  Authors" or URLs; "Chromium browser" becomes the name alone) in `chrome/app/chromium_strings.grd`
-  and `components/components_chromium_strings.grd` plus their `.grdp` parts. Translations are keyed by a fingerprint of the English text, so it recomputes the
+- `../chromium/scripts/rebrand_strings.py --chrome` replaces "Chromium", "Chrome" and "Google
+  Chrome" (not "Chromium OS", "The Chromium Authors", URLs, or other things named after Chrome such
+  as the Chrome Web Store; "Chromium browser" becomes the name alone) in
+  `chrome/app/chromium_strings.grd`, `components/components_chromium_strings.grd`,
+  `chrome/app/generated_resources.grd` and `components/components_strings.grd` plus their `.grdp`
+  parts. Translations are keyed by a fingerprint of the English text, so it recomputes the
   fingerprints with Chromium's own grit and re-keys every translation — otherwise all locales would
   silently fall back to English. (157.0.8103.78: 967 replacements, 591 messages, ~44,000
   translations in 81 languages.)

@@ -158,10 +158,9 @@ void LogTabs(BrowserWindowInterface* browser, const char* step) {
 // them any more, so every profile has them cleared.
 constexpr char kObsoleteFavouritesPref[] = "lb.favourites";
 
-// --lb-sidebar-demo[=<mode>] fills the sidebar with sample data and switches space once (manual
-// testing and the --lb-ui-snapshot tour). chromium/lb/README.md ("Try it") lists the modes and
-// what each must show.
-constexpr char kDemoSwitch[] = "lb-sidebar-demo";
+// --lb-sidebar-demo[=<mode>] (kDemoSwitch) fills the sidebar with sample data and switches space
+// once (manual testing and the --lb-ui-snapshot tour). chromium/lb/README.md ("Try it") lists the
+// modes and what each must show.
 
 std::map<BrowserWindowInterface*, SidebarController*>& Registry() {
   static base::NoDestructor<std::map<BrowserWindowInterface*, SidebarController*>> registry;
@@ -429,7 +428,7 @@ SidebarController::SidebarController(BrowserWindowInterface* browser)
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(kDemoSwitch);
     // import-first-run(-close) are the import demos that need the first-run questions asked.
     if (mode == "ad-blocker" || mode == "peek" || mode == "space-avatar" ||
-        mode == "tracking-params" || mode == "element-hiding" ||
+        mode == "tracking-params" || mode == "element-hiding" || mode == "update-prompt" ||
         (mode.starts_with("import") && !mode.starts_with("import-first-run"))) {
       SkipFirstRunQuestionsForDemo(browser_->GetProfile());  // before they are asked below
     }
@@ -1562,8 +1561,9 @@ std::vector<TabEntry> SidebarController::GetAllTabs() const {
       const std::vector<SavedTab> saved = SavedTabsFromList(*list);
       for (size_t i = 0; i < saved.size(); ++i) {
         result.push_back({s,
+                          // Saved, not loaded: asleep.
                           TabTitleToShow(SettleTabLink(saved[i].custom, saved[i].pinned, GURL()),
-                                         saved[i].title),
+                                         saved[i].title, /*asleep=*/true),
                           saved[i].title, saved[i].url, false, tabs::TabHandle(), i});
       }
     }
@@ -1613,6 +1613,11 @@ void SidebarController::SetShowCommandBarCallback(
 }
 
 bool SidebarController::ShowCommandBar(CommandBarMode mode) {
+  command_bar_tab_ = tabs::TabHandle();  // a bar for no tab in particular
+  return ShowCommandBarWithTab(mode);
+}
+
+bool SidebarController::ShowCommandBarWithTab(CommandBarMode mode) {
   if (!show_command_bar_) {
     return false;
   }
@@ -1625,7 +1630,7 @@ bool SidebarController::ShowCommandBarForTab(CommandBarMode mode, tabs::TabInter
     return false;
   }
   command_bar_tab_ = tab->GetHandle();
-  return ShowCommandBar(mode);
+  return ShowCommandBarWithTab(mode);
 }
 
 // ---------------------------------------------------------------- spaces: create, delete
@@ -2409,13 +2414,19 @@ bool HandleCommandFirst(BrowserWindowInterface* browser, int command_id) {
 bool HandleCommand(BrowserWindowInterface* browser, int command_id) {
   SidebarController* controller = SidebarController::FromBrowser(browser);
   if (!controller) {
-    return false;
+    // ⌘L in a little window: the command bar on its address, as a click on it.
+    return command_id == IDC_FOCUS_LOCATION && ShowLittleWindowAddressBar(browser);
   }
   switch (command_id) {
     case IDC_NEW_TAB:
       return controller->ShowCommandBar(CommandBarMode::kNewTab);
     case IDC_FOCUS_LOCATION:
       return controller->ShowCommandBar(CommandBarMode::kEditAddress);
+    case IDC_SHOW_AVATAR_MENU:
+      // Cmd+Shift+M: the toolbar has no profile button; profiles are in the ⋮ menu's Profile
+      // submenu, so the ⋮ menu opens.
+      chrome::ShowAppMenu(browser);
+      return true;
     case IDC_CLOSE_TAB: {
       // Chromium asks for a second ⌘W before closing pinned tabs. Here closing a pinned tab
       // only puts it to sleep (pinned_tab_sleep.h), so close straight away.

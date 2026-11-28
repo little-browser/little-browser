@@ -95,6 +95,11 @@ the cache with sccache's own variables (`SCCACHE_DIR`, `SCCACHE_CACHE_SIZE`, `SC
 S3). Turning it on or off changes every compile command, so the next build recompiles everything
 once. Machines that share a cache need the same checkout path, or the keys won't match.
 
+**A release's version.** `LB_RELEASE=157.0.8103.78-3 scripts/build.sh` builds release
+`v157.0.8103.78-3`: the About page and `chrome://version` show that version (GN
+`lb_release_revision`), and the build stops if the tree isn't on that Chromium version. CI sets it
+from the tag. Without it the build shows the Chromium version alone.
+
 ## Release automation
 
 - `scripts/upstream.sh` says whether ungoogled-chromium has a release newer than
@@ -113,7 +118,9 @@ once. Machines that share a cache need the same checkout path, or the keys won't
   `updates/macos-<arch>.xml`; `--release` (CI) uses the Developer ID from Secrets Manager and notarises. `build.sh
   --package` runs it without `--release` (ad-hoc). With a version and an update key it also adds
   the updater (Sparkle) and writes the `.dmg`'s update signature to a `.update.json`; to try an
-  update locally, give it `LB_UPDATE_KEY_FILE` and `LB_UPDATE_FEED_URL` (see its header).
+  update locally, give it `LB_UPDATE_KEY_FILE` and `LB_UPDATE_FEED_URL` (see its header). The
+  version has to be the one the build was made for (`LB_RELEASE`, in `out/Default/args.gn`):
+  `--release` stops otherwise, a local run warns.
 - `scripts/release_notes.py notes …` prints a release's notes from the commits' `Release-note:`
   lines, and `markdown …` a release in `releases.json` as Markdown; safe to run locally.
 - `scripts/publish-release.sh <version> <LittleBrowser-macos-<arch>.dmg>` and `scripts/deploy-site.sh` are CI-only:

@@ -4,7 +4,9 @@
 
 #include "lb/browser/ui/views/sidebar/sidebar_edits_demo.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
@@ -15,6 +17,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -23,27 +26,38 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/find_bar/find_bar.h"
+#include "chrome/browser/ui/find_bar/find_bar_controller.h"
+#include "components/find_in_page/find_types.h"
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/tab_menu_model.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/browser_widget.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+#include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/ui/views/tabs/hovercard/tab_hover_card_bubble_view.h"
+#include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
+#include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_accessibility.h"
 #include "chrome/browser/ui/views/tabs/tab/tab_title.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "lb/browser/demo/demo_report.h"
 #include "lb/browser/tabs/sidebar_width.h"
 #include "lb/browser/tabs/tab_names.h"
@@ -55,14 +69,26 @@
 #include "lb/browser/ui/views/little_window/little_window.h"
 #include "lb/browser/ui/views/sidebar/new_tab_row_view.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
+#include "lb/browser/ui/views/frame/contents_card.h"
 #include "ui/base/base_window.h"
+#include "ui/base/hit_test.h"
 #include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
 #include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/transform.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/controls/resize_area.h"
+#include "ui/views/view_tracker.h"
 #include "ui/views/widget/widget.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
+#include "chrome/browser/ui/views/frame/top_container_view.h"
+#include "chrome/browser/ui/views/toolbar/reload_button.h"
+#include "ui/views/bubble/bubble_dialog_delegate_view.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/views/window/non_client_view.h"
 
 namespace lb {
 
@@ -72,6 +98,10 @@ constexpr char kHiddenMode[] = "hidden-sidebar";
 constexpr char kNamesMode[] = "tab-names";
 constexpr char kProgressMode[] = "load-progress";
 constexpr char kOtherAppsMode[] = "other-apps";
+// --lb-sidebar-demo=pinned-fresh --lb-demo-url=<url>: <url> is an HTTP page the cache may keep
+// for long (Cache-Control: max-age) whose title changes with each response.
+constexpr char kFreshMode[] = "pinned-fresh";
+constexpr char kToolbarMode[] = "sidebar-toolbar";
 constexpr char kSnapshotSwitch[] = "lb-ui-snapshot-sidebar";
 constexpr char kProgressSnapshotSwitch[] = "lb-ui-snapshot-load-progress";
 
@@ -172,6 +202,18 @@ void HiddenLeftOutside() {
   PostDemoTask(base::BindOnce(&HiddenWithoutHover), base::Seconds(1));
 }
 
+void HiddenShownAgain() {
+  HiddenRun& run = TheHiddenRun();
+  BrowserView* view =
+      run.browser ? BrowserView::GetBrowserViewForBrowser(run.browser.get()) : nullptr;
+  if (!view) {
+    ReportDemo(kHiddenMode, false, "the window went away");
+    return;
+  }
+  run.Expect(IsToolbarInSidebar(view->toolbar()), "toolbar back in the shown sidebar");
+  ReportDemo(kHiddenMode, run.ok, run.detail);
+}
+
 void HiddenWithoutHover() {
   HiddenRun& run = TheHiddenRun();
   VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
@@ -187,11 +229,30 @@ void HiddenWithoutHover() {
   run.Expect(region->layer()->opacity() == 1.0f, "drawn without expand on hover");
   run.Expect(PageLeft(run.browser.get()) >= tabs::kVerticalTabStripCollapsedWidth - 1,
              "the column takes its room");
+  // The toolbar doesn't fit the column: it is Chromium's row above the page, and the column has
+  // its toggle back, drawn inside it; the window buttons are on that row, off the page.
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(run.browser.get());
+  views::View* toggle = region->GetTopContainer()->GetCollapseButton();
+  const gfx::Rect toggle_bounds = views::View::ConvertRectToTarget(
+      toggle, region, toggle->GetLocalBounds());
+  const gfx::Rect close = CloseButtonBoundsForTesting(region->GetWidget());
+  const gfx::Rect card =
+      view->multi_contents_view()->ConvertRectToWidget(view->multi_contents_view()->GetLocalBounds());
+  run.detail += " toggle=" + toggle_bounds.ToString() + " close=" + close.ToString() +
+                " card=" + card.ToString();
+  run.Expect(!IsToolbarInSidebar(view->toolbar()) &&
+                 view->toolbar()->parent() == view->top_container(),
+             "toolbar above the page in the column");
+  run.Expect(toggle->parent() == region->GetTopContainer() && toggle->IsDrawn() &&
+                 region->GetLocalBounds().Contains(toggle_bounds),
+             "the column's toggle in it");
+  run.Expect(WindowButtonsShownForTesting(region->GetWidget()) && !close.Intersects(card),
+             "window buttons off the page");
   // Leave the sidebar as it was.
   state->SetExpandOnHoverEnabled(true);
   state->SetUncollapsedWidth(run.width);
   state->RequestCollapse(false);
-  ReportDemo(kHiddenMode, run.ok, run.detail);
+  PostDemoTask(base::BindOnce(&HiddenShownAgain), base::Seconds(1));
 }
 
 void HiddenResized() {
@@ -203,8 +264,10 @@ void HiddenResized() {
     ReportDemo(kHiddenMode, false, "the window went away");
     return;
   }
-  const int wider = SlidInSidebarWidth(run.width + 60, tabs::kVerticalTabStripUncollapsedMinWidth,
+  const int wider = SlidInSidebarWidth(run.width + 300, tabs::kVerticalTabStripUncollapsedMinWidth,
                                        tabs::kVerticalTabStripUncollapsedMaxWidth);
+  // Wider than Chromium's 400 px (patches/lb/sidebar-max-width.patch).
+  run.Expect(wider > 400, "wider than 400");
   run.detail += " | dragged: " + run.State(region) +
                 " saved_width=" + base::NumberToString(state->GetUncollapsedWidth());
   run.Expect(region->width() == wider, "widened in place");
@@ -239,9 +302,28 @@ void HiddenSlidIn() {
   run.Expect(region->layer()->opacity() == 1.0f, "drawn while slid in");
   run.Expect(PageLeft(run.browser.get()) == kHiddenSidebarEdgeWidth,
              "over the page, which doesn't move");
-  // Drag its edge 60 px to the right, as the resize area does.
-  region->OnResize(30, /*done_resizing=*/false);
-  region->OnResize(60, /*done_resizing=*/true);
+  // Its top row is the shown sidebar's: one row, the toolbar's (the toggle, back, forward, reload
+  // and Tab Search) beside the window controls, not Chromium's column for a collapsed strip.
+  VerticalTabStripTopContainer* top = region->GetTopContainer();
+  views::View* toggle = top ? top->GetCollapseButton() : nullptr;
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(run.browser.get());
+  ToolbarView* toolbar = view ? view->toolbar() : nullptr;
+  const gfx::Rect close = CloseButtonBoundsForTesting(region->GetWidget());
+  const gfx::Rect toggle_bounds =
+      toggle ? toggle->ConvertRectToWidget(toggle->GetLocalBounds()) : gfx::Rect();
+  const gfx::Rect reload = toolbar ? toolbar->reload_button()->ConvertRectToWidget(
+                                         toolbar->reload_button()->GetLocalBounds())
+                                   : gfx::Rect();
+  run.detail += " close=" + close.ToString() + " toggle=" + toggle_bounds.ToString() +
+                " reload=" + reload.ToString();
+  run.Expect(toggle && toggle->GetVisible() && toggle->parent() == toolbar &&
+                 std::abs(toggle_bounds.CenterPoint().y() - reload.CenterPoint().y()) <= 1 &&
+                 std::abs(close.CenterPoint().y() - reload.CenterPoint().y()) <= 3,
+             "top row is one row");
+  run.Expect(toggle && toggle_bounds.x() >= close.right(), "toggle right of the window controls");
+  // Drag its edge 300 px to the right, as the resize area does.
+  region->OnResize(150, /*done_resizing=*/false);
+  region->OnResize(300, /*done_resizing=*/true);
   PostDemoTask(base::BindOnce(&HiddenResized), base::Seconds(1));
 }
 
@@ -256,6 +338,12 @@ void HiddenCollapsed() {
   }
   run.width = state->GetUncollapsedWidth();
   run.detail = "hidden: " + run.State(region);
+  // A width saved before the sidebar's limits changed (Chromium's 240) comes back within them,
+  // so it slides in at a width its row fits in.
+  state->SetUncollapsedWidth(240);
+  run.Expect(state->GetUncollapsedWidth() == tabs::kVerticalTabStripUncollapsedMinWidth,
+             "an old narrow width comes back at the minimum");
+  state->SetUncollapsedWidth(run.width);
   run.Expect(state->IsCollapsed(), "hidden");
   run.Expect(region->width() == kHiddenSidebarEdgeWidth, "only the edge band");
   run.Expect(region->layer()->opacity() == 0.0f, "not drawn");
@@ -299,6 +387,8 @@ struct NamesRun {
   base::WeakPtr<BrowserWindowInterface> browser;
   tabs::TabHandle tab;
   raw_ptr<const content::WebContents> contents_before_sleep = nullptr;
+  bool only_tab = false;  // the window's only tab, so its drag must not move the window
+  gfx::Rect window_before_drag;
   std::string detail;
   bool ok = true;
 
@@ -434,11 +524,16 @@ void NamesDragAcross() {
   }
   const int from = row->GetBoundsInScreen().CenterPoint().y();
   const int below = rows.front()->GetBoundsInScreen().bottom() + 30;
-  std::vector<int> path = DragPathForDemo(from, below);
-  for (int y : DragPathForDemo(below, from)) {
-    path.push_back(y);
-  }
-  SimulateTabDragForDemo(run.browser.get(), run.tab.Get(), path, /*drop=*/true);
+  run.window_before_drag = run.browser->GetWindow()->GetBounds();
+  // Below "+ New Tab" the tab is unpinned; back up, pinned again. The tab moves, not the window
+  // (dragging a window's only tab moved the window in Chromium: patches/lb/no-tab-detach.patch).
+  views::ViewTracker tracker(row);
+  const bool down = StartViewDragForDemo(row, DragPathForDemo(from, below));
+  run.Expect(down && run.tab.Get() && !run.tab.Get()->IsPinned(), "unpinned_below_new_tab");
+  const bool up = down && tracker.view() &&
+                  ContinueViewDragForDemo(tracker.view(), DragPathForDemo(below, from));
+  run.Expect(up, "dragged_back_up");
+  EndTabDragForDemo(run.browser.get(), /*drop=*/true);
   PostDemoTask(base::BindOnce(&NamesDragged), base::Seconds(1));
 }
 
@@ -448,6 +543,9 @@ void NamesDragged() {
     ReportDemo(kNamesMode, false, "the tab went away");
     return;
   }
+  run.Expect(run.only_tab, "only_tab");
+  run.Expect(run.browser && run.browser->GetWindow()->GetBounds() == run.window_before_drag,
+             "window_stays_put");
   run.Expect(run.tab.Get()->IsPinned(), "pinned_after_drag");
   run.Expect(GetTabCustom(run.tab.Get()).pinned_url == PageB(), "link_kept_through_drag");
   // Put it to sleep, as closing it does: it gets a new page, and keeps its name and link.
@@ -466,6 +564,9 @@ void NamesSlept() {
   run.detail += std::string(" new_page_when_asleep=") +
                 (run.tab.Get()->GetContents() != run.contents_before_sleep ? "1" : "0");
   run.Expect(run.RowTitle() == u"Docs", "name_kept_asleep");
+  // Unnamed, asleep away from its link (page B), it would show its link's title again.
+  run.Expect(TabTitleWithoutName(run.tab.Get(), u"Alpha page") == u"Beta page",
+             "unnamed_asleep_shows_link_title");
   run.Expect(GetTabCustom(run.tab.Get()).pinned_url == PageB(), "link_kept_asleep");
   run.Expect(
       GetTabCustomSessionData(run.tab.Get()->GetContents()).find("Docs") != std::string::npos,
@@ -511,11 +612,11 @@ void NamesLeftLink() {
   run.detail += " menu_left=[" + menu + "]";
   run.Expect(menu == "900:1 901:1 902:1", "menu_left_ok");
   run.Expect(run.RowTitle() == u"Docs", "name_kept_on_other_page");
-  // Unnamed, it would show its link's title, not the page's (docs/ux.md §6).
+  // Its link keeps its title; unnamed and open, the row would follow the page it shows
+  // (docs/ux.md §6).
   run.Expect(GetTabCustom(run.tab.Get()).pinned_title == u"Alpha page", "link_title_kept");
-  run.Expect(
-      TabTitleWithoutName(run.tab.Get(), run.tab.Get()->GetContents()->GetTitle()) == u"Alpha page",
-      "unnamed_shows_link_title");
+  run.Expect(TabTitleWithoutName(run.tab.Get(), u"Beta page") == u"Beta page",
+             "unnamed_follows_page");
   Load(run.tab.Get(), PageA());
   PostDemoTask(base::BindOnce(&NamesWentBack), base::Seconds(2));
 }
@@ -599,11 +700,18 @@ void RunTabNamesDemo(BrowserWindowInterface* browser) {
                                               false);
   }
   SetTabCustom(tab, TabCustom());  // a name left by an earlier run
-  // A second tab: dragging a window's only tab would drag the window.
-  if (browser->GetTabStripModel()->count() < 2) {
-    chrome::AddAndReturnTabAt(browser, GURL("about:blank"), -1, /*foreground=*/false);
-  }
   NamesRun& run = TheNamesRun();
+  // The window's only tab: its drag across "+ New Tab" below moves the tab, not the window
+  // (patches/lb/no-tab-detach.patch). Tabs left by an earlier run go.
+  TabStripModel* model = browser->GetTabStripModel();
+  for (int tries = model->count(); tries > 0 && model->count() > 1; --tries) {
+    tabs::TabInterface* other = model->GetTabAtIndex(model->GetTabAtIndex(0) == tab ? 1 : 0);
+    if (other->IsPinned()) {
+      model->SetTabPinned(model->GetIndexOfTab(other), false);  // closed for good, not asleep
+    }
+    model->CloseWebContentsAt(model->GetIndexOfTab(other), TabCloseTypes::CLOSE_NONE);
+  }
+  run.only_tab = model->count() == 1;
   run.browser = browser->GetWeakPtr();
   run.tab = tab->GetHandle();
   Load(tab, PageA());
@@ -640,10 +748,30 @@ void ExpectLineOnThePage(ProgressRun& run, const std::string& when) {
   const gfx::Rect card = view->multi_contents_view()->GetBoundsInScreen();
   const gfx::Rect toolbar = view->toolbar()->GetBoundsInScreen();
   run.detail += " " + when + "=[" + shown->bounds.ToString() + " card " + card.ToString() + "]";
-  run.Expect(shown->bounds.height() == kLoadProgressHeight &&
-                 shown->bounds.bottom() == toolbar.bottom() && shown->bounds.x() == card.x() &&
-                 shown->bounds.width() == card.width(),
-             "line_on_page_" + when);
+  // Along the toolbar row's bottom, or, with the toolbar in the sidebar, just above the card, or
+  // along its top where it has no margin above it (fullscreen); in the window either way.
+  const bool in_sidebar = IsToolbarInSidebar(view->toolbar());
+  const gfx::Rect window = view->GetBoundsInScreen();
+  const bool above_card = shown->bounds.bottom() < card.y() &&
+                          shown->bounds.bottom() >= card.y() - kContentsCardInset;
+  const bool card_top = card.y() - window.y() < kLoadProgressHeight + kContentsCardInset / 2 &&
+                        shown->bounds.y() == card.y();
+  run.Expect(shown->bounds.height() == kLoadProgressHeight && window.Contains(shown->bounds) &&
+                 (in_sidebar ? above_card || card_top
+                             : shown->bounds.bottom() == toolbar.bottom()) &&
+                 shown->bounds.x() == card.x() && shown->bounds.width() == card.width(),
+             "line_on_page_" + when + (in_sidebar ? "_sidebar_toolbar" : ""));
+}
+
+// The sidebar's toggle in the window, and the window's close button (empty without one).
+std::pair<gfx::Rect, gfx::Rect> ToggleAndCloseButton(BrowserWindowInterface* browser) {
+  VerticalTabStripRegionView* region = Region(browser);
+  views::View* toggle = region ? region->GetTopContainer()->GetCollapseButton() : nullptr;
+  if (!toggle) {
+    return {};
+  }
+  return {toggle->ConvertRectToWidget(toggle->GetLocalBounds()),
+          CloseButtonBoundsForTesting(region->GetWidget())};
 }
 
 void ProgressLeftFullscreen() {
@@ -652,7 +780,24 @@ void ProgressLeftFullscreen() {
     return;
   }
   ExpectLineOnThePage(run, "after_fullscreen");
+  // Out of fullscreen the row's buttons start after the window buttons again.
+  const auto [toggle, close] = ToggleAndCloseButton(run.browser.get());
+  run.detail += " toggle_after_fullscreen=" + toggle.ToString() + " close=" + close.ToString();
+  run.Expect(!close.IsEmpty() && toggle.x() >= close.right(), "row_inset_back_after_fullscreen");
   ReportDemo(kProgressMode, run.ok, run.detail);
+}
+
+void ProgressFullscreenHidden() {
+  ProgressRun& run = TheProgressRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    return;
+  }
+  // Hidden in fullscreen: the window buttons are macOS's, in the title bar it reveals.
+  run.Expect(WindowButtonsShownForTesting(region->GetWidget()), "buttons_in_fullscreen_hidden");
+  tabs::VerticalTabStripStateController::From(run.browser.get())->RequestCollapse(false);
+  chrome::ExecuteCommand(run.browser.get(), IDC_FULLSCREEN);
+  PostDemoTask(base::BindOnce(&ProgressLeftFullscreen), base::Seconds(3));
 }
 
 void ProgressFullscreen() {
@@ -664,8 +809,16 @@ void ProgressFullscreen() {
   // page there (it used to convert between the two widgets' views, a CHECK failure).
   run.Expect(run.browser->GetWindow()->IsFullscreen(), "fullscreen");
   ExpectLineOnThePage(run, "fullscreen");
-  chrome::ExecuteCommand(run.browser.get(), IDC_FULLSCREEN);
-  PostDemoTask(base::BindOnce(&ProgressLeftFullscreen), base::Seconds(3));
+  // No window buttons in the row in fullscreen: its buttons start at its edge.
+  const auto [toggle, close] = ToggleAndCloseButton(run.browser.get());
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(run.browser.get());
+  const int toolbar_x =
+      view ? view->toolbar()->ConvertRectToWidget(view->toolbar()->GetLocalBounds()).x() : 0;
+  run.detail += " toggle_in_fullscreen=" + toggle.ToString() +
+                " toolbar_x=" + base::NumberToString(toolbar_x);
+  run.Expect(!toggle.IsEmpty() && toggle.x() - toolbar_x < 40, "row_inset_follows_fullscreen");
+  tabs::VerticalTabStripStateController::From(run.browser.get())->RequestCollapse(true);
+  PostDemoTask(base::BindOnce(&ProgressFullscreenHidden), base::Seconds(2));
 }
 
 void ProgressHidden() {
@@ -821,6 +974,489 @@ void RunOtherAppsDemo(BrowserWindowInterface* browser) {
   PostDemoTask(base::BindOnce(&OtherAppsCheck), base::Seconds(2));
 }
 
+// --------------------------------------------------------------- sidebar-toolbar
+
+struct ToolbarRun {
+  base::WeakPtr<BrowserWindowInterface> browser;
+  GURL page;
+  std::string detail;
+  bool ok = true;
+  std::unique_ptr<ExpandOnHoverLock> slide_in;
+  // A popup left open from the slid-in sidebar's toolbar.
+  std::unique_ptr<views::BubbleDialogDelegate> bubble;
+  std::unique_ptr<views::Widget> bubble_widget;
+  // The toggle's lowest opacity while the sidebar hides.
+  float toggle_opacity = 1.0f;
+
+  void Expect(bool condition, const std::string& what) {
+    detail += " " + what + "=" + (condition ? "1" : "0");
+    ok = ok && condition;
+  }
+};
+
+ToolbarRun& TheToolbarRun() {
+  static base::NoDestructor<ToolbarRun> run;
+  return *run;
+}
+
+void ToolbarBackInSidebar() {
+  ToolbarRun& run = TheToolbarRun();
+  BrowserView* view = run.browser ? BrowserView::GetBrowserViewForBrowser(run.browser.get()) : nullptr;
+  if (!view) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  run.Expect(IsToolbarInSidebar(view->toolbar()), "back_in_sidebar_with_sidebar");
+  // Moved back in, the window buttons sit on its row again: the title bar is measured anew.
+  {
+    ToolbarView* toolbar = view->toolbar();
+    const gfx::Rect close = CloseButtonBoundsForTesting(view->GetWidget());
+    const gfx::Rect reload =
+        toolbar->reload_button()->ConvertRectToWidget(toolbar->reload_button()->GetLocalBounds());
+    run.detail += " back: close=" + close.ToString() + " reload=" + reload.ToString();
+    run.Expect(!close.IsEmpty() && std::abs(close.CenterPoint().y() - reload.CenterPoint().y()) <= 3 &&
+                   toolbar->height() == toolbar->GetPreferredSize().height(),
+               "buttons_on_row_after_moving_back");
+  }
+  if (VerticalTabStripRegionView* region = Region(run.browser.get())) {
+    run.Expect(region->GetTopContainer()->GetCollapseButton()->parent() == view->toolbar(),
+               "toggle_back_in_toolbar_row");
+  }
+  ReportDemo(kToolbarMode, run.ok, run.detail);
+}
+
+void ToolbarOnTop() {
+  ToolbarRun& run = TheToolbarRun();
+  BrowserView* view = run.browser ? BrowserView::GetBrowserViewForBrowser(run.browser.get()) : nullptr;
+  if (!view) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  run.Expect(!IsToolbarInSidebar(view->toolbar()) &&
+                 view->toolbar()->parent() == view->top_container() &&
+                 view->top_container()->height() > 0,
+             "tabs_on_top_toolbar_row");
+  run.Expect(!view->toolbar()->avatar_toolbar_button() ||
+                 !view->toolbar()->avatar_toolbar_button()->GetVisible(),
+             "no_profile_button_on_top");
+  // The strip's top row has its toggle and Tab Search back.
+  if (VerticalTabStripRegionView* region = Region(run.browser.get())) {
+    run.Expect(region->GetTopContainer()->GetCollapseButton()->parent() ==
+                       region->GetTopContainer() &&
+                   region->GetTopContainer()->GetComboButton()->parent() ==
+                       region->GetTopContainer(),
+               "top_row_buttons_back");
+  }
+  tabs::VerticalTabStripStateController::From(run.browser.get())->SetVerticalTabsEnabled(true);
+  PostDemoTask(base::BindOnce(&ToolbarBackInSidebar), base::Seconds(2));
+}
+
+void ToolbarSlidOut() {
+  ToolbarRun& run = TheToolbarRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  run.Expect(!WindowButtonsShownForTesting(region->GetWidget()), "buttons_hide_again");
+  auto* state = tabs::VerticalTabStripStateController::From(run.browser.get());
+  state->RequestCollapse(false);
+  // Tabs on top: Chromium's toolbar row above the page again.
+  state->SetVerticalTabsEnabled(false);
+  PostDemoTask(base::BindOnce(&ToolbarOnTop), base::Seconds(2));
+}
+
+void CloseHeldPopup(ToolbarRun& run) {
+  if (run.bubble_widget) {
+    run.bubble_widget->CloseNow();
+    run.bubble_widget.reset();
+  }
+  run.bubble.reset();
+}
+
+void ToolbarShownWithPopup() {
+  ToolbarRun& run = TheToolbarRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  // Shown, with the popup still open: nothing is left to watch.
+  run.Expect(!region->lb_popup_timer_running_for_testing(), "popup_timer_stops_when_shown");
+  CloseHeldPopup(run);
+  tabs::VerticalTabStripStateController::From(run.browser.get())->RequestCollapse(true);
+  PostDemoTask(base::BindOnce(&ToolbarSlidOut), base::Seconds(2));
+}
+
+void ToolbarHeldByPopup() {
+  ToolbarRun& run = TheToolbarRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  // Chromium slides it in and out only while the window is active.
+  if (region->GetWidget()->ShouldPaintAsActive()) {
+    run.Expect(region->is_expanded_on_hover() && region->lb_popup_timer_running_for_testing(),
+               "popup_holds_it_out");
+  } else {
+    run.detail += " popup_holds_it_out=(not checked: the window isn't active)";
+  }
+  // Shown while the popup is open.
+  tabs::VerticalTabStripStateController::From(run.browser.get())->RequestCollapse(false);
+  PostDemoTask(base::BindOnce(&ToolbarShownWithPopup), base::Seconds(1));
+}
+
+void ToolbarSlidIn() {
+  ToolbarRun& run = TheToolbarRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  BrowserView* view = run.browser ? BrowserView::GetBrowserViewForBrowser(run.browser.get()) : nullptr;
+  if (!region || !view) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  run.Expect(region->is_expanded_on_hover(), "slid_in");
+  run.Expect(WindowButtonsShownForTesting(region->GetWidget()), "buttons_show_slid_in");
+  // A popup hanging from the toolbar in the slid-in sidebar keeps it out; closed, it doesn't.
+  views::BubbleDialogDelegate bubble(view->toolbar()->reload_button(),
+                                     views::BubbleBorder::TOP_LEFT);
+  bubble.SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
+  bubble.SetContentsView(std::make_unique<views::View>());
+  std::unique_ptr<views::Widget> widget = views::BubbleDialogDelegate::CreateBubble(&bubble);
+  widget->ShowInactive();
+  run.Expect(KeepsSidebarOutForPopup(region, /*sidebar_hidden=*/true), "popup_keeps_it_out");
+  widget->CloseNow();
+  widget.reset();
+  run.Expect(!KeepsSidebarOutForPopup(region, true), "closed_popup_doesnt");
+  // A tab's hover card isn't a popup: it goes as the pointer leaves the tab.
+  if (TabView* row = FindTabViewForDemo(run.browser.get(),
+                                        run.browser->GetTabStripModel()->GetActiveTab())) {
+    TabHoverCardBubbleView::InitParams params;
+    params.use_animation = false;
+    params.show_image_preview = false;
+    auto* card = new TabHoverCardBubbleView(row, params);  // owned by its widget
+    card->GetWidget()->ShowInactive();
+    run.Expect(!KeepsSidebarOutForPopup(region, true), "hover_card_doesnt_keep_it_out");
+    card->GetWidget()->CloseNow();
+  } else {
+    run.Expect(false, "hover_card_doesnt_keep_it_out");
+  }
+  // One left open: the pointer leaves, and it keeps the sidebar out.
+  run.bubble = std::make_unique<views::BubbleDialogDelegate>(view->toolbar()->reload_button(),
+                                                             views::BubbleBorder::TOP_LEFT);
+  run.bubble->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
+  run.bubble->SetContentsView(std::make_unique<views::View>());
+  run.bubble_widget = views::BubbleDialogDelegate::CreateBubble(run.bubble.get());
+  run.bubble_widget->ShowInactive();
+  run.slide_in.reset();
+  region->OnMouseExited(ui::MouseEvent(ui::EventType::kMouseExited, gfx::PointF(), gfx::PointF(),
+                                       base::TimeTicks::Now(), ui::EF_NONE, ui::EF_NONE));
+  PostDemoTask(base::BindOnce(&ToolbarHeldByPopup), base::Seconds(1));
+}
+
+void ToolbarHidden() {
+  ToolbarRun& run = TheToolbarRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!region) {
+    ReportDemo(kToolbarMode, false, "the window went away");
+    return;
+  }
+  run.Expect(!WindowButtonsShownForTesting(region->GetWidget()), "buttons_hide_with_sidebar");
+  // The toggle in the toolbar's row doesn't fade while the sidebar hides, as the strip's own
+  // top row does.
+  run.detail += " toggle_opacity_min=" + base::NumberToString(run.toggle_opacity);
+  run.Expect(run.toggle_opacity == 1.0f, "toggle_stays_while_hiding");
+  // Slid in, as the pointer at the edge does.
+  run.slide_in = region->GetExpandOnHoverLock(ExpandOnHoverLockType::kKeepExpanded);
+  PostDemoTask(base::BindOnce(&ToolbarSlidIn), base::Seconds(2));
+}
+
+// Notes the toggle's lowest opacity, every frame for `ticks` frames.
+void WatchToggleOpacity(int ticks) {
+  ToolbarRun& run = TheToolbarRun();
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  views::View* toggle = region ? region->GetTopContainer()->GetCollapseButton() : nullptr;
+  if (!toggle || ticks == 0) {
+    return;
+  }
+  if (toggle->layer()) {
+    run.toggle_opacity = std::min(run.toggle_opacity, toggle->layer()->opacity());
+  }
+  PostDemoTask(base::BindOnce(&WatchToggleOpacity, ticks - 1), base::Milliseconds(16));
+}
+
+void ToolbarPlaced() {
+  ToolbarRun& run = TheToolbarRun();
+  BrowserView* view = run.browser ? BrowserView::GetBrowserViewForBrowser(run.browser.get()) : nullptr;
+  VerticalTabStripRegionView* region = run.browser ? Region(run.browser.get()) : nullptr;
+  if (!view || !region) {
+    ReportDemo(kToolbarMode, false, "no window or sidebar");
+    return;
+  }
+  ToolbarView* toolbar = view->toolbar();
+  run.Expect(IsToolbarInSidebar(toolbar) && region->Contains(toolbar), "toolbar_in_sidebar");
+  run.Expect(view->top_container()->height() == 0, "nothing_above_page");
+  const gfx::Rect card = view->multi_contents_view()->bounds();
+  run.detail += " card=" + card.ToString();
+  run.Expect(card.y() == kContentsCardInset, "card_inset_at_top");
+  LocationBarView* bar = toolbar->location_bar_view();
+  run.Expect(bar && bar->GetVisible() &&
+                 bar->GetBoundsInScreen().y() > toolbar->reload_button()->GetBoundsInScreen().bottom(),
+             "address_under_buttons");
+  run.Expect(WindowButtonsShownForTesting(region->GetWidget()), "buttons_shown");
+  // One row with the window buttons, as in Arc: they sit centred on the toolbar's buttons, which
+  // start after them with the strip's toggle, and Tab Search is at the row's end; the strip's own
+  // top row is empty. The gap between them drags the window; a button doesn't.
+  {
+    VerticalTabStripTopContainer* top = region->GetTopContainer();
+    const gfx::Rect close = CloseButtonBoundsForTesting(region->GetWidget());
+    const gfx::Rect reload =
+        toolbar->reload_button()->ConvertRectToWidget(toolbar->reload_button()->GetLocalBounds());
+    views::View* toggle = top->GetCollapseButton();
+    const gfx::Rect toggle_bounds = toggle->ConvertRectToWidget(toggle->GetLocalBounds());
+    run.detail += " close=" + close.ToString() + " reload=" + reload.ToString() +
+                  " toggle=" + toggle_bounds.ToString();
+    run.Expect(toggle->parent() == toolbar && top->GetComboButton()->parent() == toolbar &&
+                   top->height() == 0,
+               "toggle_and_tab_search_in_toolbar_row");
+    run.Expect(!close.IsEmpty() &&
+                   std::abs(close.CenterPoint().y() - reload.CenterPoint().y()) <= 3 &&
+                   toggle_bounds.x() >= close.right() && reload.x() > toggle_bounds.x(),
+               "one_row_with_window_buttons");
+    // The row's inset for the window buttons is the laid-out one: a space switch's slide (a layer
+    // transform on the sidebar's content) doesn't change it.
+    {
+      views::View* sliding = toolbar->parent();
+      const bool had_layer = sliding->layer() != nullptr;
+      if (!had_layer) {
+        sliding->SetPaintToLayer();
+      }
+      const int inset = SidebarToolbarLeadingInset(toolbar);
+      gfx::Transform slide;
+      slide.Translate(24, 0);
+      sliding->layer()->SetTransform(slide);
+      const int inset_sliding = SidebarToolbarLeadingInset(toolbar);
+      sliding->layer()->SetTransform(gfx::Transform());
+      if (!had_layer) {
+        sliding->DestroyLayer();
+      }
+      run.detail += " inset=" + base::NumberToString(inset) +
+                    " inset_sliding=" + base::NumberToString(inset_sliding);
+      run.Expect(inset > 0 && inset_sliding == inset, "inset_ignores_slide");
+    }
+    // The row drags the window where it has no button: beside the window buttons, and in the gap
+    // between the leading and trailing buttons when the sidebar is wide enough to have one.
+    const gfx::Rect gap = SidebarToolbarGapForTesting(toolbar);
+    run.detail += " gap=" + gap.ToString();
+    views::NonClientView* frame = region->GetWidget()->non_client_view();
+    const gfx::Point beside_buttons(toggle_bounds.x() - 4, toggle_bounds.CenterPoint().y());
+    run.Expect(frame->NonClientHitTest(beside_buttons) == HTCAPTION &&
+                   (gap.IsEmpty() || frame->NonClientHitTest(gap.CenterPoint()) == HTCAPTION) &&
+                   frame->NonClientHitTest(reload.CenterPoint()) == HTCLIENT,
+               "row_drags_window");
+    // The toolbar is as tall as it asks to be, its address row in it: laid out with its margins
+    // when it moved in, not left at its height from before.
+    LocationBarView* address = toolbar->location_bar_view();
+    run.Expect(toolbar->height() == toolbar->GetPreferredSize().height() && address &&
+                   address->bounds().bottom() <= toolbar->height(),
+               "toolbar_full_height");
+    // No profile button: the space's icon is in the footer and beside its name already. The
+    // sidebar opens, and can be narrowed, only to a width that fits the whole row.
+    run.Expect(!toolbar->avatar_toolbar_button() || !toolbar->avatar_toolbar_button()->GetVisible(),
+               "no_profile_button_in_row");
+    const int inset = views::View::ConvertRectToTarget(toolbar, region, toolbar->GetLocalBounds()).x();
+    const int row_needs = toolbar->GetPreferredSize().width() + 2 * inset;
+    // Also with macOS 13-15's window buttons, which take 94 px with their margins (86 on 26).
+    constexpr int kWidestWindowButtons = 94;
+    const int window_buttons = base::ClampCeil(view->browser_widget()
+                                                   ->GetFrameView()
+                                                   ->GetBrowserLayoutParams()
+                                                   .leading_exclusion.ContentWithPadding()
+                                                   .width());
+    const int widest_row_needs = row_needs + std::max(0, kWidestWindowButtons - window_buttons);
+    run.detail += " row_needs=" + base::NumberToString(row_needs) +
+                  " widest_row_needs=" + base::NumberToString(widest_row_needs);
+    run.Expect(widest_row_needs <= tabs::kVerticalTabStripUncollapsedMinWidth &&
+                   tabs::kVerticalTabStripDefaultUncollapsedWidth ==
+                       tabs::kVerticalTabStripUncollapsedMinWidth,
+               "opens_at_the_rows_width");
+  }
+  // Cmd+F's find bar opens at the page's top right, not at the address in the sidebar.
+  chrome::ExecuteCommand(run.browser.get(), IDC_FIND);
+  {
+    FindBarController* find = FindBarController::From(run.browser.get());
+    FindBar* find_bar = find ? find->find_bar() : nullptr;
+    gfx::Point position;
+    bool fully_visible = false;
+    const bool shown = find_bar && find_bar->GetFindBarTesting() &&
+                       find_bar->GetFindBarTesting()->GetFindBarWindowInfo(&position, &fully_visible);
+    const gfx::Rect page = view->multi_contents_view()->GetBoundsInScreen();
+    run.detail += " find_bar_at=" + position.ToString() + " page=" + page.ToString();
+    // Its window starts a little above the page, for its shadow.
+    run.Expect(shown && position.x() > page.CenterPoint().x() && position.x() < page.right() &&
+                   std::abs(position.y() - page.y()) <= 16,
+               "find_bar_on_page");
+    if (find) {
+      find->EndFindSession(find_in_page::SelectionAction::kKeep,
+                           find_in_page::ResultAction::kKeep);
+    }
+  }
+  // A click on the address opens the command bar on the page's address.
+  if (bar && bar->omnibox_view()) {
+    gfx::Point point = bar->omnibox_view()->GetLocalBounds().CenterPoint();
+    views::View::ConvertPointToWidget(bar->omnibox_view(), &point);
+    for (ui::EventType type : {ui::EventType::kMousePressed, ui::EventType::kMouseReleased}) {
+      ui::MouseEvent event(type, point, point, base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
+                           ui::EF_LEFT_MOUSE_BUTTON);
+      bar->GetWidget()->OnMouseEvent(&event);
+    }
+  }
+  const std::optional<std::u16string> text = CommandBarTextForTesting();
+  run.Expect(text == base::UTF8ToUTF16(run.page.spec()), "address_click_edits");
+  RunFirstCommandBarResultForTesting(base::UTF8ToUTF16(run.page.spec()));  // closes the bar
+  // Hidden: the window's buttons go with the sidebar.
+  auto* state = tabs::VerticalTabStripStateController::From(run.browser.get());
+  state->SetExpandOnHoverEnabled(true);
+  state->RequestCollapse(true);
+  run.toggle_opacity = 1.0f;
+  WatchToggleOpacity(60);  // about a second, the animation's length and more
+  PostDemoTask(base::BindOnce(&ToolbarHidden), base::Seconds(2));
+}
+
+void RunSidebarToolbarDemo(BrowserWindowInterface* browser) {
+  FailDemoAfter(kToolbarMode, base::Seconds(30));
+  ToolbarRun& run = TheToolbarRun();
+  run.browser = browser->GetWeakPtr();
+  run.page = GURL("data:text/html,<title>Toolbar</title>T");
+  chrome::AddAndReturnTabAt(browser, run.page, -1, /*foreground=*/true);
+  PostDemoTask(base::BindOnce(&ToolbarPlaced), base::Seconds(2));
+}
+
+// --------------------------------------------------------------- pinned-fresh
+
+struct FreshRun {
+  base::WeakPtr<BrowserWindowInterface> browser;
+  tabs::TabHandle tab;
+  std::u16string title_before;
+  // What the page's script set (window.lbScript, "-" for none): a script the server sends with
+  // a new value each time and `Cache-Control: no-cache`, so a copy must be checked first.
+  std::string script_before;
+  std::string slept;  // the tab's state asleep, for the log
+};
+
+// Reads the page's window.lbScript into `done` ("-" if the page has none).
+void ReadFreshScript(content::WebContents* contents, base::OnceCallback<void(std::string)> done) {
+  contents->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
+      u"String(window.lbScript || '-')",
+      base::BindOnce(
+          [](base::OnceCallback<void(std::string)> done, base::Value value) {
+            std::move(done).Run(value.is_string() ? value.GetString() : "-");
+          },
+          std::move(done)),
+      content::ISOLATED_WORLD_ID_GLOBAL);
+}
+
+FreshRun& TheFreshRun() {
+  static base::NoDestructor<FreshRun> run;
+  return *run;
+}
+
+void FreshReport(std::string script_after);
+void FreshSleep(std::string script_before);
+
+void FreshWoke() {
+  FreshRun& run = TheFreshRun();
+  tabs::TabInterface* tab = run.tab.Get();
+  if (!run.browser || !tab) {
+    ReportDemo(kFreshMode, false, "the tab went away");
+    return;
+  }
+  ReadFreshScript(tab->GetContents(), base::BindOnce(&FreshReport));
+}
+
+void FreshReport(std::string script_after) {
+  FreshRun& run = TheFreshRun();
+  tabs::TabInterface* tab = run.tab.Get();
+  if (!run.browser || !tab) {
+    ReportDemo(kFreshMode, false, "the tab went away");
+    return;
+  }
+  const std::u16string after = tab->GetContents()->GetTitle();
+  // Shown again, the page asks the server, which answers with a new title: not the cached copy.
+  // Its script too (when the page has one): not the copy from before.
+  const bool script_fresh = run.script_before == "-" || script_after != run.script_before;
+  ReportDemo(kFreshMode,
+             !after.empty() && after != run.title_before && !IsAsleep(*tab) && script_fresh,
+             "before=" + base::UTF16ToUTF8(run.title_before) + " after=" +
+                 base::UTF16ToUTF8(after) + " script_before=" + run.script_before +
+                 " script_after=" + script_after +
+                 (run.script_before == "-" ? " (the page has no script: not checked)" : "") +
+                 " asleep: " + run.slept + " awake: discarded=" +
+                 (tab->GetContents()->WasDiscarded() ? "1" : "0") + " live=" +
+                 (tab->GetContents()->GetPrimaryMainFrame()->IsRenderFrameLive() ? "1" : "0") +
+                 " needs_reload=" +
+                 (tab->GetContents()->GetController().NeedsReload() ? "1" : "0"));
+}
+
+void FreshSlept() {
+  FreshRun& run = TheFreshRun();
+  tabs::TabInterface* tab = run.tab.Get();
+  if (!run.browser || !tab || !IsAsleep(*tab)) {
+    ReportDemo(kFreshMode, false, "the pinned tab didn't sleep");
+    return;
+  }
+  run.slept = "discarded=" + std::string(tab->GetContents()->WasDiscarded() ? "1" : "0") +
+              " needs_reload=" +
+              (tab->GetContents()->GetController().NeedsReload() ? "1" : "0");
+  run.browser->GetTabStripModel()->ActivateTab(tab);
+  // Showing it loads it once its window is visible; the demo's window may be behind others, so
+  // load it as showing does.
+  tab->GetContents()->GetController().LoadIfNecessary();
+  PostDemoTask(base::BindOnce(&FreshWoke), base::Seconds(4));
+}
+
+void FreshLoaded() {
+  FreshRun& run = TheFreshRun();
+  tabs::TabInterface* tab = run.tab.Get();
+  if (!run.browser || !tab) {
+    ReportDemo(kFreshMode, false, "the tab went away");
+    return;
+  }
+  run.title_before = tab->GetContents()->GetTitle();
+  ReadFreshScript(tab->GetContents(), base::BindOnce(&FreshSleep));
+}
+
+void FreshSleep(std::string script_before) {
+  FreshRun& run = TheFreshRun();
+  tabs::TabInterface* tab = run.tab.Get();
+  if (!run.browser || !tab) {
+    ReportDemo(kFreshMode, false, "the tab went away");
+    return;
+  }
+  run.script_before = std::move(script_before);
+  TabStripModel* model = run.browser->GetTabStripModel();
+  model->SetTabPinned(model->GetIndexOfTab(tab), true);
+  model->ActivateTabAt(model->count() - 1);  // another tab, so this one can sleep
+  SleepPinnedTabs(*model, {tab});
+  PostDemoTask(base::BindOnce(&FreshSlept), base::Seconds(4));
+}
+
+void RunPinnedFreshDemo(BrowserWindowInterface* browser) {
+  FailDemoAfter(kFreshMode, base::Seconds(30));
+  const std::string url =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII("lb-demo-url");
+  if (url.empty()) {
+    ReportDemo(kFreshMode, false, "needs --lb-demo-url");
+    return;
+  }
+  content::WebContents* contents =
+      chrome::AddAndReturnTabAt(browser, GURL(url), 0, /*foreground=*/true);
+  FreshRun& run = TheFreshRun();
+  run.browser = browser->GetWeakPtr();
+  run.tab = tabs::TabInterface::GetFromContents(contents)->GetHandle();
+  PostDemoTask(base::BindOnce(&FreshLoaded), base::Seconds(3));
+}
+
 }  // namespace
 
 bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string& mode) {
@@ -838,6 +1474,14 @@ bool MaybeRunSidebarEditsDemo(BrowserWindowInterface* browser, const std::string
   }
   if (mode == kOtherAppsMode) {
     RunOtherAppsDemo(browser);
+    return true;
+  }
+  if (mode == kToolbarMode) {
+    RunSidebarToolbarDemo(browser);
+    return true;
+  }
+  if (mode == kFreshMode) {
+    RunPinnedFreshDemo(browser);
     return true;
   }
   return false;

@@ -53,6 +53,9 @@ class CommandBar : public views::WidgetObserver {
   raw_ptr<views::Widget> browser_widget_;
   std::unique_ptr<views::Widget> widget_;
   raw_ptr<CommandBarView> view_ = nullptr;
+  // The window of the tab the bar is for, when that is another window (a little window, whose
+  // bar shows over the space's window): it comes back to the front when the bar closes.
+  base::WeakPtr<BrowserWindowInterface> returns_to_;
   base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
   base::WeakPtrFactory<CommandBar> weak_factory_{this};
 };
@@ -68,6 +71,9 @@ bool RunFirstCommandBarResultForTesting(const std::u16string& typed);
 
 // What the open command bar's field holds, or null if no bar is open.
 std::optional<std::u16string> CommandBarTextForTesting();
+
+// Closes the open command bar with no result, as Esc does; false if none is open.
+bool CloseCommandBarForTesting();
 
 }  // namespace lb
 

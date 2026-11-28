@@ -205,6 +205,16 @@ TEST(SidebarWidthTest, ResizesSlidInSidebar) {
   EXPECT_FALSE(ResizesSlidInSidebar(true, false));
 }
 
+TEST(SidebarWidthTest, SlidInSidebarHasOneTopRow) {
+  EXPECT_TRUE(SlidInTopRow(/*collapsed=*/true, /*slides_in=*/true, /*width=*/kWidth, 91));
+  EXPECT_TRUE(SlidInTopRow(true, true, 91, 91));
+  // Still narrow while it slides in: Chromium's column.
+  EXPECT_FALSE(SlidInTopRow(true, true, 90, 91));
+  // Shown: Chromium lays its row out. Hidden without sliding in: Chromium's column of icons.
+  EXPECT_FALSE(SlidInTopRow(false, true, kWidth, 91));
+  EXPECT_FALSE(SlidInTopRow(true, false, kWidth, 91));
+}
+
 TEST(SidebarWidthTest, SlidInSidebarResizesBetweenMinAndMax) {
   EXPECT_EQ(SlidInSidebarWidth(250, 126, 400), 250);
   // Dragged far to the left it stops at the narrowest width; it never hides.

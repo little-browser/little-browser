@@ -2,6 +2,7 @@
 # (chromium/lb/browser/ui/views/peek), instead of a new window. Two hooks in the tabs' delegate:
 # links the page opens with OpenURLFromTab, and pages the renderer creates for target=_blank
 # links (AddNewContents). The context menu's "Open Link in New Window" still opens a window.
+# The same two places show "Opened in a new tab" when a Cmd+click opens a link behind the page.
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 @@ -3,6 +3,8 @@
@@ -27,7 +28,7 @@
    }
  
    // If the source is already split, navigate the other pane instead of
-@@ -666,6 +675,13 @@
+@@ -666,6 +675,15 @@
      const blink::mojom::WindowFeatures& window_features,
      bool user_gesture,
      bool* was_blocked) {
@@ -37,6 +38,8 @@
 +                                      user_gesture)) {
 +    return lb::ShowNewContentsInPeek(&*browser_, std::move(new_contents));
 +  }
++  // Little Browser: Cmd+click on it shows "Opened in a new tab".
++  lb::NoticeNewContents(&*browser_, disposition, user_gesture);
 +
    FullscreenController* fullscreen_controller =
        exclusive_access_manager_->fullscreen_controller();

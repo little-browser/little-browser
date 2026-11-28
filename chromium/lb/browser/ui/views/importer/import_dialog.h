@@ -52,6 +52,8 @@ struct ImportDialogState {
   int dialog_height = 0;
   bool scrolls = false;
   bool can_accept = false;  // Next or Import can be pressed
+  int checked_row = -1;     // step 1: the row whose radio is checked, -1 for none
+  bool ok_enabled = false;  // the Next or Import button as drawn: enabled
 };
 std::optional<ImportDialogState> GetImportDialogStateForTesting();
 // In step 1, picks the row labelled `row` and presses Next; false if there is no such row.
@@ -62,6 +64,9 @@ bool ImportDialogImportForTesting();
 bool ImportDialogCancelForTesting();
 // In step 2, presses Back.
 bool ImportDialogBackForTesting();
+// In step 1, checks the `row`th row's radio as giving it the keyboard focus does (Tab or an arrow
+// key): with no press; false if there is no such row.
+bool ImportDialogFocusRowForTesting(size_t row);
 
 // First run (docs/ux.md §12): on the browser's very first run, when another browser's data is on
 // the Mac, opens the import dialog itself before the other questions, with an introduction and

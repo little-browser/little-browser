@@ -114,7 +114,8 @@ source_set("other") {
         # The engine code every Chromium platform builds is tested, not only the desktop model.
         sources = check_lb_tests.tested_sources((check_lb_tests.LB / "BUILD.gn").read_text())
         for source in ("common/page_names.cc", "browser/prefs/lb_prefs.cc",
-                       "browser/privacy/tracking_params.cc", "browser/adblock/filter_lists.cc"):
+                       "browser/privacy/tracking_params.cc", "browser/adblock/filter_lists.cc",
+                       "browser/version/release_version.cc"):
             self.assertIn(source, sources)
 
 

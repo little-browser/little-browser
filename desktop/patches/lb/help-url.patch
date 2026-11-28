@@ -1,0 +1,34 @@
+# Little Browser: Help (the Help menu, its keyboard shortcut and Settings' "Get help") opens our
+# site's guide, littlebrowser.app/features. Chromium's help links are Google's support pages,
+# which domain substitution turns into blocked addresses, so Help opened an error page.
+
+diff --git a/chrome/common/url_constants.h b/chrome/common/url_constants.h
+index 1bbf3af..cc7b78d 100644
+--- a/chrome/common/url_constants.h
++++ b/chrome/common/url_constants.h
+@@ -91,7 +91,8 @@ inline constexpr char kChromeHelpViaKeyboardURL[] =
+     "https://support.google.com/chromebook?p=help&ctx=keyboard";
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+ #else
+-    "https://support.google.com/chrome?p=help&ctx=keyboard";
++    // Little Browser: help is our site's guide, not Google's support pages.
++    "https://littlebrowser.app/features";
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+ inline constexpr char kChromeHelpViaMenuURL[] =
+@@ -102,11 +103,13 @@ inline constexpr char kChromeHelpViaMenuURL[] =
+     "https://support.google.com/chromebook?p=help&ctx=menu";
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+ #else
+-    "https://support.google.com/chrome?p=help&ctx=menu";
++    // Little Browser: help is our site's guide, not Google's support pages.
++    "https://littlebrowser.app/features";
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
++// Little Browser: help is our site's guide, not Google's support pages.
+ inline constexpr char kChromeHelpViaWebUIURL[] =
+-    "https://support.google.com/chrome?p=help&ctx=settings";
++    "https://littlebrowser.app/features";
+ #if BUILDFLAG(IS_CHROMEOS)
+ inline constexpr char kChromeOsHelpViaWebUIURL[] =
+ #if BUILDFLAG(GOOGLE_CHROME_BRANDING)

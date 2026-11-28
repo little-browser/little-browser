@@ -48,9 +48,9 @@ TEST(TabNamesTest, CleanTabName) {
 
 TEST(TabNamesTest, TitleToShow) {
   const std::u16string page = u"Inbox (3) - Mail";
-  EXPECT_EQ(TabTitleToShow(TabCustom{u"Mail", GURL()}, page), u"Mail");
-  EXPECT_EQ(TabTitleToShow(TabCustom(), page), page);
-  EXPECT_EQ(TabTitleToShow(TabCustom{u"", GURL("https://a.com/")}, page), page);
+  EXPECT_EQ(TabTitleToShow(TabCustom{u"Mail", GURL()}, page, false), u"Mail");
+  EXPECT_EQ(TabTitleToShow(TabCustom(), page, false), page);
+  EXPECT_EQ(TabTitleToShow(TabCustom{u"", GURL("https://a.com/")}, page, true), page);
 }
 
 TEST(TabNamesTest, HasLeftPinnedUrl) {
@@ -173,19 +173,31 @@ TEST(TabNamesTest, ShowingATabLoadsItsLinkOnceAfterACloseAwayFromIt) {
   EXPECT_FALSE(OnTabShown(TabCustom{u"Mail", GURL(), /*wakes_at_link=*/true}).load_link);
 }
 
-// A pinned tab keeps its link's title while it shows other pages (docs/ux.md §6).
-TEST(TabNamesTest, PinnedTabShowsItsLinksTitle) {
-  const TabCustom custom{u"", GURL("https://mail.example.com/"), false, u"Inbox - Mail"};
-  EXPECT_EQ(TabTitleToShow(custom, u"Some article"), u"Inbox - Mail");
-  EXPECT_TRUE(HasOwnTitle(custom));
+// A pinned tab asleep away from its link shows its link's title; awake, it follows the page it
+// shows (docs/ux.md §6).
+TEST(TabNamesTest, SleepingPinnedTabShowsItsLinksTitle) {
+  const TabCustom custom{u"", GURL("https://mail.example.com/"), /*wakes_at_link=*/true,
+                         u"Inbox - Mail"};
+  EXPECT_EQ(TabTitleToShow(custom, u"Some article", /*asleep=*/true), u"Inbox - Mail");
+  EXPECT_TRUE(HasOwnTitle(custom, /*asleep=*/true));
+  // Awake: the page's title, and its "Loading…" title while it loads.
+  const TabCustom awake{u"", custom.pinned_url, /*wakes_at_link=*/false, u"Inbox - Mail"};
+  EXPECT_EQ(TabTitleToShow(awake, u"Some article", false), u"Some article");
+  EXPECT_FALSE(HasOwnTitle(awake, false));
+  // Woken in the background (tab menu Reload): still wakes at its link once closed, but awake,
+  // its row follows the page it loaded.
+  EXPECT_EQ(TabTitleToShow(custom, u"Some article", /*asleep=*/false), u"Some article");
+  EXPECT_FALSE(HasOwnTitle(custom, /*asleep=*/false));
   // A name still wins.
-  EXPECT_EQ(TabTitleToShow(TabCustom{u"Mail", custom.pinned_url, false, u"Inbox - Mail"}, u"x"),
-            u"Mail");
+  EXPECT_EQ(
+      TabTitleToShow(TabCustom{u"Mail", custom.pinned_url, true, u"Inbox - Mail"}, u"x", true),
+      u"Mail");
   // No link's title yet, or no link: the page's title.
-  EXPECT_EQ(TabTitleToShow(TabCustom{u"", custom.pinned_url}, u"Some article"), u"Some article");
-  EXPECT_FALSE(HasOwnTitle(TabCustom{u"", custom.pinned_url}));
-  EXPECT_EQ(TabTitleToShow(TabCustom{u"", GURL(), false, u"Inbox - Mail"}, u"Page"), u"Page");
-  EXPECT_FALSE(HasOwnTitle(TabCustom{u"", GURL(), false, u"Inbox - Mail"}));
+  EXPECT_EQ(TabTitleToShow(TabCustom{u"", custom.pinned_url}, u"Some article", true),
+            u"Some article");
+  EXPECT_FALSE(HasOwnTitle(TabCustom{u"", custom.pinned_url}, true));
+  EXPECT_EQ(TabTitleToShow(TabCustom{u"", GURL(), true, u"Inbox - Mail"}, u"Page", true), u"Page");
+  EXPECT_FALSE(HasOwnTitle(TabCustom{u"", GURL(), true, u"Inbox - Mail"}, true));
 }
 
 TEST(TabNamesTest, PinnedTitleFollowsThePageOnlyOnItsLink) {

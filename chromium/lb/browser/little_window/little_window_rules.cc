@@ -20,13 +20,20 @@ constexpr int kCascadeStep = 28;
 }  // namespace
 
 gfx::Rect LittleWindowBounds(const gfx::Rect& work_area,
+                             const std::optional<gfx::Rect>& parent,
                              const std::optional<gfx::Rect>& newest_little,
                              int chrome_height) {
-  const int width =
-      std::max(0, std::min(kLittleWindowSize.width(), work_area.width() - 2 * kScreenMargin));
-  const int height = std::max(0, std::min(kLittleWindowSize.height(),
-                                          work_area.height() - 2 * kScreenMargin - chrome_height));
-  const int window_height = height + chrome_height;
+  gfx::Rect base = parent ? gfx::IntersectRects(*parent, work_area) : work_area;
+  if (base.IsEmpty()) {
+    base = work_area;
+  }
+  const int width = std::max(
+      0, std::min(static_cast<int>(base.width() * kLittleWindowShare),
+                  work_area.width() - 2 * kScreenMargin));
+  const int window_height = std::max(
+      0, std::min(static_cast<int>(base.height() * kLittleWindowShare),
+                  work_area.height() - 2 * kScreenMargin));
+  const int height = std::max(0, window_height - chrome_height);
   if (newest_little) {
     const gfx::Rect cascaded(newest_little->x() + kCascadeStep, newest_little->y() + kCascadeStep,
                              width, window_height);
@@ -34,8 +41,25 @@ gfx::Rect LittleWindowBounds(const gfx::Rect& work_area,
       return gfx::Rect(cascaded.origin(), gfx::Size(width, height));
     }
   }
-  return gfx::Rect(work_area.x() + (work_area.width() - width) / 2,
-                   work_area.y() + (work_area.height() - window_height) / 2, width, height);
+  // Centred on its parent, moved back onto the screen if that leaves it.
+  gfx::Rect window(base.x() + (base.width() - width) / 2,
+                   base.y() + (base.height() - window_height) / 2, width, window_height);
+  window.AdjustToFit(work_area);
+  return gfx::Rect(window.origin(), gfx::Size(width, height));
+}
+
+int LittleWindowRowHeight(int buttons_height, int toolbar_height) {
+  return std::max({buttons_height, toolbar_height, 0});
+}
+
+gfx::Rect LittleWindowToolbarBounds(const gfx::Rect& area,
+                                    int leading,
+                                    int trailing,
+                                    int buttons_height,
+                                    int toolbar_height) {
+  const int x = area.x() + std::clamp(leading, 0, area.width());
+  const int right = std::max(x, area.right() - std::max(trailing, 0));
+  return gfx::Rect(x, area.y(), right - x, LittleWindowRowHeight(buttons_height, toolbar_height));
 }
 
 std::u16string OpenInSpaceLabel(std::string_view space_name) {

@@ -1,15 +1,55 @@
-# Little Browser: a dragged tab outside every tab strip stays in its strip instead of detaching into
-# a new window (docs/ux.md). Dragging itself is unchanged. Over the page it can still be dropped to
-# make a split view, except as a window's only tab, which has nothing to be split with.
+# Little Browser: tabs stay in their strip (docs/ux.md). A dragged tab outside every tab strip stays
+# in its strip instead of detaching into a new window, and dragging all of a window's tabs (its
+# only tab) moves them within the strip, as any tab drag, instead of moving the window. Over the
+# page a tab can still be dropped to make a split view, except as a window's only tab, which has
+# nothing to be split with.
 --- a/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 +++ b/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
-@@ -1085,6 +1085,16 @@
-         delegate_context = attached_context_;
-       }
-       target_context = delegate_context;
-+    }
-+  }
-+
+@@ -804,38 +804,9 @@
+     }
+ 
+     StartDrag();
+-
+-    TabStripModel* const model = source_context_->GetTabStripModel();
+-    const bool is_dragging_all_tabs =
+-        drag_data_.num_dragging_tabs() == model->count();
+-
+-    // In focus mode, dragging the focused group header should move the window,
+-    // as the focused group represents all visible unpinned tabs.
+-    const bool is_dragging_focused_group_header =
+-        model->GetFocusedGroup().has_value() &&
+-        drag_data_.group_header_id() == model->GetFocusedGroup();
+ 
+-    if (is_dragging_all_tabs || is_dragging_focused_group_header) {
+-      if (ShouldDragWindowUsingSystemDnD()) {
+-        return StartSystemDnDSessionIfNecessary(attached_context_,
+-                                                point_in_screen);
+-      }
+-
+-      did_restore_window_ =
+-          was_source_maximized_ ||
+-          (was_source_fullscreen_ && CanRestoreFullscreenWindowDuringDrag());
+-      if (did_restore_window_) {
+-        RestoreAttachedWindowForDrag();
+-      }
+-
+-      // Drag the window relative to `start_point_in_screen_` to pretend that
+-      // this was the plan all along.
+-      const gfx::Vector2d drag_offset =
+-          start_point_in_screen_ -
+-          attached_context_->GetWidget()->GetWindowBoundsInScreen().origin();
+-      return RunMoveLoop(point_in_screen, drag_offset);
+-    }
+-
++    // Little Browser: tabs never leave their strip, so dragging all of them (a window's only tab,
++    // or the focused group) moves them within it like any other tab drag, not the window.
+     current_state_ = DragState::kDraggingTabs;
+     StartDraggingTabsSession(true, point_in_screen);
+   }
+@@ -1088,6 +1059,16 @@
+     }
+   }
+ 
 +  // Little Browser: a tab dragged outside every tab strip stays where it is instead of opening a
 +  // new window. Dropped on the page, it can still make a split view with the tab shown next,
 +  // which a window's only tab doesn't have.
@@ -17,6 +57,9 @@
 +    target_context = attached_context_;
 +    if (current_drag_target_ && attached_context_->GetTabStripModel()->count() <= 1) {
 +      UpdateDragTarget(nullptr, point_in_screen);
-     }
-   }
- 
++    }
++  }
++
+   if (target_context != attached_context_) {
+     is_dragging_new_browser_ = false;
+     did_restore_window_ = false;

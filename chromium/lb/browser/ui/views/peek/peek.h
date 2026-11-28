@@ -5,7 +5,9 @@
 #ifndef LB_BROWSER_UI_VIEWS_PEEK_PEEK_H_
 #define LB_BROWSER_UI_VIEWS_PEEK_PEEK_H_
 
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/functional/callback_forward.h"
@@ -35,7 +37,8 @@ namespace lb {
 // Hooks in Chromium's BrowserWebContentsDelegate (patches/lb/peek-hooks.patch).
 //
 // A link opened with OpenURLFromTab: if it opens in Peek (OpensInPeek), loads it there and
-// returns the Peek's page; otherwise returns null and leaves `navigation_handle_callback` alone.
+// returns the Peek's page; otherwise returns null and leaves `navigation_handle_callback` alone,
+// and a Cmd+click shows the "Opened in a new tab" notice (lb::AnnouncesBackgroundTab).
 content::WebContents* MaybeOpenLinkInPeek(
     BrowserWindowInterface* browser,
     content::WebContents* source,
@@ -49,6 +52,26 @@ bool ShouldShowNewContentsInPeek(BrowserWindowInterface* browser,
 // Shows that page in the window's Peek, replacing the Peek's page if one is open.
 content::WebContents* ShowNewContentsInPeek(BrowserWindowInterface* browser,
                                             std::unique_ptr<content::WebContents> contents);
+
+// A page the renderer created for a link: Cmd+click on a target=_blank link shows the "Opened in a
+// new tab" notice (a click on it brings that tab up), as one opened with OpenURLFromTab does (MaybeOpenLinkInPeek; lb::
+// AnnouncesBackgroundTab).
+void NoticeNewContents(BrowserWindowInterface* browser,
+                       WindowOpenDisposition disposition,
+                       bool user_gesture);
+// The notice's text while it shows in `browser`'s window, the page of the tab it announces, and a
+// click on it, as the mouse does (false if it isn't showing). For --lb-sidebar-demo=peek.
+std::optional<std::u16string> BackgroundTabNoticeForTesting(BrowserWindowInterface* browser);
+content::WebContents* BackgroundTabNoticeTabForTesting(BrowserWindowInterface* browser);
+bool ClickBackgroundTabNoticeForTesting(BrowserWindowInterface* browser);
+// The pointer entering or leaving the notice, as the mouse does (false if it isn't showing).
+bool HoverBackgroundTabNoticeForTesting(BrowserWindowInterface* browser, bool hovered);
+// Whether the notice shows above the window's Peek (false if either isn't showing), and the Peek
+// put above everything over the window, as activating it does.
+bool IsBackgroundTabNoticeAbovePeekForTesting(BrowserWindowInterface* browser);
+void RaisePeekForTesting(BrowserWindowInterface* browser);
+// How many windows have a notice, shown or not yet gone.
+size_t BackgroundTabNoticeCountForTesting();
 
 // Closes the window's Peek, as Esc does, if it has one. True if one was open.
 bool ClosePeek(BrowserWindowInterface* browser);

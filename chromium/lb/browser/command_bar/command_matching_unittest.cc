@@ -126,6 +126,16 @@ TEST(InputAsAddressTest, EverythingElseIsASearch) {
   EXPECT_EQ(InputAsAddress(u"john@example.com"), std::nullopt);
 }
 
+// After a strong match the search comes second, except in the little window, which searches
+// first whatever matches.
+TEST(SearchGoesFirstTest, LittleWindowSearchesFirst) {
+  EXPECT_TRUE(SearchGoesFirst(CommandBarMode::kNewTab, std::nullopt));
+  EXPECT_TRUE(SearchGoesFirst(CommandBarMode::kNewTab, 2.0));
+  EXPECT_FALSE(SearchGoesFirst(CommandBarMode::kNewTab, 3.5));
+  EXPECT_TRUE(SearchGoesFirst(CommandBarMode::kLittleWindow, 3.5));
+  EXPECT_TRUE(SearchGoesFirst(CommandBarMode::kLittleWindow, std::nullopt));
+}
+
 TEST(OffersResultTest, LittleWindowModeListsOnlyPagesToOpen) {
   // Everything chosen opens in a new little window: no tabs to switch to, no commands.
   EXPECT_FALSE(OffersResult(CommandBarMode::kLittleWindow, CommandBarResult::kOpenTab));

@@ -11,6 +11,7 @@
 
 #include "base/functional/callback_forward.h"
 #include "base/time/time.h"
+#include "lb/browser/demo/demo_log.h"  // IWYU pragma: export
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/view_utils.h"
 
@@ -33,17 +34,8 @@ class View;
 namespace lb {
 
 // Helpers for --lb-sidebar-demo modes that check behaviour in a running browser
-// (chromium/lb/README.md).
-
-// Logs "lb demo: <mode> PASS <detail>" or "... FAIL ...", once per mode: whichever comes second
-// of a result and its deadline is dropped. Logged without --vmodule.
-void ReportDemo(const std::string& mode, bool pass, const std::string& detail);
-
-// Reports `mode` as failed if it has no result after `limit`.
-void FailDemoAfter(const std::string& mode, base::TimeDelta limit);
-
-// Runs `task` on the UI thread after `delay`.
-void PostDemoTask(base::OnceClosure task, base::TimeDelta delay);
+// (chromium/lb/README.md). The result log (ReportDemo, FailDemoAfter, PostDemoTask) is
+// demo_log.h's.
 
 // Counts the first-run questions (the import offer, the search engine and password manager
 // choices) as answered, so they don't open over the window first (and take the
@@ -87,6 +79,9 @@ void SimulateTabDragForDemo(BrowserWindowInterface* browser,
 // The two halves of that, for a check while the drag is under way: presses `view` and drags it
 // through `screen_ys` (false if the view went on the way), then ends the strip's drag.
 bool StartViewDragForDemo(views::View* view, const std::vector<int>& screen_ys);
+// Drags the view a drag started with StartViewDragForDemo has pressed on through `screen_ys`
+// (false if the view went on the way).
+bool ContinueViewDragForDemo(views::View* view, const std::vector<int>& screen_ys);
 void EndTabDragForDemo(BrowserWindowInterface* browser, bool drop);
 
 // The same with any view that starts a drag of the tab strip, such as a tab group's header.

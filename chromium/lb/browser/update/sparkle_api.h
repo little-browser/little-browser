@@ -27,6 +27,7 @@ typedef NS_ENUM(NSInteger, SPUUserUpdateChoice) {
 
 @interface SUAppcastItem : NSObject
 @property(nonatomic, copy, readonly) NSString* versionString;
+@property(nonatomic, copy, readonly) NSString* displayVersionString;
 @property(nonatomic, getter=isCriticalUpdate, readonly) BOOL criticalUpdate;
 @end
 
@@ -40,6 +41,8 @@ typedef NS_ENUM(NSInteger, SPUUserUpdateChoice) {
                         userDriver:(id)userDriver
                           delegate:(id)delegate;
 - (BOOL)startUpdater:(NSError**)error;
+// Checks for updates as the schedule does (the update-prompt demo).
+- (void)checkForUpdatesInBackground;
 @end
 
 #endif  // LB_BROWSER_UPDATE_SPARKLE_API_H_

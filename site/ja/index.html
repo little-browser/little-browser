@@ -183,12 +183,16 @@
         <p class="arc-note">提供終了となる Arc に着想を得ました。<a href="/ja/arc-alternative">Arc からお越しですか？</a></p>
       </div>
 
-      <div class="mock" aria-label="Little Browser のウィンドウ：左にサイドバー、右に細いツールバーとページ">
+      <div class="mock" aria-label="Little Browser のウィンドウ：左にサイドバー、その上部にツールバー、右にページ">
         <aside class="m-side">
           <div class="m-top">
             <div class="m-lights"><i></i><i></i><i></i></div>
             <svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h9M2 8h6M2 12h9M14 5.5 11.5 8l2.5 2.5"/></svg>
-            <span class="m-icon-box"><svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h5M2 8h3M2 12h4"/><circle cx="10.5" cy="8.5" r="3"/><path d="m12.7 10.7 1.8 1.8"/></svg></span>
+            <svg class="m-icon m-nav" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8H3M7 4 3 8l4 4"/></svg>
+            <svg class="m-icon m-nav dim" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+            <svg class="m-icon m-nav" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.5M13 3v3h-3"/></svg>
+            <span class="m-icon-box m-end"><svg class="m-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h5M2 8h3M2 12h4"/><circle cx="10.5" cy="8.5" r="3"/><path d="m12.7 10.7 1.8 1.8"/></svg></span>
+            <svg class="m-icon m-nav" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3.5" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="8" cy="12.5" r=".6"/></svg>
           </div>
           <div class="m-url">quietweb.example</div>
           <div class="m-ws-name"><span class="m-ws-icon">🏡</span><span class="m-ws-label">プライベート</span></div>
@@ -214,14 +218,6 @@
           </div>
         </aside>
         <div class="m-main">
-        <div class="m-toolbar" aria-hidden="true">
-          <svg class="m-icon" viewBox="0 0 16 16"><path d="M13 8H3M7 4 3 8l4 4"/></svg>
-          <svg class="m-icon dim" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
-          <svg class="m-icon" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.5M13 3v3h-3"/></svg>
-          <div class="m-omni">https://quietweb.example/explained</div>
-          <svg class="m-icon m-wide" viewBox="0 0 16 16"><path d="m8 2 1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3l-3.7 2 .8-4.1L2 6.3l4.2-.5Z"/></svg>
-          <svg class="m-icon m-wide" viewBox="0 0 16 16"><circle cx="8" cy="3.5" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="8" cy="12.5" r=".6"/></svg>
-        </div>
         <div class="m-page">
           <article class="m-article">
             <p class="m-kicker">エッセイ · 読了 6 分</p>
@@ -270,7 +266,7 @@
       <div class="section-head">
         <span class="eyebrow">機能</span>
         <h2>あえて小さく。</h2>
-        <p>機能は少数に絞って、丁寧に作っています。細いツールバー、ブックマークバーなし、バッジやポップアップもなし。ウィンドウのほとんどをページに使えます。</p>
+        <p>機能は少数に絞って、丁寧に作っています。ページの上には何もなく、ブックマークバーなし、バッジやポップアップもなし。ウィンドウのほとんどをページに使えます。</p>
       </div>
       <div class="grid">
         <article class="card">
@@ -378,6 +374,7 @@
       <a href="/ja/downloads">ダウンロード</a>
       <a href="/ja/releases">リリースノート</a>
       <a href="/privacy">プライバシーポリシー</a>
+      <a href="/terms">利用規約</a>
       <a href="https://github.com/little-browser/little-browser" target="_blank" rel="noopener">ソースコード</a>
     </nav>
     <nav class="topics" aria-label="Little Browser について">

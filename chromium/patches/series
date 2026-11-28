@@ -13,3 +13,4 @@ ad-blocking-settings.patch         # Settings calls it "Ads" and describes the a
 ad-blocking-page-info.patch        # an Ads switch in the site-info panel's "Cookies and site data", under third-party cookies
 tracking-params.patch              # a page navigation loses its tracking parameters (utm_*, fbclid, ...)
 element-hiding.patch               # element hiding: each frame gets the CSS that hides ads' leftovers
+fresh-on-wake.patch                # a page shown again checks the server for a newer version, not the cached copy

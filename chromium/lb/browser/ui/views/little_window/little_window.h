@@ -10,6 +10,7 @@
 
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "lb/browser/peek/peek_rules.h"
+#include "ui/gfx/geometry/rect.h"
 
 class BrowserWindowInterface;
 class GURL;
@@ -82,12 +83,32 @@ void AddLittleWindowControls(views::View* toolbar, BrowserWindowInterface* brows
 // window with tabs, and with none, from a new one. Always handles the command.
 bool ShowLittleWindowCommandBar(BrowserWindowInterface* browser);
 
+// A click on little window `little`'s address, or ⌘L in it: the command bar (from the same
+// window as ShowLittleWindowCommandBar) holding its page's address, where what is chosen opens in
+// that little window. False if `little` isn't a little window with a page.
+bool ShowLittleWindowAddressBar(BrowserWindowInterface* little);
+// Clicks `little`'s address as the mouse does; false if it has none. For the
+// --lb-sidebar-demo=little-window-menu check.
+bool ClickLittleWindowAddressForTesting(BrowserWindowInterface* little);
+
 // The "Open in <space>" button's label in little window `browser`, or empty if it has none, and
 // a click on it, as the mouse does (false if there is none). For --lb-sidebar-demo=peek.
 std::u16string GetOpenInSpaceLabelForTesting(BrowserWindowInterface* browser);
 bool ClickOpenInSpaceForTesting(BrowserWindowInterface* browser);
 // Clicks "Copy URL", as the mouse does. False if the window has none.
 bool ClickCopyUrlForTesting(BrowserWindowInterface* browser);
+
+// Little window `browser`'s one row, in its widget's root view: where its close button and its
+// address are, where its page starts, and what a press does just after the window buttons and on
+// the address (HTCAPTION drags the window). For --lb-sidebar-demo=peek.
+struct LittleWindowRow {
+  gfx::Rect close_button;
+  gfx::Rect address;
+  int page_top = 0;
+  int hit_after_buttons = 0;
+  int hit_on_address = 0;
+};
+LittleWindowRow GetLittleWindowRowForTesting(BrowserWindowInterface* browser);
 
 }  // namespace lb
 

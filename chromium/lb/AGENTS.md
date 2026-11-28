@@ -66,7 +66,9 @@ build is in `../../desktop/AGENTS.md`.
 `lb_unittests` are desktop-only for now (`!is_android`).
 
 - **`//lb:engine`**, view-free engine logic every Chromium platform needs: the filter lists and
-  per-site ads rule (`browser/adblock/filter_lists.*`, `site_ads.*`), tracking parameters
+  per-site ads rule (`browser/adblock/filter_lists.*`, `site_ads.*`), merging imported bookmarks
+  into the bookmark model (`browser/bookmarks/bookmark_merge.*`, which the desktop's importers and
+  Android's bookmarks file import use), tracking parameters
   (`browser/privacy/`), the text helpers element hiding uses (`browser/importer/import_text.*`),
   spaces and their saved tabs (`browser/spaces/space_model.*`, and `space_store.*`, which reads and
   writes them in Local State for the desktop's sidebar and Android's `SpaceStore` alike), tab names
@@ -77,10 +79,8 @@ build is in `../../desktop/AGENTS.md`.
   cookies, search suggestions, pings, autofill, password saving, payment-method queries
   (`browser/prefs/pref_defaults.*`).
 - **`//lb:browser`**, browser-process code every platform runs, on Chromium's browser types: the
-  ad blocker's list updates and per-site switch (`browser/adblock/ad_blocker.*`), element
-  hiding's browser side (`element_hiding_host.*`), and merging imported bookmarks into the
-  bookmark model (`browser/bookmarks/bookmark_merge.*`, which the desktop's importers and
-  Android's bookmarks file import use). `chrome/browser` depends on it
+  ad blocker's list updates and per-site switch (`browser/adblock/ad_blocker.*`) and element
+  hiding's browser side (`element_hiding_host.*`). `chrome/browser` depends on it
   (`chromium/patches/lb-browser.patch`); it depends on Chromium's small browser targets, never on
   `//chrome/browser` itself. On Android it also holds the native side of the shell's Java
   (`android/*/*_android.cc`).

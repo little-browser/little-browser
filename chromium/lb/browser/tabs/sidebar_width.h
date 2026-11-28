@@ -91,6 +91,14 @@ SidebarResizeArea SidebarResizeAreaFor(bool collapsed, bool slides_in, bool slid
 // collapse or slide in under the pointer while it goes on.
 bool ResizesSlidInSidebar(bool collapsed, bool slid_in);
 
+// Whether a sidebar's top row (the sidebar toggle and Tab Search) is a slid-in hidden sidebar's:
+// one row of buttons, as on a shown sidebar, starting right of the window controls, since the
+// slid-in strip runs the window's full height under them. Chromium sees a collapsed strip and would
+// stack the buttons in a column. Slid in means collapsed, sliding in (expand on hover on) and, on
+// the way, already at least `snap_width` wide (Chromium's collapse snap width); narrower, the
+// buttons are still Chromium's column, as while the shown sidebar animates.
+bool SlidInTopRow(bool collapsed, bool slides_in, int width, int snap_width);
+
 // The width a sidebar slid in over the page takes when the user drags its edge to `proposed`:
 // between Chromium's `min` and `max`. Unlike the shown sidebar, it never snaps to hidden (it
 // already is), so a drag to the left stops at `min`.

@@ -41,6 +41,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
     <string name="lb_not_now">Not now</string>
     <string name="lb_copy_url">Copy URL</string>
     <string name="lb_link_copied">Link copied</string>
+    <string name="lb_opened_in_new_tab">Opened in a new tab</string>
+    <!-- The notice's button that brings up the tab it announced. -->
+    <string name="lb_show_new_tab">Show</string>
     <string name="lb_open_in_space">Open in %1$s</string>
     <string name="lb_browser">Little Browser</string>
     <string name="lb_profile">Profile</string>

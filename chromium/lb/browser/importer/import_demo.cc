@@ -404,7 +404,11 @@ void FirstImportDone(std::unique_ptr<Run> run, ImportResult first) {
   run->Expect(Child(model->other_node(), u"Read later") != nullptr,
               "Read later is in other bookmarks");
   TemplateURLService* search = TemplateURLServiceFactory::GetForProfile(profile);
-  run->Expect(search->GetTemplateURLForKeyword(u"w") != nullptr, "the w search shortcut");
+  const TemplateURL* shortcut = search->GetTemplateURLForKeyword(u"w");
+  run->Expect(shortcut != nullptr, "the w search shortcut");
+  run->Expect(shortcut && shortcut->is_active() == TemplateURLData::ActiveStatus::kTrue &&
+                  shortcut->CanBeUsedForKeywordMatching(),
+              "the w search shortcut works from the address");
   run->Expect(search->GetTemplateURLForKeyword(u"google.com") == nullptr,
               "the built-in Google engine didn't come along");
 
@@ -709,7 +713,15 @@ std::string Rows(const std::optional<ImportDialogState>& state) {
 // Goes through the dialog's two steps: the browsers, then each one's profiles or spaces.
 void CheckDialogSteps(Run& run) {
   std::optional<ImportDialogState> state = GetImportDialogStateForTesting();
-  run.Expect(state && state->step == 1 && state->can_accept && state->rows.size() == 5 &&
+  // Nothing is picked yet, so Next can't be pressed.
+  run.Expect(state && state->step == 1 && !state->can_accept && state->checked_row == -1,
+             "step 1 starts with nothing picked");
+  // A row checked from the keyboard (its radio focused) can go on with Next.
+  run.Expect(ImportDialogFocusRowForTesting(1), "a row can take the focus");
+  state = GetImportDialogStateForTesting();
+  run.Expect(state && state->checked_row == 1 && state->can_accept && state->ok_enabled,
+             "a row checked from the keyboard enables Next");
+  run.Expect(state && state->step == 1 && state->rows.size() == 5 &&
                  std::ranges::count(state->rows, u"Edge") == 1 &&
                  state->rows[3] == u"A Safari export file…" &&
                  state->rows[4] == u"A bookmarks file…",
@@ -730,7 +742,8 @@ void CheckDialogSteps(Run& run) {
   // Back, then Arc: its spaces, Work with its profile's name.
   run.Expect(ImportDialogBackForTesting(), "Back goes to the browsers");
   state = GetImportDialogStateForTesting();
-  run.Expect(state && state->step == 1, "Back shows the browsers");
+  run.Expect(state && state->step == 1 && state->can_accept,
+             "Back shows the browsers, Chrome still picked");
   run.Expect(ImportDialogNextForTesting(u"Arc"), "Arc can be picked");
   state = GetImportDialogStateForTesting();
   run.Expect(state && state->step == 2 && state->can_accept &&

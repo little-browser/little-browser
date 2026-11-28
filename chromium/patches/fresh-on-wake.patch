@@ -1,0 +1,70 @@
+# Little Browser: a page that loads again when its tab is shown (a sleeping pinned tab, a tab
+# restored at startup or by a space switch, a tab discarded in place on Android) checks with the
+# server for a newer version instead of showing the cached copy it had (docs/ux.md §6). Chromium
+# loads such pages as restores, from the cache without validating it; here a restore validates the
+# cache (LOAD_VALIDATE_CACHE, as a reload does), and keeps the page's state as a restore does; its
+# subresources load as a reload's do, not from the cache whatever it holds (Blink's kForceCache).
+# Offline, the page and its subresources come from the cache as before. A page discarded in place
+# comes back as a history load, so LoadIfNecessary marks it restored first; a page sent with POST
+# is left alone, so nothing is sent again.
+--- a/content/browser/renderer_host/navigation_controller_impl.cc
++++ b/content/browser/renderer_host/navigation_controller_impl.cc
+@@ -5105,6 +5105,13 @@
+                   ->IsInitialEntryNotForSynchronousAboutBlank()) {
+     pending_entry_ = entries_[last_committed_entry_index_].get();
+     pending_entry_index_ = last_committed_entry_index_;
++    // Little Browser: a page discarded in place (Android) loads again as a
++    // restore, as one restored into new contents does, so it too asks the
++    // server whether it changed (UpdateLoadFlagsWithCacheFlags). Not one sent
++    // with POST: that would ask to send it again.
++    if (!pending_entry_->GetHasPostData()) {
++      pending_entry_->set_restore_type(RestoreType::kRestored);
++    }
+     NavigateToExistingPendingEntry(
+         ReloadType::NONE,
+         /*initiator_rfh=*/nullptr,
+--- a/content/browser/renderer_host/navigation_request.cc
++++ b/content/browser/renderer_host/navigation_request.cc
+@@ -163,6 +163,7 @@
+ #include "net/base/ip_endpoint.h"
+ #include "net/base/load_flags.h"
+ #include "net/base/net_errors.h"
++#include "net/base/network_change_notifier.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "net/base/url_util.h"
+ #include "net/cookies/cookie_access_result.h"
+@@ -318,7 +319,13 @@
+       *load_flags |= net::LOAD_BYPASS_CACHE;
+       break;
+     case blink::mojom::NavigationType::RESTORE:
+-      *load_flags |= net::LOAD_SKIP_CACHE_VALIDATION;
++      // Little Browser: a page that loads again (a sleeping or restored tab
++      // shown, a space's tabs) asks the server whether it changed, instead of
++      // showing the copy it had then. Its state (scroll, forms) comes back as
++      // before. Offline it is the copy it had, as without this.
++      *load_flags |= net::NetworkChangeNotifier::IsOffline()
++                         ? net::LOAD_SKIP_CACHE_VALIDATION
++                         : net::LOAD_VALIDATE_CACHE;
+       break;
+     case blink::mojom::NavigationType::RESTORE_WITH_POST:
+       *load_flags |=
+--- a/third_party/blink/renderer/core/loader/frame_fetch_context.cc
++++ b/third_party/blink/renderer/core/loader/frame_fetch_context.cc
+@@ -212,9 +212,16 @@
+     case WebFrameLoadType::kReplaceCurrentItem:
+       return mojom::FetchCacheMode::kDefault;
+     case WebFrameLoadType::kBackForward:
+-    case WebFrameLoadType::kRestore:
+       // Mutates the policy for POST requests to avoid form resubmission.
+       return mojom::FetchCacheMode::kForceCache;
++    case WebFrameLoadType::kRestore:
++      // Little Browser: a page that loads again (a sleeping or restored tab
++      // shown) gets its subresources as a reload does, as it gets the page
++      // (NavigationRequest's cache flags), not the copies it had then; offline,
++      // those copies, as before.
++      return GetNetworkStateNotifier().OnLine()
++                 ? mojom::FetchCacheMode::kDefault
++                 : mojom::FetchCacheMode::kForceCache;
+     case WebFrameLoadType::kReload:
+       return mojom::FetchCacheMode::kDefault;
+     case WebFrameLoadType::kReloadBypassingCache:

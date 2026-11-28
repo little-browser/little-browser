@@ -9,6 +9,7 @@ lb/ungoogled-remove-uneeded-ui-ui.patch # ungoogled's remove-uneeded-ui.patch, r
 lb/safe-browsing-standard-only-ui.patch # standard protection only, local hash-prefix DB, no reporting (UI)
 lb/macos-no-ai-sandbox-params.patch   # [mac] non-Safe-Browsing half of an ungoogled patch we skip
 lb/settings-product-icon.patch        # branding: Little Browser mark as the WebUI product icon
+lb/release-version-ui.patch           # About and chrome://version show the release, <Chromium version>-<revision> (UI)
 lb/vertical-tabs-default.patch        # sidebar layout (vertical tabs) by default
 lb/sidebar-hooks.patch                # host chromium/lb's sidebar (header, footer, "+ New Tab") in the vertical tab strip
 lb/new-tab-row.patch                  # a slot between pinned and today's tabs for "+ New Tab"
@@ -61,7 +62,11 @@ lb/tab-search-always-ui.patch         # tab search can't be unpinned: no Pin/Unp
 lb/keychain-name.patch                # [mac] our own keychain item (Little Browser Safe Storage), keeping an existing install's password
 lb/space-avatar.patch                # the profile button and profile menu show the window's space emoji
 lb/no-lens-chip.patch                 # no Google Lens promo chip in the address bar (it crashed on parked tabs)
+lb/help-url.patch                     # Help opens our site, not Google's support pages (blocked here)
 lb/tab-names.patch                   # a tab can be renamed; a pinned tab keeps a link to go back to
 lb/tab-names-ui.patch                # a renamed tab is read by its name (accessible label)
 lb/hidden-sidebar-ui.patch            # a hidden sidebar keeps only an edge band and slides in, full height and resizable, over the page
+lb/sidebar-max-width.patch            # the sidebar opens at, and narrows to, 312 px, room for its row of buttons; up to 600 px wide
 lb/load-progress-ui.patch             # a thin line at the top of the page shows its load, in every window
+lb/sidebar-toolbar-ui.patch           # the toolbar is at the top of the sidebar; nothing above the page (UI)
+lb/little-window-title-row.patch     # [mac] a little window's address shares the window buttons' row: no title bar above it

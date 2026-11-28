@@ -57,6 +57,7 @@ lb/browser/tabs/pinned_groups.*     pinned groups: unbroken runs, a moved tab's 
                                     (unit tested)
 lb/browser/tabs/restore_order.*     the order session restore adds a window's tabs in: the selected one
                                     first (lb-core)
+lb/browser/tabs/toolbar_place.*     where the toolbar goes (sidebar or Chromium's row), window buttons, popups
 lb/browser/tabs/sidebar_width.*     a hidden sidebar's widths: only the edge band, slid in (full height) to
                                     the user's width, resized while slid in, its resize area (unit tested)
 lb/browser/tabs/load_progress.*     the load progress line's state: grows, never shrinks during a load,
@@ -90,16 +91,25 @@ lb/common/element_hiding.mojom      what a frame asks the browser for element hi
 lb/common/page_names.*              the class and id names a page sends for element hiding, each
                                     once, and what the browser accepts (unit tested)
 lb/renderer/element_hiding_agent.*  in each frame: inserts the hiding rules as a user stylesheet
-lb/browser/demo/demo_report.*       PASS/FAIL logging, deadlines and clicks for the demo modes
+lb/browser/demo/demo_log.*          PASS/FAIL logging and deadlines for the demo modes (unit tested)
+lb/browser/demo/demo_report.*       clicks, views and first-run skipping for the demo modes
 lb/browser/keychain/
   keychain_key.*                    macOS: our own Safe Storage item's name, and when an existing
                                     install keeps the password from Chromium's item (unit tested)
   keychain_password_unittest.mm     Chromium's KeychainPassword as keychain-name.patch changes it
 lb/browser/update/
-  update_reminder.*                 when a found update is offered again after "Later"
+  update_reminder.*                 when a found update is offered again after "Later"; where
+                                    Sparkle's update windows go (above the front browser window,
+                                    and above the next one when theirs closes)
   updater_mac.*                     macOS: loads Sparkle when the app is packaged with it, applies
-                                    "Later", lets the restart into an update skip the quit question
+                                    "Later", keeps Sparkle's windows child windows of the front
+                                    browser window, lets the restart into an update skip the quit
+                                    question, shows the installed release as About does;
+                                    --lb-sidebar-demo=update-prompt (below)
   sparkle_api.h                     the part of Sparkle's API it calls (Sparkle isn't linked)
+lb/browser/version/
+  release_version.*                 the release version About, chrome://version and the update
+                                    prompt show, <Chromium version>-<revision> (unit tested)
 lb/browser/extensions/
   web_store_unittest.cc             store addresses, update server, install API not substituted
   update_check_unittest.cc          update checks: extensions' go out bare, others stay blocked
@@ -112,12 +122,14 @@ lb/browser/ui/
                                     items, the row's title, session data
   views/sidebar/sidebar_controller.*   spaces (Local State), space switching, saved tabs
   views/sidebar/sidebar_header_view.*  the space name; --lb-sidebar-demo=sidebar-header (below)
+  views/sidebar/sidebar_toolbar.*      the window's toolbar moved into the sidebar, its address row and
+                                       click, the window buttons and popups of a hidden sidebar
   views/sidebar/sidebar_footer_view.*  space switcher (switch; right-click rename/icon/colour/delete) and the "+" menu
   views/sidebar/new_tab_row_view.*     "+ New Tab" between the pinned and today's tabs
   views/sidebar/pinned_group_layout.*  pinned groups' header rows, indents and colour lines
   views/sidebar/pinned_groups_demo.*   --lb-sidebar-demo=pinned-groups(-restart, -drops) (below)
   views/sidebar/tab_search_demo.*      --lb-sidebar-demo=tab-search (below)
-  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar, =tab-names, =load-progress
+  views/sidebar/sidebar_edits_demo.*   --lb-sidebar-demo=hidden-sidebar, =tab-names, =load-progress, =sidebar-toolbar, =pinned-fresh
                                        and =other-apps (below)
   views/sidebar/new_space_dialog.*     new space: name, profile, colour, icon
   views/command_bar/command_bar.*      the command bar (Cmd+T / Cmd+L / Cmd+Option+N)
@@ -194,7 +206,8 @@ where it lands, the today group's header back above with a line where it would b
 a collapsed pinned group's tabs count as collapsed, and quits (`--lb-ui-snapshot-pinned-drag=<png>`
 stops it mid-drag and captures that image); `=pinned-groups-restart`, run again on the profile
 `=pinned-groups` left, checks the restored window has it back, its header filled with the group's
-colour; `=pinned-groups-drops` drags a pinned group holding a split view between today tabs below
+colour, then collapses it and checks its header, and with no today tabs left the shown tab, sit
+above the divider with a gap (`--lb-ui-snapshot-pinned-folder=<png>` captures the last); `=pinned-groups-drops` drags a pinned group holding a split view between today tabs below
 a collapsed today group and back, and closes it (the split must stay whole, no group may be split,
 every tab must sleep); the three log `lb demo: <mode> PASS` or `FAIL`; `--lb-demo-url=<url>` makes the slept tab a new one showing <url>, such as a page playing
 audio (add `--autoplay-policy=no-user-gesture-required`); all logged with
@@ -209,21 +222,41 @@ must be left to Chromium;
 `=load-progress` checks the load progress line runs along the toolbar's bottom edge as wide as the
 page card, shows as soon as a page starts loading and is gone once it has, fills 60% of its width
 at a load forced to 60% (`--lb-ui-snapshot-load-progress=<png>` captures that and stops), and still
-runs along the page card with the sidebar hidden;
+runs along the page card with the sidebar hidden and in fullscreen (along the card's top edge
+there); in fullscreen the toolbar's row must start at its edge and the window buttons show with
+the sidebar hidden, and out of it the row must start after the window buttons again;
 `=hidden-sidebar` hides the sidebar (it must take only the edge band, the page leaving that band,
 and not be drawn), slides it in over
-the page (to the sidebar's width, the page not moving), drags its edge 60 px wider (it must widen
-in place, stay hidden, save the width and keep its resize area), then lets go as the pointer
+the page (to the sidebar's width, the page not moving, its top row one row right of the window's
+buttons), drags its edge 300 px wider (it must widen in place past Chromium's 400 px, stay hidden,
+save the width and keep its resize area), then lets go as the pointer
 leaves (it must slide out), puts a stand-in pointer just left of the window (it must slide in,
 when the window is active; otherwise the log says it wasn't checked) and takes it away (it must
-slide out), turns expand on hover off (it must be Chromium's column of icons) and
-puts the sidebar back as it was;
+slide out), turns expand on hover off (it must be Chromium's column of icons, with its toggle
+in it, the toolbar on Chromium's row above the page and the window buttons off the page) and
+puts the sidebar back as it was; a width saved narrower than the sidebar's minimum must come back
+at the minimum;
+`=sidebar-toolbar` checks the toolbar is at the top of the sidebar with the address under its
+buttons, nothing is above the page and the card is inset on top, a click on the address opens the
+command bar on the page's address, the window's buttons hide with the sidebar and show when it
+slides in, a popup anchored in the slid-in sidebar keeps it out (and doesn't once closed, or once
+the sidebar is shown) while a tab's hover card doesn't, the toggle in the toolbar's row doesn't
+fade as the sidebar hides, the row's inset for the window buttons stays the same while a space
+switch slides the sidebar, Cmd+F's find bar opens at the page's top right, and tabs
+on top bring Chromium's toolbar row back, and the sidebar the toolbar;
+`=pinned-fresh` with `--lb-demo-url=<url>`, an HTTP page served with `Cache-Control: max-age`
+and a title that changes with every response, loading a script served with `Cache-Control:
+no-cache` that sets `window.lbScript` to a value that changes with every response, pins it, puts
+it to sleep and shows it again, loading it as showing does: its title and `window.lbScript` must
+be new ones (the page and its script asked the server, not the cache; a page without the script
+logs its script as not checked);
 `=tab-names` renames a tab (its row must show the name), checks the tab menu's items, renames it
 again through the command bar, pins it (its link must be its page), loads another page (Use
 Current Page as Link must be enabled, there must be no Back to Pinned Page, and the link's title
 must stay), goes back, makes another page the
-link, drags the tab below "+ New Tab" and back (its link must stay), puts it to sleep away from
-its link (its name and link must stay with the new page it gets, and it must be marked to wake at
+link, drags the tab, the window's only one, below "+ New Tab" and back (the tab must move, not the
+window, and its link must stay), puts it to sleep away from its link (its name and link must stay
+with the new page it gets, its unnamed title must be its link's, and it must be marked to wake at
 its link), checks the space's saved tabs, and shows it again (it must load its link); with
 `--lb-ui-snapshot-sidebar=<png>` the first captures the slid-in sidebar after the drag (and stops
 there), the second the named rows at the end;
@@ -232,12 +265,22 @@ there), the second the named rows at the end;
 `=tracking-params` (needs the network) loads a page whose address has tracking parameters (it
 must commit without them, other parameters and the fragment kept), a redirect to a tracked
 address (it must land on the clean one) and an iframe with one (it must keep it);
-`=space-avatar` checks the toolbar's profile button shows the first space's emoji, the second's
-after switching to it and the new one after that space's icon changes, then opens the profile menu
-(`--lb-ui-snapshot-dialog=<png>` captures it, the emoji in its header);
+`=space-avatar` checks the toolbar's profile button has the first space's emoji, the second's
+after switching to it and the new one after that space's icon changes, that it stays hidden,
+and that Cmd+Shift+M (the profile menu's command) opens a menu (the ⋮ menu);
 `=little-window-menu` checks the File menu has "New little window" after "New Incognito window"
 with ⌥⌘N, that the window enables it, and that choosing it opens the command bar for a little
-window, where an address opens one;
+window, where an address opens one, marked in the Window menu (the browser window unmarked), and
+that a click on its address opens the command bar holding it, where another address loads in
+that same little window, Esc in it brings the little window back in front, and a search typed
+there opens in that little window (choosing a search engine first if the choice comes up);
+`=update-prompt` (an app packaged with the updater and a feed with a newer version:
+`desktop/scripts/package-macos.sh` with `LB_UPDATE_KEY_FILE` and `LB_UPDATE_FEED_URL`) checks the
+feed at once, waits for the update window (Sparkle shows it once the browser is the active app),
+raises its browser window as a click does, makes another app active and the browser again, raises
+the window once more, and checks the update window stayed above it each time. Sparkle keeps its
+state in the app's user defaults, not the profile: a version skipped there, or put off with
+"Later" within the day, isn't shown, so give the feed a version never answered;
 `=drag-pins` drags tabs with synthetic mouse events across "+ New Tab" both ways, into and
 out of a tab group, as single jumps and with Esc, logging the tabs after each drag;
 `=web-store` opens an extension's Chrome Web Store page, presses "Add to …" and accepts the
@@ -272,20 +315,24 @@ this site" must block it again, also with Settings set to "Sites can show ads"; 
 Settings page and the Ads page must use our wording (with
 `--lb-ui-snapshot-dialog=<png> --lb-ui-snapshot-delay=0` it captures the site-info panel),
 `=peek`, on a fresh profile, writes four local pages and sends real mouse and key events to them:
-Shift+click must open a link in Peek with no new tab, growing to a card as tall as the window and a
+Cmd+click on a target=_blank link must open it in a tab behind with the "Opened in a new tab"
+notice, which must stay past its time while the pointer is on it; Shift+click must open a link in Peek with no new tab, growing to a card as tall as the window and a
 little narrower than the page, with its site shown above it and the ad blocker on its page; Reload
-must act on the Peek's page and View Source do nothing; Esc (though the page takes Esc for itself), the Close button, Cmd+W pressed in
+must act on the Peek's page, View Source do nothing and Print open its print preview over the Peek; Esc (though the page takes Esc for itself), the Close button, Cmd+W pressed in
 the page, the Close Tab command and a click on the backdrop must each close it and no tab;
 Shift+click inside the Peek must replace its page; its page must not open a window without a
 click, its alert() must show and its requestFullscreen() be refused; Cmd+click in it must open a
-tab behind it, the Peek keeping the keyboard, and a tab its page opens in front must keep that
+tab behind it with the notice, the Peek keeping the keyboard, and so must Cmd+click on a
+target=_blank link in it, the notice then announcing the new tab above the Peek, and a tab its page opens in front must keep that
 page as a tab (window.opener alive); "Open as tab" must make its page a tab next to the first one
 without reloading it, and record it in history; a Shift+clicked `target=_blank` link must open in
 Peek too and "Open in split view" must pair its page with the first one, after which no second
 split is offered; showing another tab must close the Peek; a page asking "Leave site?" must ask
 and close on "Leave"; a Peek in a little window must offer no split view and "Open as tab" must
-move its page into the window with tabs; Cmd+Option+N's command bar must open a little window (a
-960 x 680 page, "Open in <space>" following the space's name, Copy URL) whose button moves it into
+move its page into the window with tabs; Cmd+click in a little window must open a tab behind in
+the space's window with the little window's notice, whose click brings that tab up, and the
+notice must go when its window closes; Cmd+Option+N's command bar must open a little window (90% of
+its parent window, centred on it, "Open in <space>" following the space's name, Copy URL) whose button moves it into
 a tab, and a link's "Open Link in Little Window" must open one too; it then closes what it opened
 and deletes its pages (with `--lb-ui-snapshot-peek=<png>` or
 `--lb-ui-snapshot-little-window=<png>` it stops at the first Peek or little window and captures

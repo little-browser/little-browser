@@ -63,6 +63,22 @@ pub fn result_boost(kind: ResultKind) -> f64 {
     }
 }
 
+/// A match score at or above this is strong: the text begins with what was typed (see
+/// [`match_score`]).
+pub const STRONG_MATCH: f64 = 3.0;
+
+/// Whether "Search with ‹engine›" comes first when the typed text isn't an address; otherwise
+/// it comes second, after the best result (`top_score`, if there is one). It comes second only
+/// after a strong match in a bar that also switches tabs or runs commands, where a title
+/// starting with the text is most likely what was meant. The little window's bar only opens
+/// pages, so typing there means searching unless a result is picked: its search is first.
+pub fn search_goes_first(mode: Mode, top_score: Option<f64>) -> bool {
+    match top_score {
+        Some(score) if score >= STRONG_MATCH => mode == Mode::LittleWindow,
+        _ => true,
+    }
+}
+
 /// How many bookmarks the bar lists at most, the best matches.
 pub const MAX_BOOKMARK_RESULTS: usize = 6;
 
@@ -122,6 +138,18 @@ pub fn match_score(query: &str, text: &str) -> f64 {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_search_goes_second_only_after_a_strong_match_outside_a_little_window() {
+        assert!(search_goes_first(Mode::NewTab, None));
+        assert!(search_goes_first(Mode::NewTab, Some(STRONG_MATCH - 0.5)));
+        assert!(!search_goes_first(Mode::NewTab, Some(STRONG_MATCH)));
+        assert!(!search_goes_first(Mode::OpenHere, Some(4.2)));
+        // The little window searches what was typed first, whatever matches.
+        assert!(search_goes_first(Mode::LittleWindow, Some(4.2)));
+        assert!(search_goes_first(Mode::LittleWindow, None));
+    }
+
     use super::*;
 
     const MODES: [Mode; 7] = [

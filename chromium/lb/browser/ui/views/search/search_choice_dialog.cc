@@ -109,6 +109,15 @@ class SearchChoiceDialog : public BrowserModalDialog {
 
   base::WeakPtr<SearchChoiceDialog> GetWeakPtr() { return weak_factory_.GetWeakPtr(); }
 
+  bool ChooseForTesting(size_t index) {
+    if (index >= radios_.size()) {
+      return false;
+    }
+    radios_[index]->SetChecked(true);
+    AcceptDialog();
+    return true;
+  }
+
   // BrowserModalDialog:
   void OnClosed() override {
     // Gone from the screen: a ShowSearchChoice from now on opens a new dialog.
@@ -204,6 +213,17 @@ void CloseSearchChoiceForTesting() {
       open->CloseWithReason(views::Widget::ClosedReason::kCancelButtonClicked);
     }
   }
+}
+
+bool ChooseSearchEngineForTesting(size_t index) {
+  base::WeakPtr<SearchChoiceDialog> open;
+  for (const auto& [profile, dialog] : OpenDialogs()) {
+    if (dialog && dialog->GetWidget()) {
+      open = dialog;
+      break;
+    }
+  }
+  return open && open->ChooseForTesting(index);
 }
 
 bool IsSearchChoiceOpenForTesting() {

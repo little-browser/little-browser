@@ -19,18 +19,34 @@ namespace lb {
 
 // The little window (docs/ux.md section 8): a small window with no tabs, for one page.
 
-// The size of its page when there is room for it. As for Chromium's popup windows, the size is the
-// page's: the title bar and the toolbar row come on top.
-inline constexpr gfx::Size kLittleWindowSize(960, 680);
+// How much of its parent window (the window with tabs it opens over) a little window takes, each
+// way, as in Arc.
+inline constexpr float kLittleWindowShare = 0.9f;
 
 // Where a new little window goes on a screen whose usable area is `work_area`: the window's
-// origin and its page's size. The window is its page plus `chrome_height` (the title bar and the
-// toolbar row). The page is kLittleWindowSize (smaller if the screen is); the window is centred,
+// origin and its page's size (as for Chromium's popup windows, the window is its page plus
+// `chrome_height`, its one row above the page). The window is kLittleWindowShare of
+// `parent`'s size (the window with tabs it opens over; without one, the screen's), centred on it,
 // or, if another little window opened before it (`newest_little`, that window's bounds), a step
-// down and to the right of it, while the whole window still fits on the screen.
+// down and to the right of that one; always within the screen, with a margin.
 gfx::Rect LittleWindowBounds(const gfx::Rect& work_area,
+                             const std::optional<gfx::Rect>& parent,
                              const std::optional<gfx::Rect>& newest_little,
                              int chrome_height);
+
+// A little window has one row above its page, as in Arc: the window buttons, then the toolbar
+// (the address, "Copy URL", "Open in <space>"), with no title bar above them. In the top of
+// `area` (the window, in its own coordinates), with the window buttons taking `leading` at its
+// leading edge and `trailing` at the other (each with its padding; 0 for none, as in fullscreen)
+// and `buttons_height` high: the toolbar, between them, as high as the row. The row is as high as
+// the taller of the window buttons and the toolbar (`toolbar_height`, what it asks for), so the
+// buttons sit centred in it.
+int LittleWindowRowHeight(int buttons_height, int toolbar_height);
+gfx::Rect LittleWindowToolbarBounds(const gfx::Rect& area,
+                                    int leading,
+                                    int trailing,
+                                    int buttons_height,
+                                    int toolbar_height);
 
 // The button that moves the page into a window with tabs: "Open in Work", after the space that
 // window shows. Without a space name (no window with tabs yet): "Open in a tab".

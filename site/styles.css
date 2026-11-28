@@ -227,9 +227,11 @@ section.alt { background: var(--bg-alt); }
   user-select: none;
 }
 .m-side { display: flex; flex-direction: column; gap: 8px; padding: 4px; min-width: 0; }
-/* Top row: window controls, then the sidebar toggle and the command bar button. */
-.m-top { display: flex; align-items: center; gap: 10px; padding: 2px 2px 0 6px; }
-.m-lights { display: flex; gap: 7px; margin-right: auto; }
+/* Title row, the toolbar's buttons: window controls, the sidebar toggle, back, forward and
+   reload, then at its end Tab Search and the menu. */
+.m-top { display: flex; align-items: center; gap: 9px; padding: 2px 2px 0 6px; }
+.m-lights { display: flex; gap: 7px; margin-right: 2px; }
+.m-end { margin-left: auto; }
 .m-lights i { width: 11px; height: 11px; border-radius: 50%; background: hsl(var(--ws-hue) 10% 50% / 0.3); }
 .m-icon { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--m-dim); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .m-icon circle[r='.6'] { fill: var(--m-dim); }
@@ -263,10 +265,8 @@ section.alt { background: var(--bg-alt); }
 .m-spaces button:hover { background: hsl(var(--h) 40% 60% / 0.18); }
 .m-spaces button[aria-pressed='true'] { background: var(--m-row); box-shadow: 0 1px 2px hsl(var(--ws-hue) 30% 25% / 0.12); }
 .m-plus { grid-column: 3; text-align: center; font-size: 17px; color: var(--m-dim); }
-/* The page side: Chromium's slim toolbar above the page, on one rounded card. */
+/* The page side: the page alone, on one rounded card; nothing above it. */
 .m-main { display: flex; flex-direction: column; min-width: 0; background: var(--m-page); border-radius: 10px; overflow: hidden; }
-.m-toolbar { display: flex; align-items: center; gap: 14px; padding: 8px 12px; }
-.m-omni { flex: 1; min-width: 0; background: hsl(var(--ws-hue) 20% 50% / 0.09); border-radius: 999px; padding: 6px 14px; color: var(--m-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-page {
   flex: 1;
   overflow: hidden;
@@ -477,20 +477,19 @@ footer nav.topics b { color: var(--ink); font-weight: 600; }
 
 @media (max-width: 860px) {
   section { padding: 72px 0; }
-  /* The sidebar collapsed to icons, as in the browser: its buttons, tab icons, "+" and the
-     spaces; the toolbar keeps back, forward, reload and the address. */
+  /* The sidebar collapsed to icons: the toggle and Tab Search, tab icons, "+" and the
+     spaces. */
   .mock { grid-template-columns: 44px 1fr; aspect-ratio: auto; gap: 6px; padding: 6px; }
   .m-side { align-items: center; padding: 4px 0; gap: 8px; }
   .m-top { flex-direction: column; padding: 0; gap: 8px; }
-  .m-lights, .m-url, .m-ws-name, .m-plus { display: none; }
+  .m-lights, .m-nav, .m-url, .m-ws-name, .m-plus { display: none; }
+  .m-end { margin-left: 0; }
   .m-tab { font-size: 0; gap: 0; padding: 7px; }
   .m-sep { align-self: stretch; margin: 2px 6px; }
   .m-new { font-size: 0; padding: 2px 0; }
   .m-new::before { content: '+'; font-size: 18px; line-height: 1; }
   .m-foot { display: block; }
   .m-spaces { flex-direction: column; align-items: center; }
-  .m-toolbar { gap: 10px; padding: 8px 10px; }
-  .m-toolbar .m-wide { display: none; }
   .mock { --m-page-left: calc(6px + 44px + 6px); }
   .m-card { left: calc(var(--m-page-left) + 4%); right: calc(6px + 12%); padding: 12px 6% 6%; }
   .m-peek-site { left: calc(var(--m-page-left) + 4%); }

@@ -18,11 +18,10 @@ for groups, the footer's Downloads button and the whole mobile section — is sp
 ## 1. Principles
 
 1. **Content first.** The page fills almost the whole window. No bookmarks bar, no status bar.
-   Browser chrome lives in one sidebar (or one slim row in top mode), plus, on desktop, Chromium's
-   slim toolbar above the page (back, forward, reload, address, extensions, menu;
-   [desktop-ui.md](desktop-ui.md)).
-2. **One place for everything.** Tabs and spaces are all in the sidebar; the address is only in
-   the toolbar above the page.
+   Browser chrome lives in one sidebar (or one slim row in top mode); on desktop the toolbar (back,
+   forward, reload, address, extensions, menu) is at the sidebar's top, and nothing is above the
+   page ([desktop-ui.md](desktop-ui.md)).
+2. **One place for everything.** Tabs, spaces and the address are all in the sidebar.
 3. **Keyboard first.** A command bar opens everything: new tab, search, switch tab, commands.
    Every action has a shortcut; nothing needs a mouse.
 4. **Calm.** No badges, promos, pop-ups, "what's new" pages or permission nags. Nothing moves unless
@@ -38,56 +37,66 @@ for groups, the footer's Downloads button and the whole mobile section — is sp
 
 ```
 ┌───────────────────┬──────────────────────────────────────────────────┐
-│ ● ● ●       ≡   ⌕ │ ‹ › ⟳ ╭ https://github.com/ ─────────╮  🧩 ⬇ ◯ ⋮ │
-│ ▸ Personal        │╭────────────────────────────────────────────────╮│
+│ ●●● ≡ ‹ › ⟳ ⌕🧩 ⋮ │╭────────────────────────────────────────────────╮│
+│ ╭ github.com ───╮ ││                                                ││
+│ ▸ Personal        ││                                                ││
 │ ───────────────── ││                                                ││
-│   📌 Calendar     ││                                                ││
+│   📌 Calendar     ││             page (rounded, inset)              ││
 │   📌 Mail         ││                                                ││
-│ ───────────────── ││             page (rounded, inset)              ││
+│ ───────────────── ││                                                ││
 │   +  New Tab      ││                                                ││
 │   ◦ Hacker News   ││                                                ││
 │   ◦ MDN: flexbox  ││                                                ││
-│                   ││                                                ││
-│                   ││                                                ││
 │                   ││                                                ││
 │                   ││                                                ││
 │     ● ○ ○      ＋ │╰────────────────────────────────────────────────╯│
 └───────────────────┴──────────────────────────────────────────────────┘
 ```
 
-Beside the sidebar, above the page, sits Chromium's slim toolbar: back, forward, reload, the full
-address, extensions, downloads, profile and the menu ([desktop-ui.md](desktop-ui.md)). The address
-is shown only there; the sidebar has no address field. ⌘L opens the command bar with the full
-address selected (section 4).
+The toolbar is at the top of the sidebar: its buttons are the title row, as in Arc (the window
+controls, the sidebar toggle, back, forward, reload, then Tab Search, extensions, downloads and the
+menu), and the address is on a row of its own under it ([desktop-ui.md](desktop-ui.md)). Nothing
+is above the page: it is inset 8 px on every side. A click on the address, or ⌘L, opens the
+command bar with the full address selected (section 4); the icon left of it opens the site's info.
+Find (Cmd+F) opens at the page's top right. In fullscreen the toolbar stays in the sidebar and the
+window controls are macOS's, in the title bar it shows at the top of the screen, so the title row
+starts with the sidebar toggle. Little windows (section 8) and tabs on top (section 3) keep
+Chromium's toolbar row above the page.
 
 Sidebar zones, top to bottom:
 
 | Zone | Content | Notes |
 |---|---|---|
-| Title row | Window controls, the sidebar toggle, the command bar button, Tab Search | Drag area for the window. Tab Search is always there: no Pin/Unpin in its menu or the window's, and no switch for it in Settings |
+| Title row | One row, as in Arc: the window controls, the sidebar toggle, back, forward, reload, then at its end Tab Search, extensions, downloads and the menu | Drag area for the window where it has no button. Tab Search is always there: no Pin/Unpin in its menu or the window's, and no switch for it in Settings. Buttons that don't fit go into Chromium's » overflow menu |
+| Address | The page's address, on its own row under the title row | |
 | Space header | Icon + name of the current space; a profile badge (🔒 and the profile's name) if it isn't the default profile | Space colour tints the sidebar |
-| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Each keeps a link, the page it goes back to when closed, and keeps its link's title (section 6) |
+| Pinned tabs | Per space, persistent; **list rows** (icon and title), not tiles, and pinned tab groups among them (section 6.1). Drag to reorder; drag across "+ New Tab" (or use the right-click menu) to pin and unpin | Each keeps a link, the page it goes back to when closed; asleep, its row shows its link's title (section 6) |
 | Divider + New tab | "+ New Tab" row, opens the command bar (Cmd+T) | The divider shows only when the space has pinned tabs |
 | Today tabs | Unpinned tabs, newest first | Optional auto-archive (section 6) |
 | Footer | Space switcher (each space's icon, the current one highlighted), **＋** in the bottom-right corner; a Downloads button on the left (not built yet) | ＋ opens a menu: New space, then, set apart, the tab actions: New tab, New split view (only while a page is open), New tab group |
 
-- **Page area** is inset by 8 px with rounded corners and a soft shadow; this frames the page and
+- **Page area** is inset by 8 px on every side with rounded corners and a soft shadow; this frames the page and
   makes the sidebar feel like part of the window, not a toolbar.
 - **Hide the sidebar** with its toggle in the title row, or Cmd+S. The page then fills the window
   but for an 8 px margin on the left, the same as on its right and below it, and nothing of the
-  sidebar stays on screen. Resting the pointer on the window's left edge (that margin, and beside
-  the toolbar row), or up to 60 pt to the left of the window within its height, slides the
-  sidebar in *over* the page and the toolbar, the window's full
-  height, at the sidebar's width, and it slides out when the pointer
-  leaves (the sidebar and that zone). The zone outside works only for the active window while
+  sidebar stays on screen, not even the window controls: they show again when the sidebar slides in
+  or is shown. Resting the pointer on the window's left edge (that margin), or up to 60 pt to the
+  left of the window within its height, slides the sidebar in *over* the page, the window's full
+  height, at the sidebar's width, with its toolbar, and it slides out when the pointer
+  leaves (the sidebar and that zone), unless a popup from its toolbar (the menu, the site's info,
+  an extension's popup) is open: it stays until that closes. The zone outside works only for the active window while
   Little Browser is the app in front, and doesn't block clicks there. Dragging its edge while it is slid in resizes it there; it stays hidden, and the new
   width is the sidebar's when it is shown again. Showing it while it is slid in keeps it at its
   width while the page makes room. With Chromium's "Expand on hover" turned off (the toggle's
-  right-click menu), nothing would slide a hidden sidebar in, so it stays a column of icons
-  beside the page instead.
-- **Sidebar width** is draggable, shown or slid in (Chromium's limits, 126–400 px).
+  right-click menu), nothing would slide a hidden sidebar in, so it stays Chromium's column of
+  icons beside the page instead, too narrow for the toolbar: the toolbar is then a row above the
+  page, as with tabs on top, and goes back into the sidebar when the sidebar is shown.
+- **Sidebar width** is draggable, shown or slid in, from 312 px, just room for the title row's
+  buttons, to 600 px. It opens at 312 px.
 - **Load progress**: while the shown page loads, a thin line (2 px) in the window's colour runs
-  along the top edge of the page, under the toolbar, as far as the page has loaded. It shows in
+  just above the page (in fullscreen, where the page has no margin above it, along its top edge;
+  in a little window and with tabs on top, under the toolbar row), as far as
+  the page has loaded. It shows in
   every window, with the sidebar shown or hidden and in little windows. It never runs back during a
   load; when the load is done it fills and fades out. Changes within a page ("#" links) don't
   show it, and switching to a tab that is still loading shows that tab's progress straight away.
@@ -132,7 +141,12 @@ The centre of the browser. A floating palette in the middle of the window.
   pinned · bookmarks (by title or address; the folder they're in shown beside them) · history ·
   archived tabs · **commands** (“Toggle sidebar”, “New space”, “Tabs on top”, “Incognito window”,
   “New little window”, “Copy URL”, “Allow ads on this site” / “Block ads on this site”, “Import
-  from another browser”…) · URL / “Search with ‹engine›”.
+  from another browser”…).
+- The typed text's own rows lead the list: an address comes first, then “Search with ‹engine›”
+  (the other way round for text that only may be an address, such as “node.js”). Other text puts
+  “Search with ‹engine›” first, unless the best result is a strong match, such as a tab whose
+  title begins with the text: then that result is first and the search second. A little window's
+  bar always puts such a search first (section 8).
 - Enter takes the top result; ↑/↓ moves; Esc closes and returns focus to the page.
 - Opens in < 50 ms; it's a native/overlay view, not a page.
 - Search suggestions from the engine appear only if the user turns them on (privacy default).
@@ -147,9 +161,9 @@ The centre of the browser. A floating palette in the middle of the window.
 - A **profile** is one set of logins, cookies and history. Every space uses a
   profile; several spaces can share one. Everyone starts with just the **default profile**, named
   **Personal** like its first space, so the concept stays out of sight until it's needed.
-- The toolbar's profile button and the profile menu's header show the emoji of the space the
-  window is on, so they match the space highlighted in the footer. Private windows keep their own
-  icon.
+- The toolbar has no profile button: the space's icon is in the footer and beside its name
+  already. Profiles (switch, add, manage) are in the ⋮ menu's **Profile** submenu, and
+  Cmd+Shift+M, Chromium's shortcut for its profile menu, opens the ⋮ menu.
 - Space menu (right-click its dot or header) → **Profile ▸** Personal / Work / … / New profile. A space
   outside the default profile shows a small 🔒 badge with the profile's name, so it's clear its logins
   are separate. Moving a space or tab to another profile reloads it in that profile's cookie jar.
@@ -169,6 +183,13 @@ The centre of the browser. A floating palette in the middle of the window.
 
 ## 6. Tabs
 
+- A link opened in a tab behind the page (Cmd+click or a middle click; on phones, a link's "Open
+  in new tab") shows a short **"Opened in a new tab"** notice at the bottom of the page, since the
+  new tab is out of sight; a click on it (on phones, its **Show**) brings that tab up. It stays
+  while the pointer is on it. A link in a Peek opened that way, a target=_blank one included,
+  shows it too, above the Peek. A little window's links open their tabs in the window with tabs:
+  a click on the notice brings that window up on the tab. Tabs the browser opens itself (a
+  restore, a menu) don't.
 - **Pinned** tabs are the space's permanent set. Closing a pinned tab (Cmd+W, its ✕, the tab menu,
   a middle click) puts it to sleep instead of deleting it, without asking: it keeps its place, its
   page unloads, it is drawn faded, and clicking it loads the page again. The sidebar shows the tab
@@ -180,6 +201,11 @@ The centre of the browser. A floating palette in the middle of the window.
   again closes it once the page has asked, and so does closing it while it isn't shown. A pinned
   tab in a split view closes as usual. A pinned tab that hasn't loaded since a
   restart or a space switch counts as sleeping. Cmd+D pins/unpins.
+- A tab that loads its page again when it is shown (a sleeping pinned tab, a tab restored at
+  startup or by a space switch) asks the site for a newer version, as a reload does, rather than
+  showing the copy it had, and gets its scripts and styles as a reload does too; its scroll
+  position and form input come back. Offline it shows the copy it had. A page that was sent with
+  a form (POST) is shown from the cache, so nothing is sent again.
 - **Names.** Any tab can be renamed: the tab menu's **Rename Tab…** (or the command bar's "Rename
   tab", for the shown tab) opens the command bar on its name. The name replaces the page's title in
   the sidebar, the command bar and to VoiceOver, whatever page the tab shows; the command bar finds
@@ -189,8 +215,8 @@ The centre of the browser. A floating palette in the middle of the window.
 - **Pinned links.** A pinned tab keeps a link, the page it goes back to: the page it showed when it
   was pinned, or, pinned while blank, the first page it loads. Closing a pinned tab that shows
   another page takes it back to its link: when it is clicked again it loads its link, also after a
-  restart. Its row keeps its link's page title while it shows other pages (a name still wins);
-  on its link it follows that page's title. Its tab menu has **Edit Link…** (the command bar, on
+  restart. While it is open its row follows the page it shows; asleep away from its link, the row
+  shows its link's page title again, the page it goes back to (a name still wins). Its tab menu has **Edit Link…** (the command bar, on
   the link: typing an address sets it and loads it; Enter on anything else leaves the bar open),
   and **Use Current Page as Link**, enabled once the tab shows another page; the command bar
   offers the same for the shown tab. There is no "Back to Pinned Page": closing the tab does that.
@@ -307,7 +333,7 @@ blue groups, Teal makes cyan); the group menu changes it.
 - Only the user's own Shift+click opens a Peek: a page can't open one with a script, even during a
   click.
 - The card grows from the click point while the whole window dims. Open, it runs from a margin at
-  the top of the window, over the toolbar, all the way down to the window's bottom edge, and is a
+  the top of the window all the way down to the window's bottom edge, and is a
   little narrower than the page area (about 8% off each side), with no toolbar of its own: just the
   page, its top corners rounded. With reduced motion the card fades in where it ends up.
 - In the margin above the card, a small label with the page's site, so a page in a Peek can't pass
@@ -325,9 +351,9 @@ blue groups, Teal makes cyan); the group menu changes it.
   new tab or window open in the window, as from any tab (the popup blocker included); one that
   opens a tab in front first makes the Peek's page a tab, so the page that opened it stays. Showing
   another tab lets the Peek go.
-- While a Peek is open, the page commands act on it: reload, stop, back, forward, zoom and Copy
-  URL; find, print, view source, DevTools, the address (⌘L) and the like do nothing until it is a
-  tab. The window's own commands (new tab, switch tab, ...) work as usual.
+- While a Peek is open, the page commands act on it: reload, stop, back, forward, zoom, Copy
+  URL and print (its print preview opens over the Peek); find, view source, DevTools, the address
+  (⌘L) and the like do nothing until it is a tab. The window's own commands (new tab, switch tab, ...) work as usual.
 - A page in a Peek has the ad blocker, the popup blocker, passwords and its dialogs (alert,
   confirm), as in a tab. It can't ask for permissions (camera, location, notifications, ...),
   sign in to a server or open another app, and it can't go fullscreen: those are refused until it
@@ -341,18 +367,25 @@ blue groups, Teal makes cyan); the group menu changes it.
   command bar (“Search or enter an address for a little window”); what you pick opens in a new
   little window. Also: a link's context menu **“Open Link in Little Window”**. A page's own popups
   (`window.open` with a size) are little windows too.
+- A click on a little window's address, or ⌘L in it, opens the command bar holding that address
+  (“Edit the address, or search”); what you pick opens in that little window. Esc, or a click
+  away from the command bar, closes it and brings the little window back to the front.
 - **Links from other apps** (a mail link, `open <url>` in Terminal, a script running the browser
   with a URL while it runs) open each in a little window of its own, not in a tab of the main
   window, in guest or private mode when that was asked for or a policy requires it. Browser pages
   (chrome://, extension pages) still open as tabs; a script's command line that has one opens all
   its links as tabs.
 - The command bar for a little window lists addresses, searches and history, not open tabs or
-  commands: everything chosen there opens a page.
-- A small window (its page ≈ 960 × 680, smaller on a small screen; each new one a step down and to
-  the right of the last while it fits) with no sidebar or tabs: below the title bar, one row with
-  the address, **Copy URL**, and **“Open in ‹space›”**, which moves the page into the window
-  showing that space, as its active tab, without reloading it. The label follows the space's name.
-- Several little windows can be open; ⌘W closes one.
+  commands: everything chosen there opens a page. Typed text that isn't an address is searched
+  first: "Search with ‹engine›" leads, and history and bookmarks follow.
+- A window over the window it opens from, as in Arc: 90% of that window's width and height, centred
+  on it (without one, 90% of the screen), always on the screen; each new one a step down and to the
+  right of the last while it fits. It has no sidebar, tabs or title bar: one row above the page,
+  as in Arc, with the window buttons, then the address, **Copy URL**, and **“Open in ‹space›”**,
+  which moves the page into the window showing that space, as its active tab, without reloading
+  it. The label follows the space's name. Dragging the row moves the window.
+- Several little windows can be open; ⌘W closes one. In the macOS Window menu each has a
+  picture-in-picture mark beside its title, which browser windows don't.
 - On macOS Chromium gives ⌥⌘N to "New Split Tab"; here a split view starts from a tab's or a link's
   menu.
 
@@ -412,7 +445,7 @@ sheet; drag up or tap Open = open as tab (no reload), drag down = close. Auto-pe
 tabs works as on desktop.
 
 **Tabs work as on desktop** (section 6): closing a pinned tab puts it to sleep and takes it back
-to its link, its row keeps its link's title, and a tab's hold menu has Rename Tab…, and for a
+to its link, its row shows its link's title while it sleeps, and a tab's hold menu has Rename Tab…, and for a
 pinned tab Edit Link… and Use Current Page as Link. Pinned groups are rows among the pinned tabs. Closed tabs can't be reopened: no Recently
 closed list and no Undo after a close.
 
@@ -527,8 +560,9 @@ password manager's job (design.md §7.8), and its own import takes them.
 
 **The dialog**
 
-1. **From:** the browsers, each with its own app icon, then the two file choices, the first
-   picked, and **Next**. Opened by itself on first run it has the introduction above the list
+1. **From:** the browsers, each with its own app icon, then the two file choices, none picked
+   until the user picks one (back from step 2, the one picked before), and **Next**, which needs
+   a pick. Opened by itself on first run it has the introduction above the list
    and **Not now** in place of Cancel (section 12).
 2. **Import from ‹browser›**, with **Back** to pick another:
    - **Profiles** (Chrome-family browsers, Firefox) or **Spaces** (Arc), each a checkbox, all

@@ -1,0 +1,44 @@
+# Little Browser (Android): Help & feedback opens our site's guide, littlebrowser.app/features,
+# the page the desktop Help menu opens (desktop/patches/lb/help-url.patch), not Google's Chrome
+# help pages.
+
+diff --git a/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/HelpAndFeedbackLauncherDelegate.java b/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/HelpAndFeedbackLauncherDelegate.java
+--- a/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/HelpAndFeedbackLauncherDelegate.java
++++ b/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/HelpAndFeedbackLauncherDelegate.java
+@@ -17,7 +17,8 @@
+ /** Delegate that handles the display of the HelpAndFeedback flows. */
+ @NullMarked
+ public interface HelpAndFeedbackLauncherDelegate {
+-    String FALLBACK_SUPPORT_URL = "https://support.google.com/chrome/topic/6069782";
++    // Little Browser: help is our site's guide, not Google's Chrome help pages.
++    String FALLBACK_SUPPORT_URL = "https://littlebrowser.app/features";
+     String P_LINK_URL_PREFIX = "https://support.google.com/chrome/?p=";
+ 
+     /**
+diff --git a/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/FallbackHelpAndFeedbackLauncherDelegate.java b/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/FallbackHelpAndFeedbackLauncherDelegate.java
+--- a/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/FallbackHelpAndFeedbackLauncherDelegate.java
++++ b/chrome/browser/feedback/android/java/src/org/chromium/chrome/browser/feedback/FallbackHelpAndFeedbackLauncherDelegate.java
+@@ -8,7 +8,6 @@
+ 
+ import org.chromium.base.Log;
+ import org.chromium.build.annotations.NullMarked;
+-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+ 
+ /**
+  * Basic implementation for displaying help support for Chrome.
+@@ -22,12 +21,9 @@
+     @Override
+     public void show(Activity activity, String helpContext, FeedbackCollector collector) {
+         Log.d(TAG, "Feedback data: %s", collector.getBundle());
+-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.USE_P_LINK_IN_HELP)) {
+-            HelpAndFeedbackLauncherDelegate.launchFallbackSupportUri(
+-                    activity, HelpAndFeedbackLauncherDelegate.getPLinkHelpUrl(helpContext));
+-        } else {
+-            HelpAndFeedbackLauncherDelegate.launchFallbackSupportUri(activity, /* url= */ null);
+-        }
++        // Little Browser: every help context opens our guide (FALLBACK_SUPPORT_URL); Google's
++        // p-links are Chrome's help pages.
++        HelpAndFeedbackLauncherDelegate.launchFallbackSupportUri(activity, /* url= */ null);
+     }
+ 
+     @Override

@@ -45,7 +45,7 @@ LANGS = {
     'hi': ('hi', 'हिन्दी'),
 }
 # Pages that stay English only: the legal text and the 404 page (one file, served at any address).
-UNTRANSLATED = {'privacy/index.html', '404.html'}
+UNTRANSLATED = {'privacy/index.html', 'terms/index.html', '404.html'}
 # Texts the pages' markup doesn't carry but the tool writes.
 EXTRA_STRINGS = ['Language']
 

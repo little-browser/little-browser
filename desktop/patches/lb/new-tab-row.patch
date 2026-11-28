@@ -2,7 +2,8 @@
 # chromium/lb's "+ New Tab" row (docs/ux.md §2: divider, New tab, today's tabs). The row itself
 # is ours (lb/browser/ui/views/sidebar/new_tab_row_view.*); sidebar-hooks.patch puts it in. The
 # divider above it is Chromium's own pinned/unpinned separator, shown whenever there are pinned
-# tabs (upstream shows it only in the collapsed strip).
+# tabs (upstream shows it only in the collapsed strip), with the gap above it that upstream leaves
+# only when unpinned tabs follow, so the last pinned row (a group's header pill) never touches it.
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view.h
 +++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
 @@ -46,6 +46,11 @@
@@ -57,7 +58,7 @@
    layouts.host_size = gfx::Size(total_host_width, container_height);
    return layouts;
  }
-@@ -255,15 +260,23 @@
+@@ -255,16 +260,27 @@
    const int unpinned_preferred_height =
        unpinned_tabs_scroll_view->GetPreferredSize(size_bounds).height();
  
@@ -70,22 +71,38 @@
 +      lb_row && lb_row->GetVisible()
 +          ? lb_row->GetHeightForWidth(size_bounds.width().value())
 +          : 0;
-+
+ 
 +  // Little Browser: with the row, the separator shows whenever there are pinned tabs.
 +  const bool should_show_separator =
 +      pinned_preferred_height != 0 &&
 +      (lb_row_height > 0 || (unpinned_preferred_height != 0 && is_collapsed));
- 
++
    // If the height is bounded, calculate the available space for laying out the
    // pinned and unpinned containers.
    int remaining_height = 0;
    if (size_bounds.height().is_bounded()) {
 -    remaining_height = size_bounds.height().value();
+-    if (pinned_preferred_height != 0 && unpinned_preferred_height != 0) {
 +    remaining_height = size_bounds.height().value() - lb_row_height;
-     if (pinned_preferred_height != 0 && unpinned_preferred_height != 0) {
++    // Little Browser: also the gap above the separator, which shows with no
++    // unpinned tabs.
++    if (pinned_preferred_height != 0 &&
++        (unpinned_preferred_height != 0 || should_show_separator)) {
        remaining_height -= region_vertical_padding;
      }
-@@ -317,6 +330,13 @@
+     if (should_show_separator) {
+@@ -299,7 +315,9 @@
+   if (pinned_container_bounds.height()) {
+     y += pinned_container_bounds.height();
+     // Add padding only if there are pinned and unpinned tabs.
+-    if (unpinned_preferred_height != 0) {
++    // Little Browser: or a separator below the pinned tabs, which would
++    // otherwise touch the last one (a pinned group's header pill).
++    if (unpinned_preferred_height != 0 || should_show_separator) {
+       y += region_vertical_padding;
+     }
+   }
+@@ -317,6 +335,13 @@
    layouts.child_layouts.emplace_back(tabs_separator, should_show_separator,
                                       separator_bounds);
  

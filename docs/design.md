@@ -134,7 +134,8 @@ second copy of the rules. What each layer holds and the shared repository layout
 **UI technology:** Chromium Views (C++) for the window frame, sidebar, tab strip, peek overlay and
 little window. It's cross-platform and much lighter than a web-based UI (Vivaldi-style). Settings and
 other rarely used pages are WebUI (HTML), as in Chrome. The sidebar sits on upstream's vertical tab
-strip with a slim Chromium toolbar above the page card; see [desktop-ui.md](desktop-ui.md).
+strip, with Chromium's toolbar moved into its top (tabs on top and little windows keep it above the
+page); see [desktop-ui.md](desktop-ui.md).
 
 **User data** lives in its own folder, never Chromium's: on macOS
 `~/Library/Application Support/Little Browser` (the admin initial-preferences file and the system
@@ -216,7 +217,7 @@ Safari Web Inspector.
 | HTTPS | HTTPS-First, Balanced mode | Chromium's own default, kept. Pages load over HTTPS, with a warning before a site opens over plain HTTP, except where HTTPS can't be expected (local network names). Strict mode, which warns for every HTTP site, is in Settings → Privacy and security → Security. |
 | DNS | System resolver, with DNS-over-HTTPS upgrade when available | User can pick a provider. |
 | Telemetry | **None** | No UMA/UKM, no field trials from Google. Crash reporting is opt-in. |
-| Google services | Removed | Sign-in, sync, Lens, on-device AI models, Google-hosted suggestions, promos. |
+| Google services | Removed | Sign-in, sync, Lens, on-device AI models, Google-hosted suggestions, promos. Help (the Help menu, its shortcut, Settings' "Get help", Android's Help & feedback) opens our site's guide, littlebrowser.app/features, not Google's Chrome help. |
 | Search | **No default — choice screen on first run** | Offer privacy-respecting engines first (e.g. DuckDuckGo, Brave Search, Startpage), plus the mainstream ones. Search **suggestions off by default** (each keystroke would go to the provider). |
 | Safe Browsing | **Standard mode on** | Local database of hash prefixes; only a short hash prefix is sent to Google on a match, never the URL. "Enhanced" (real-time) mode removed. The threat lists need an agreement with Google; until it is in place the database stays empty ([legal/safe-browsing.md](legal/safe-browsing.md)). |
 | Site isolation | **On** | Costs memory but is our main defence against Spectre-class attacks. Not negotiable. |
@@ -262,7 +263,11 @@ Built so far, on macOS desktop: spaces and profiles, the command bar, the first-
 and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering),
 Peek, the little window, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
 the quit warning, the updater, import from other browsers (§7.6), and everything Chromium already
-provides (incognito, DevTools, PiP). The rest of the table is specified but not built. How Android gets each macOS feature is in
+provides (incognito, DevTools, PiP). On Android: spaces and profiles (a window per profile),
+the phone shell (the bar at the bottom, search, the all-tabs view, the spaces sheet), the tablet
+sidebar on Chromium's vertical tabs, Peek, the little window, the first-run choices, the ad blocker,
+Safe Browsing settings in standard mode and bookmarks file import. The rest of the table is
+specified but not built. How Android gets each macOS feature, and how far each is built, is in
 [android-ui.md](android-ui.md) ("Features, macOS → Android").
 
 | Feature | Desktop | Android | iOS |
@@ -431,7 +436,11 @@ Plus:
 The desktop browser checks for a new version and asks the user to update. On macOS that is
 Sparkle (`chromium/lb/browser/update/`), which `package-macos.sh` adds to a release: it reads the
 update feed (§9, §14) every four hours while the browser runs. When a newer version is out it shows
-its small update window: **Install Update**, which downloads it, checks its EdDSA signature against
+its small update window once the user is in the browser: right away if the browser was just opened
+or the computer was idle, otherwise the next time the user comes back to the browser, so it never
+takes the keyboard mid-typing. The window, and the download's progress after it, stays above the
+front browser window, also after a click in that window; when that window closes it comes back
+above the next one. The browser's own dialogs, bubbles and menus still open above it. It offers **Install Update**, which downloads it, checks its EdDSA signature against
 the key built into the app (and its Apple signature) and offers to restart into it; **Remind Me
 Later**; or **Skip This Version**. Later holds that version back for a day. A security release says
 it is an important update, can't be skipped, and asks again at the next check. The restart into an
@@ -641,16 +650,26 @@ on the macOS runner. A patch to a widely included header can cost almost as much
    `v157.0.8103.78-1`) automatically (`auto-tag`); a platform-only bump on the same Chromium
    version gets the next free revision. A change to its comments tags nothing.
    Releases of our own changes on the same Chromium version are tagged by hand with the next
-   revision (`-2`, `-3`, …).
+   revision (`-2`, `-3`, …). A revision is 1 to 9999 without leading zeros: CI's release jobs run
+   on tags of that form only, and the scripts take no other (`release_revision` in
+   `chromium/scripts/lib.sh`).
 4. **Build.** On the tag, builders run `desktop/scripts/fetch.sh` + `build.sh` from scratch, with
    the compiler cache; keys (Safe Browsing, Widevine signing) are injected from protected
-   CI/CD variables, never committed.
+   CI/CD variables, never committed. `LB_RELEASE=<version>` (the tag without its `v`) gives the
+   build its revision (GN `lb_release_revision`), so the About page and `chrome://version` show
+   the release, `157.0.8103.78-3`, on macOS and Android alike (`lb::ReleaseVersion()`), and so
+   does the macOS update prompt for the installed version; the user agent and everything else sent
+   to sites keep the Chromium version alone. A build without it shows the Chromium version, and
+   one with it stops on a tree that isn't on the release's Chromium version.
 5. **Sign.** macOS Developer ID + notarization → `.dmg`; Windows code signing → installer; Linux
-   `.deb`/`.rpm` + Flatpak. On macOS `package-macos.sh --release <version>` also adds the updater
-   (Sparkle, pinned by checksum) with the feed address and the update public key, sets the app's
-   `CFBundleVersion` to `<Chromium build>.<patch>.<revision>` so the updater can tell releases on
-   the same Chromium version apart, and signs the finished `.dmg` with the update key (EdDSA,
+   `.deb`/`.rpm` + Flatpak. On macOS `package-macos.sh --release <version>` stops on a build made
+   for another revision (it reads the build's `args.gn`), adds the updater (Sparkle, pinned by
+   checksum) with the feed address and the update public key, sets the app's `CFBundleVersion` to
+   `<Chromium build>.<patch>.<revision>` so the updater can tell releases on the same Chromium
+   version apart, and signs the finished `.dmg` with the update key (EdDSA,
    `little-browser/signing/sparkle-ed25519`) into a `.update.json` next to it.
+   `CFBundleShortVersionString` stays the Chromium version: Chromium's web-app shims find the
+   framework's version folder by it, and Finder shows it.
 6. **Internal channel.** The signed `.dmg` is kept as a pipeline artifact for 30 days; internal
    testers download it from the tag's pipeline.
 7. **Publish (manual), one build at a time.** Each platform and architecture has its own chain of

@@ -36,6 +36,11 @@ bool OpensInPeek(const LinkOpen& open) {
          open.user_gesture && !open.untrusted_event && open.window != WindowKind::kOther;
 }
 
+bool AnnouncesBackgroundTab(const LinkOpen& open) {
+  return open.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB && open.renderer_initiated &&
+         open.user_gesture && !open.untrusted_event && open.window != WindowKind::kOther;
+}
+
 PeekLinkAction ActionForLinkInPeek(const LinkOpen& open) {
   if (open.disposition == WindowOpenDisposition::CURRENT_TAB) {
     return PeekLinkAction::kLoadInPeek;
@@ -86,13 +91,13 @@ PeekCommandAction PeekCommandActionFor(int command_id) {
     case IDC_ZOOM_MINUS:
     case IDC_ZOOM_NORMAL:
     case IDC_COPY_URL:
+    case IDC_PRINT:
+    case IDC_BASIC_PRINT:
       return PeekCommandAction::kForPeekPage;
     case IDC_HOME:
     case IDC_FIND:
     case IDC_FIND_NEXT:
     case IDC_FIND_PREVIOUS:
-    case IDC_PRINT:
-    case IDC_BASIC_PRINT:
     case IDC_SAVE_PAGE:
     case IDC_EMAIL_PAGE_LOCATION:
     case IDC_VIEW_SOURCE:

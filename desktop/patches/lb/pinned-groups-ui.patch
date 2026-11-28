@@ -117,7 +117,7 @@
  
  // A dragged window is forced to be a bit smaller than maximized bounds during a
  // drag. This prevents the dragged browser widget from getting maximized at
-@@ -1070,6 +1086,12 @@
+@@ -1041,6 +1057,12 @@
  
    DCHECK(attached_context_);
  
@@ -130,7 +130,7 @@
    TabDragContext* target_context = source_context_;
    if (detach_behavior_ == DetachBehavior::kDetachable) {
      auto [alive, context, drop_target] = GetDragTargetForPoint(point_in_screen);
-@@ -2095,6 +2117,8 @@
+@@ -2066,6 +2088,8 @@
    base::WeakPtr<TabDragController> ref(weak_factory_.GetWeakPtr());
    DragState previous_state = current_state_;
    current_state_ = DragState::kStopped;
@@ -139,7 +139,7 @@
    attached_context_tabs_closed_tracker_.reset();
  
    bring_to_front_timer_.Stop();
-@@ -2144,7 +2168,16 @@
+@@ -2115,7 +2139,16 @@
              return;
            }
          }

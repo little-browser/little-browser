@@ -21,6 +21,7 @@ privacy-default-prefs.patch         # Android only: Google sign-in not allowed, 
 first-run-usage-stats-off.patch     # first run doesn't opt in to usage stats and crash reports
 password-manager-queries.patch      # the browser may see whether the offered password managers are installed
 no-account-button.patch             # the bar has no Google account button (sign-in isn't allowed)
+help-url.patch                      # Help & feedback opens our site, the page desktop Help opens
 safe-browsing-standard-only-settings.patch  # Safe Browsing settings offer standard protection only
 #
 # The built-in ad blocker's per-site switch (the engine is chromium/patches/ad-blocking*.patch):
@@ -61,3 +62,4 @@ app-name.patch                      # the app is called Little Browser (Chromium
 app-icon.patch                      # our launcher icon, adaptive and themed (its PNGs: scripts/brand_assets.sh), and notifications' small icon
 no-chromium-logo-animation.patch    # the welcome screen shows our logo, not Chromium's animated one
 logo-dark.patch                     # our lockup has a dark-mode copy (brand_assets.sh puts in the logos)
+release-version.patch               # About and chrome://version show the release, <Chromium version>-<revision>

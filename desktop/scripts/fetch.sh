@@ -129,9 +129,10 @@ platform_toolchains
 
 log "Branding: product strings (translations re-keyed), icons, our source tree"
 cp "$CHROMIUM/branding/BRANDING" "$SRC/chrome/app/theme/chromium/BRANDING"
-python3 "$CHROMIUM/scripts/rebrand_strings.py" "$SRC" \
+python3 "$CHROMIUM/scripts/rebrand_strings.py" --chrome "$SRC" \
   "$(branding_value PRODUCT_FULLNAME)" "$(branding_value COMPANY_FULLNAME)" \
-  chrome/app/chromium_strings.grd components/components_chromium_strings.grd
+  chrome/app/chromium_strings.grd components/components_chromium_strings.grd \
+  chrome/app/generated_resources.grd components/components_strings.grd
 "$DESKTOP/scripts/brand_assets.sh" "$SRC"
 platform_branding "$SRC"
 ln -sfn "$CHROMIUM/lb" "$SRC/lb"

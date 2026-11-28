@@ -111,20 +111,50 @@ TEST(PeekRulesTest, SplitViewOnlyBesideAPageNotSplitAlready) {
   EXPECT_FALSE(CanOpenPeekInSplitView(WindowKind::kLittle, false));
 }
 
+TEST(PeekRulesTest, ACmdClickedLinkAnnouncesItsBackgroundTab) {
+  const LinkOpen cmd_click = {WindowOpenDisposition::NEW_BACKGROUND_TAB, /*renderer_initiated=*/true,
+                              /*user_gesture=*/true, WindowKind::kNormal};
+  EXPECT_TRUE(AnnouncesBackgroundTab(cmd_click));
+  LinkOpen little = cmd_click;
+  little.window = WindowKind::kLittle;
+  EXPECT_TRUE(AnnouncesBackgroundTab(little));
+  // A tab in front shows itself; Shift+click is a Peek.
+  for (WindowOpenDisposition d : {WindowOpenDisposition::NEW_FOREGROUND_TAB,
+                                  WindowOpenDisposition::NEW_WINDOW,
+                                  WindowOpenDisposition::CURRENT_TAB}) {
+    LinkOpen other = cmd_click;
+    other.disposition = d;
+    EXPECT_FALSE(AnnouncesBackgroundTab(other)) << static_cast<int>(d);
+  }
+  // The browser's own (a menu), a script's, or one without the user: no notice.
+  LinkOpen browser = cmd_click;
+  browser.renderer_initiated = false;
+  EXPECT_FALSE(AnnouncesBackgroundTab(browser));
+  LinkOpen script = cmd_click;
+  script.untrusted_event = true;
+  EXPECT_FALSE(AnnouncesBackgroundTab(script));
+  LinkOpen no_gesture = cmd_click;
+  no_gesture.user_gesture = false;
+  EXPECT_FALSE(AnnouncesBackgroundTab(no_gesture));
+  LinkOpen app = cmd_click;
+  app.window = WindowKind::kOther;
+  EXPECT_FALSE(AnnouncesBackgroundTab(app));
+}
+
 TEST(PeekRulesTest, CommandsCloseThePeekOrActOnItsPage) {
   EXPECT_EQ(PeekCommandActionFor(IDC_CLOSE_TAB), PeekCommandAction::kClosePeek);
   EXPECT_EQ(PeekCommandActionFor(IDC_CLOSE_FIND_OR_STOP), PeekCommandAction::kClosePeek);
   for (int id :
        {IDC_RELOAD, IDC_RELOAD_BYPASSING_CACHE, IDC_RELOAD_CLEARING_CACHE, IDC_STOP, IDC_BACK,
-        IDC_FORWARD, IDC_ZOOM_PLUS, IDC_ZOOM_MINUS, IDC_ZOOM_NORMAL, IDC_COPY_URL}) {
+        IDC_FORWARD, IDC_ZOOM_PLUS, IDC_ZOOM_MINUS, IDC_ZOOM_NORMAL, IDC_COPY_URL, IDC_PRINT,
+        IDC_BASIC_PRINT}) {
     EXPECT_EQ(PeekCommandActionFor(id), PeekCommandAction::kForPeekPage) << id;
   }
 }
 
 TEST(PeekRulesTest, PageCommandsThePeekCantRunDoNothing) {
   // They would otherwise act on the dimmed page under the Peek.
-  for (int id : {IDC_FIND, IDC_FIND_NEXT, IDC_FIND_PREVIOUS, IDC_PRINT, IDC_BASIC_PRINT,
-                 IDC_SAVE_PAGE, IDC_VIEW_SOURCE, IDC_DEV_TOOLS, IDC_DEV_TOOLS_CONSOLE,
+  for (int id : {IDC_FIND, IDC_FIND_NEXT, IDC_FIND_PREVIOUS, IDC_SAVE_PAGE, IDC_VIEW_SOURCE, IDC_DEV_TOOLS, IDC_DEV_TOOLS_CONSOLE,
                  IDC_DEV_TOOLS_INSPECT, IDC_DEV_TOOLS_TOGGLE, IDC_FOCUS_LOCATION, IDC_HOME,
                  IDC_BOOKMARK_THIS_TAB, IDC_DUPLICATE_TAB}) {
     EXPECT_EQ(PeekCommandActionFor(id), PeekCommandAction::kIgnore) << id;

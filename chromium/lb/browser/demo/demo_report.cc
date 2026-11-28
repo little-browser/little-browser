@@ -4,15 +4,7 @@
 
 #include "lb/browser/demo/demo_report.h"
 
-#include <set>
-#include <utility>
-
-#include "base/functional/bind.h"
-#include "base/location.h"
 #include "base/logging.h"
-#include "base/no_destructor.h"
-#include "base/strings/string_number_conversions.h"
-#include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -35,26 +27,6 @@
 #include "ui/views/view_utils.h"
 
 namespace lb {
-
-void ReportDemo(const std::string& mode, bool pass, const std::string& detail) {
-  static base::NoDestructor<std::set<std::string>> reported;
-  if (!reported->insert(mode).second) {
-    return;
-  }
-  // LOG, not VLOG: the result must be in the log without --vmodule.
-  LOG(WARNING) << "lb demo: " << mode << (pass ? " PASS " : " FAIL ") << detail;
-}
-
-void FailDemoAfter(const std::string& mode, base::TimeDelta limit) {
-  PostDemoTask(base::BindOnce(&ReportDemo, mode, false,
-                              "no result after " + base::NumberToString(limit.InSeconds()) + " s"),
-               limit);
-}
-
-void PostDemoTask(base::OnceClosure task, base::TimeDelta delay) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(FROM_HERE, std::move(task),
-                                                                     delay);
-}
 
 void SkipFirstRunQuestionsForDemo(Profile* profile) {
   g_browser_process->local_state()->SetBoolean(kImportOfferedPref, true);
@@ -136,12 +108,16 @@ TabDragHandler* DragHandlerForDemo(BrowserWindowInterface* browser) {
 }  // namespace
 
 bool StartViewDragForDemo(views::View* view, const std::vector<int>& screen_ys) {
-  views::ViewTracker tracker(view);
   const gfx::Point start = view->GetLocalBounds().CenterPoint();
-  const int screen_x = view->GetBoundsInScreen().CenterPoint().x();
   ui::MouseEvent press(ui::EventType::kMousePressed, start, start, ui::EventTimeForNow(),
                        ui::EF_LEFT_MOUSE_BUTTON, ui::EF_LEFT_MOUSE_BUTTON);
   view->OnMousePressed(press);
+  return ContinueViewDragForDemo(view, screen_ys);
+}
+
+bool ContinueViewDragForDemo(views::View* view, const std::vector<int>& screen_ys) {
+  views::ViewTracker tracker(view);
+  const int screen_x = view->GetBoundsInScreen().CenterPoint().x();
   for (int y : screen_ys) {
     if (!tracker.view()) {
       VLOG(1) << "demo drag: view destroyed mid-drag";

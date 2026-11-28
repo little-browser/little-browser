@@ -35,6 +35,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.url.GURL;
 
@@ -42,7 +43,9 @@ import app.littlebrowser.lb.profiles.Profiles;
 import app.littlebrowser.lb.search.TabSuggestions;
 import app.littlebrowser.lb.spaces.SpaceStore;
 import app.littlebrowser.lb.spaces.SpaceStore.Space;
+import app.littlebrowser.lb.tabs.PinnedGroups;
 import app.littlebrowser.lb.tabs.TabNames;
+import app.littlebrowser.lb.tabs.TabRules;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -146,13 +149,23 @@ public class LbPhoneShell {
     /** Per tab id: what Chromium doesn't keep (name and link, pinned group, sleep state). */
     private final Map<Integer, TabExtra> mExtras = new HashMap<>();
 
-    /** When each tab was last shown, for the tab to show after a close. */
-    private final Map<Integer, Long> mLastShown = new HashMap<>();
+    /**
+     * What tabs taken out of a window's tab model without closing (moved to another window) kept,
+     * until the window they go to adds them (tab ids are the app's, not a window's).
+     */
+    private static final Map<Integer, TabExtra> sMovingExtras = new HashMap<>();
 
     private final Set<Tab> mObservedTabs = new HashSet<>();
+    // Android made this window again from its saved state (after a configuration change or the
+    // process was ended): the space it opened for (SPACE_EXTRA) is no longer the one it shows.
+    private final boolean mRecreated;
     private String mSpaceId = "";
     private boolean mRestored;
     private boolean mSwitching;
+    // Chromium has destroyed the window's tab models: there is nothing left to save.
+    private boolean mModelsGone;
+    // The shell is moving pinned tabs itself (a pinned group's tabs side by side).
+    private boolean mArranging;
     private @Nullable AllTabsView mAllTabs;
 
     /** What a tab keeps besides Chromium's state. */
@@ -201,6 +214,15 @@ public class LbPhoneShell {
                 }
             };
 
+    /** Brings up `tab`, added behind the page, if it is still open (the notice's Show). */
+    void showAddedTab(Tab tab) {
+        TabModel model = mSelector.getModel(tab.isIncognito());
+        int index = model.indexOf(tab);
+        if (index == TabModel.INVALID_TAB_INDEX) return;
+        mSelector.selectModel(tab.isIncognito());
+        model.setIndex(index, TabSelectionType.FROM_USER);
+    }
+
     private final TabModelObserver mModelObserver =
             new TabModelObserver() {
                 @Override
@@ -209,15 +231,19 @@ public class LbPhoneShell {
                         @TabLaunchType int type,
                         @TabCreationState int creationState,
                         boolean markedForSelection) {
+                    TabExtra moved = sMovingExtras.remove(tab.getId());
+                    if (moved != null) mExtras.put(tab.getId(), moved);
                     observe(tab);
+                    BackgroundTabNotice.maybeShow(mActivity, type, () -> showAddedTab(tab));
                     scheduleSave();
                 }
 
                 @Override
                 public void didSelectTab(Tab tab, @TabSelectionType int type, int lastId) {
-                    mLastShown.put(tab.getId(), System.currentTimeMillis());
                     TabExtra extra = extra(tab);
                     extra.hidden = false;
+                    // Shown, it loads: it no longer sleeps, though its page hasn't loaded yet.
+                    extra.asleep = false;
                     if (TabNames.loadsLinkWhenShown(extra.custom)) {
                         tab.loadUrl(new LoadUrlParams(extra.custom.pinnedUrl));
                     }
@@ -227,6 +253,7 @@ public class LbPhoneShell {
 
                 @Override
                 public void didMoveTab(Tab tab, int newIndex, int curIndex) {
+                    if (tab.getIsPinned() && !mArranging && !mSwitching) pinnedTabMoved(tab);
                     scheduleSave();
                 }
 
@@ -237,21 +264,43 @@ public class LbPhoneShell {
                             TabNames.settle(extra.custom, tab.getIsPinned(), tab.getUrl().getSpec());
                     // Pinning or unpinning a tab alone takes it out of its group (docs/ux.md §6.1).
                     extra.pinnedGroupId = "";
+                    normalizePinnedGroups();
                     scheduleSave();
                 }
 
+                // Taken out without closing: it moves to another window, which keeps what it had.
                 @Override
                 public void tabRemoved(Tab tab) {
+                    TabExtra extra = forget(tab);
+                    if (extra != null) sMovingExtras.put(tab.getId(), extra);
                     if (!mSwitching) scheduleSave();
+                }
+
+                // Chromium tells of closes with willCloseTabs (TabClosureMethodRefactor), and
+                // with willCloseTab where that is off.
+                @Override
+                public void willCloseTabs(List<Tab> tabs, boolean isAllTabs, boolean allowUndo) {
+                    for (Tab tab : tabs) forget(tab);
+                    scheduleSave();
                 }
 
                 @Override
                 public void willCloseTab(Tab tab, boolean didCloseAlone) {
-                    mTabPreviews.remove(tab.getId());
-                    unobserve(tab);
-                    mExtras.remove(tab.getId());
-                    mLastShown.remove(tab.getId());
+                    forget(tab);
                     scheduleSave();
+                }
+            };
+
+    /** Background tabs opened in incognito: only the notice; incognito tabs belong to no space. */
+    private final TabModelObserver mIncognitoObserver =
+            new TabModelObserver() {
+                @Override
+                public void didAddTab(
+                        Tab tab,
+                        @TabLaunchType int type,
+                        @TabCreationState int creationState,
+                        boolean markedForSelection) {
+                    BackgroundTabNotice.maybeShow(mActivity, type, () -> showAddedTab(tab));
                 }
             };
 
@@ -261,6 +310,13 @@ public class LbPhoneShell {
                 public void onTabStateInitialized() {
                     onRestored();
                 }
+
+                // Before Chromium empties the tab models (ChromeActivity.onDestroy): the last save.
+                @Override
+                public void onDestroyed() {
+                    saveNow();
+                    mModelsGone = true;
+                }
             };
 
     private LbPhoneShell(
@@ -269,8 +325,10 @@ public class LbPhoneShell {
             BottomSheetController sheets,
             ModalDialogManager dialogs,
             @Nullable View spaceButton,
-            Supplier<@Nullable TabContentManager> previews) {
+            Supplier<@Nullable TabContentManager> previews,
+            boolean recreated) {
         mActivity = activity;
+        mRecreated = recreated;
         mSelector = selector;
         mSheets = sheets;
         mDialogs = dialogs;
@@ -283,8 +341,9 @@ public class LbPhoneShell {
     /**
      * The shell of {@code activity}, made once its tab model and views exist. On tablets too:
      * spaces work the same there, and Chromium's vertical tabs show them in the sidebar layout
-     * (SidebarSpaces; docs/ux.md §10, Tablets). {@code previews} captures the cards' page
-     * previews.
+     * (SidebarSpaces; docs/ux.md §10, Tablets). Not in an incognito window, which has no space
+     * (phone-shell.patch). {@code previews} captures the cards' page previews; {@code recreated}:
+     * Android made the window again from its saved state.
      */
     public static @Nullable LbPhoneShell create(
             Activity activity,
@@ -292,17 +351,31 @@ public class LbPhoneShell {
             BottomSheetController sheets,
             ModalDialogManager dialogs,
             @Nullable View spaceButton,
-            Supplier<@Nullable TabContentManager> previews) {
+            Supplier<@Nullable TabContentManager> previews,
+            boolean recreated) {
         LbPhoneShell shell =
-                new LbPhoneShell(activity, selector, sheets, dialogs, spaceButton, previews);
+                new LbPhoneShell(
+                        activity, selector, sheets, dialogs, spaceButton, previews, recreated);
         sShells.put(activity, shell);
         shell.start();
         return shell;
     }
 
+    /** {@link #create} for a window started anew. */
+    public static @Nullable LbPhoneShell create(
+            Activity activity,
+            TabModelSelector selector,
+            BottomSheetController sheets,
+            ModalDialogManager dialogs,
+            @Nullable View spaceButton,
+            Supplier<@Nullable TabContentManager> previews) {
+        return create(activity, selector, sheets, dialogs, spaceButton, previews, false);
+    }
+
     private void start() {
         TabModel model = regularModel();
         model.addObserver(mModelObserver);
+        mSelector.getModel(/* incognito= */ true).addObserver(mIncognitoObserver);
         mSelector.addObserver(mSelectorObserver);
         if (mSpaceButton != null) {
             mSpaceButton.setOnLongClickListener(v -> showSpaces());
@@ -355,8 +428,11 @@ public class LbPhoneShell {
                         });
     }
 
+    /**
+     * The window is going. Its tabs were saved when Chromium destroyed its tab models (which
+     * happens first); saving here would save none.
+     */
     public void destroy() {
-        saveNow();
         mHandler.removeCallbacksAndMessages(null);
         mActivity
                 .getWindow()
@@ -364,6 +440,7 @@ public class LbPhoneShell {
                 .getViewTreeObserver()
                 .removeOnWindowFocusChangeListener(mFocusListener);
         regularModel().removeObserver(mModelObserver);
+        mSelector.getModel(/* incognito= */ true).removeObserver(mIncognitoObserver);
         mSelector.removeObserver(mSelectorObserver);
         for (Tab tab : new ArrayList<>(mObservedTabs)) unobserve(tab);
         if (mAllTabs != null) mAllTabs.dismiss();
@@ -482,7 +559,41 @@ public class LbPhoneShell {
         return profile == null ? null : UserPrefs.get(profile);
     }
 
-    /** Chromium has restored the shown space's tabs: give them back their names and links. */
+    /** The spaces the other windows show. */
+    private Set<String> shownElsewhere() {
+        Set<String> shown = new HashSet<>();
+        for (LbPhoneShell shell : sShells.values()) {
+            if (shell != this && !shell.mSpaceId.isEmpty()) shown.add(shell.mSpaceId);
+        }
+        return shown;
+    }
+
+    /** The other window that shows space {@code id}, if one does. */
+    private @Nullable LbPhoneShell otherShowing(String id) {
+        for (LbPhoneShell shell : sShells.values()) {
+            if (shell != this && shell.mSpaceId.equals(id)) return shell;
+        }
+        return null;
+    }
+
+    /** Makes a space for this window's profile, named like its first. */
+    private String newSpaceForWindow() {
+        return SpaceStore.create(
+                        Profiles.DEFAULT.equals(mWindowProfile)
+                                ? mActivity.getString(R.string.lb_first_space_name)
+                                : Profiles.nameOf(mWindowProfile),
+                        SpaceStore.nextIcon(),
+                        SpaceStore.nextHue(),
+                        mWindowProfile)
+                .id;
+    }
+
+    /**
+     * Chromium has restored the window's tabs: give them back their names and links. The window
+     * shows a space no other window shows: the one it was opened for, else its profile's last.
+     * The tabs Chromium restored are that last space's; a tab the window was opened with (a link,
+     * a page moved from another window) stays, beside the space's tabs.
+     */
     private void onRestored() {
         if (mRestored) return;
         mRestored = true;
@@ -491,48 +602,68 @@ public class LbPhoneShell {
         String saved = prefs == null ? "" : prefs.getString(ACTIVE_SPACE_PREF);
         String requested = null;
         try {
-            requested = mActivity.getIntent().getStringExtra(SPACE_EXTRA);
+            // A window Android made again shows what it showed, not what it was opened for.
+            if (!mRecreated) requested = mActivity.getIntent().getStringExtra(SPACE_EXTRA);
         } catch (RuntimeException e) {
             // A malformed extras bundle from another app.
         }
-        String initial = ProfileSpaces.initialSpace(spaces, mWindowProfile, requested, saved);
-        if (initial == null) {
-            // The window's profile has no space: its first, named like the profile's default.
-            initial =
-                    SpaceStore.create(
-                                    Profiles.DEFAULT.equals(mWindowProfile)
-                                            ? mActivity.getString(R.string.lb_first_space_name)
-                                            : Profiles.nameOf(mWindowProfile),
-                                    SpaceStore.nextIcon(),
-                                    SpaceStore.nextHue(),
-                                    mWindowProfile)
-                            .id;
-        }
-        mSpaceId = initial;
+        Set<String> taken = shownElsewhere();
+        String initial =
+                ProfileSpaces.initialSpace(spaces, mWindowProfile, requested, saved, taken);
+        // None free: a new space (the window's profile's first, or one beside those shown).
+        if (initial == null) initial = newSpaceForWindow();
+        String from = ProfileSpaces.restoredSpace(spaces, mWindowProfile, initial, saved, taken);
         TabModel model = regularModel();
-        List<SpaceStore.SavedTab> records = SpaceStore.tabs(mSpaceId);
+        List<Tab> restored = new ArrayList<>();
+        List<Tab> launched = new ArrayList<>();
         List<String> urls = new ArrayList<>();
-        for (int i = 0; i < model.getCount(); i++) {
-            Tab tab = model.getTabAt(i);
-            urls.add(tab == null ? "" : tab.getUrl().getSpec());
-        }
-        int[] match = SpaceTabs.matchRestored(records, urls);
-        if (SpaceTabs.opensSavedTabs(match, records.size())) {
-            // A new window for the space (another profile's, or one Android closed): Chromium
-            // has none of its tabs, so it opens the saved ones rather than saving over them.
-            showSavedTabs(mSpaceId);
-            if (prefs != null) prefs.setString(ACTIVE_SPACE_PREF, mSpaceId);
-            updateSpaceButton();
-            saveNow();
-            return;
-        }
         for (int i = 0; i < model.getCount(); i++) {
             Tab tab = model.getTabAt(i);
             if (tab == null) continue;
             observe(tab);
-            TabExtra extra = extra(tab);
-            extra.asleep = tab.isFrozen();
+            extra(tab).asleep = tab.isFrozen();
+            if (tab.getLaunchType() == TabLaunchType.FROM_RESTORE) {
+                restored.add(tab);
+                urls.add(tab.getUrl().getSpec());
+            } else if (!SpaceStore.isBlankUrl(tab.getUrl().getSpec())) {
+                launched.add(tab);
+            }
+        }
+        List<SpaceStore.SavedTab> records = SpaceStore.tabs(from);
+        int[] match = SpaceTabs.matchRestored(records, urls);
+        boolean opens = SpaceTabs.opensSavedTabs(match, records.size());
+        if (!from.equals(initial)) {
+            // Opened for another space: the restored tabs go back to their own space first.
+            if (!opens && !restored.isEmpty()) {
+                applyRecords(restored, match, records);
+                List<TabInfo> infos = new ArrayList<>();
+                Tab current = shownTab();
+                for (Tab tab : restored) infos.add(info(tab, tab == current));
+                SpaceStore.writeTabs(from, SpaceTabs.toSaved(infos));
+            }
+            opens = true;
+        }
+        mSpaceId = initial;
+        if (opens) {
+            // A new window for the space (another profile's, one Android closed, or one opened
+            // for another space): it opens the saved tabs rather than saving over them.
+            showSavedTabs(initial, launched);
+        } else {
+            applyRecords(restored, match, records);
+            normalizePinnedGroups();
+        }
+        if (prefs != null) prefs.setString(ACTIVE_SPACE_PREF, mSpaceId);
+        updateSpaceButton();
+        saveNow();
+    }
+
+    /** Gives restored tabs their records' names, links and pinned groups ({@code match}). */
+    private void applyRecords(List<Tab> tabs, int[] match, List<SpaceStore.SavedTab> records) {
+        Tab current = shownTab();
+        for (int i = 0; i < tabs.size(); i++) {
             if (match[i] < 0) continue;
+            Tab tab = tabs.get(i);
+            TabExtra extra = extra(tab);
             SpaceStore.SavedTab record = records.get(match[i]);
             extra.custom =
                     TabNames.restored(
@@ -543,7 +674,7 @@ public class LbPhoneShell {
                                     record.pinnedTitle),
                             tab.getIsPinned(),
                             tab.getUrl().getSpec(),
-                            i == model.index());
+                            tab == current);
             if (tab.getIsPinned()) {
                 extra.pinnedGroupId = record.groupId;
                 extra.pinnedGroupTitle = record.groupTitle;
@@ -551,8 +682,6 @@ public class LbPhoneShell {
                 extra.pinnedGroupCollapsed = record.groupCollapsed;
             }
         }
-        updateSpaceButton();
-        saveNow();
     }
 
     /** The shown space's tabs, as the rules see them. */
@@ -591,15 +720,22 @@ public class LbPhoneShell {
         return info;
     }
 
+    /** The window's shown regular tab, if any. */
+    private @Nullable Tab shownTab() {
+        TabModel model = regularModel();
+        int index = model.index();
+        return index >= 0 && index < model.getCount() ? model.getTabAt(index) : null;
+    }
+
     private void scheduleSave() {
         if (!mRestored || mSwitching) return;
         mHandler.removeCallbacks(mSave);
         mHandler.postDelayed(mSave, SAVE_DELAY_MS);
     }
 
-    private void saveNow() {
+    void saveNow() {
         mHandler.removeCallbacks(mSave);
-        if (!mRestored || mSpaceId.isEmpty()) return;
+        if (!mRestored || mModelsGone || mSpaceId.isEmpty()) return;
         SpaceStore.writeTabs(mSpaceId, SpaceTabs.toSaved(snapshot()));
         if (mAllTabs != null) mAllTabs.refresh();
     }
@@ -613,12 +749,18 @@ public class LbPhoneShell {
         if (!mRestored || id.equals(mSpaceId)) return;
         Space target = SpaceStore.find(id);
         if (target == null) return;
+        // Two windows never show one space: the one showing it comes to the front instead.
+        LbPhoneShell showing = otherShowing(id);
+        if (showing != null) {
+            ApiCompatibilityUtils.moveTaskToFront(mActivity, showing.mActivity.getTaskId(), 0);
+            return;
+        }
         if (ProfileSpaces.needsOtherWindow(target, mWindowProfile)) {
             showInProfileWindow(target);
             return;
         }
         saveNow();
-        showSavedTabs(id);
+        showSavedTabs(id, new ArrayList<>());
         PrefService prefs = profilePrefs();
         if (prefs != null) prefs.setString(ACTIVE_SPACE_PREF, mSpaceId);
         updateSpaceButton();
@@ -626,22 +768,24 @@ public class LbPhoneShell {
     }
 
     /**
-     * Replaces the window's tabs with space {@code id}'s saved ones, each unloaded until shown (a
-     * new tab if it has none), and makes it the shown space.
+     * Replaces the window's tabs, but {@code keep}, with space {@code id}'s saved ones, each
+     * unloaded until shown (a new tab if there is none), and makes it the shown space. The first
+     * of {@code keep} (a page the window was opened with) is the one shown, else the space's.
      */
-    private void showSavedTabs(String id) {
+    private void showSavedTabs(String id, List<Tab> keep) {
         TabModel model = regularModel();
         mSwitching = true;
         try {
             List<Tab> leaving = new ArrayList<>();
             for (int i = 0; i < model.getCount(); i++) {
                 Tab tab = model.getTabAt(i);
-                if (tab != null) leaving.add(tab);
+                if (tab != null && !keep.contains(tab)) leaving.add(tab);
             }
             List<TabInfo> saved = SpaceTabs.fromSaved(SpaceStore.tabs(id));
             List<Tab> coming = createTabs(saved);
             int show = Math.max(0, SpaceTabs.activeIndex(saved));
-            Tab shown = show < coming.size() ? coming.get(show) : null;
+            Tab shown =
+                    !keep.isEmpty() ? keep.get(0) : show < coming.size() ? coming.get(show) : null;
             if (shown == null) {
                 shown =
                         model.getTabCreator()
@@ -660,12 +804,16 @@ public class LbPhoneShell {
                                         .build());
             }
             mSpaceId = id;
+            normalizePinnedGroups();
         } finally {
             mSwitching = false;
         }
     }
 
-    /** Makes tabs for a space's saved tabs, at the end of the tab model, unloaded until shown. */
+    /**
+     * Makes tabs for a space's saved tabs, at the end of the tab model, unloaded until shown:
+     * Chromium makes a tab lazily (no page loaded, its title kept) only for a tab from sync.
+     */
     private List<Tab> createTabs(List<TabInfo> tabs) {
         TabModel model = regularModel();
         List<Tab> created = new ArrayList<>();
@@ -677,7 +825,7 @@ public class LbPhoneShell {
                             .createNewTab(
                                     new LoadUrlParams(info.url),
                                     info.title,
-                                    TabLaunchType.FROM_RESTORE,
+                                    TabLaunchType.FROM_SYNC_BACKGROUND,
                                     null,
                                     model.getCount());
             if (tab == null) continue;
@@ -712,10 +860,10 @@ public class LbPhoneShell {
         return created;
     }
 
-    /** Adds a space (the new-space dialog) and shows it. */
     /**
      * Makes a space and shows it: in this window if it is in this window's profile, else in its
-     * profile's window. {@code profile} null: a new profile called {@code newProfileName}.
+     * profile's window. {@code profile} null: a new profile called {@code newProfileName}, once
+     * it is made (its window needs it loaded).
      */
     void createSpace(
             String name,
@@ -723,14 +871,19 @@ public class LbPhoneShell {
             int hue,
             @Nullable String profile,
             @Nullable String newProfileName) {
-        String dir = profile;
-        if (dir == null) {
-            if (newProfileName == null || newProfileName.isEmpty()) return;
-            dir = Profiles.create(newProfileName, ready -> {});
-            if (!Profiles.isValidDir(dir)) return;
+        if (profile != null) {
+            switchTo(SpaceStore.create(name, icon, hue, profile).id);
+            return;
         }
-        Space space = SpaceStore.create(name, icon, hue, dir);
-        switchTo(space.id);
+        if (newProfileName == null || newProfileName.isEmpty()) return;
+        String[] dir = {""};
+        dir[0] =
+                Profiles.create(
+                        newProfileName,
+                        ready -> {
+                            if (ready == null || !Profiles.isValidDir(dir[0])) return;
+                            switchTo(SpaceStore.create(name, icon, hue, dir[0]).id);
+                        });
     }
 
     /** The profile this window shows. */
@@ -740,32 +893,54 @@ public class LbPhoneShell {
 
     /**
      * Moves space {@code id} to the profile in {@code dir} (docs/ux.md §5): its tabs open in that
-     * profile from now on, and it shows in that profile's window; this window, if it showed it,
-     * shows another of its own spaces.
+     * profile from now on, and it shows in that profile's window; the window that showed it, this
+     * or another, shows another of its own spaces.
      */
     void moveSpaceToProfile(String id, String dir) {
         Space space = SpaceStore.find(id);
         if (space == null || !Profiles.isValidDir(dir) || space.profile.equals(dir)) return;
-        boolean shown = id.equals(mSpaceId);
-        if (shown) saveNow();
+        LbPhoneShell showing = id.equals(mSpaceId) ? this : otherShowing(id);
+        if (showing != null) showing.saveNow();
         SpaceStore.setProfile(id, dir);
-        if (shown) {
-            String next = ProfileSpaces.afterMovingAway(spaces(), mWindowProfile, id);
-            if (next == null) {
-                next =
-                        SpaceStore.create(
-                                        mActivity.getString(R.string.lb_first_space_name),
-                                        SpaceStore.nextIcon(),
-                                        SpaceStore.nextHue(),
-                                        mWindowProfile)
-                                .id;
-            }
-            switchTo(next);
+        if (showing != null) {
+            showing.moveOff(id);
             Space moved = SpaceStore.find(id);
-            if (moved != null) showInProfileWindow(moved);
+            if (moved == null) {
+                // Gone meanwhile.
+            } else if (moved.profile.equals(mWindowProfile)) {
+                switchTo(id);
+            } else {
+                showInProfileWindow(moved);
+            }
         }
-        updateSpaceButton();
+        spacesChanged();
         if (mAllTabs != null) mAllTabs.refresh();
+    }
+
+    /** This window leaves space {@code id}: for another of its profile's, or a new one. */
+    private void moveOff(String id) {
+        String next = ProfileSpaces.afterMovingAway(spaces(), mWindowProfile, id, shownElsewhere());
+        if (next == null) {
+            next =
+                    SpaceStore.create(
+                                    mActivity.getString(R.string.lb_first_space_name),
+                                    SpaceStore.nextIcon(),
+                                    SpaceStore.nextHue(),
+                                    mWindowProfile)
+                            .id;
+        }
+        switchTo(next);
+    }
+
+    /** The other window of {@code profile} to show {@code spaceId} in: the one showing it, else any. */
+    private @Nullable LbPhoneShell profileWindowFor(String profile, String spaceId) {
+        LbPhoneShell any = null;
+        for (LbPhoneShell other : sShells.values()) {
+            if (other == this || !other.mWindowProfile.equals(profile)) continue;
+            if (other.mSpaceId.equals(spaceId)) return other;
+            if (any == null) any = other;
+        }
+        return any;
     }
 
     /**
@@ -773,8 +948,8 @@ public class LbPhoneShell {
      * the front on the space, or opens one.
      */
     private void showInProfileWindow(Space space) {
-        for (LbPhoneShell other : new ArrayList<>(sShells.values())) {
-            if (other == this || !other.mWindowProfile.equals(space.profile)) continue;
+        LbPhoneShell other = profileWindowFor(space.profile, space.id);
+        if (other != null) {
             other.switchTo(space.id);
             ApiCompatibilityUtils.moveTaskToFront(mActivity, other.mActivity.getTaskId(), 0);
             return;
@@ -782,16 +957,40 @@ public class LbPhoneShell {
         if (sWindowOpener != null) sWindowOpener.openWindow(mActivity, space.profile, space.id);
     }
 
-    /** Deletes a space and its tabs; the last space can't be deleted. */
+    /** What deleting space {@code id} does to the open windows, in {@link #sShells}' order. */
+    private @Nullable List<String> movesForDeleting(String id, List<LbPhoneShell> shells) {
+        List<String> shown = new ArrayList<>();
+        for (LbPhoneShell shell : sShells.values()) {
+            shells.add(shell);
+            shown.add(shell.mSpaceId);
+        }
+        return ProfileSpaces.movesForDeleting(spaces(), id, shown);
+    }
+
+    /**
+     * Whether space {@code id} can be deleted: not the last, and every window showing it has
+     * another space of its profile to go to.
+     */
+    boolean canDeleteSpace(String id) {
+        return movesForDeleting(id, new ArrayList<>()) != null;
+    }
+
+    /** Deletes a space and its tabs; every window showing it shows another of its profile's. */
     void deleteSpace(String id) {
-        List<Space> spaces = spaces();
-        if (spaces.size() < 2) return;
-        if (id.equals(mSpaceId)) {
-            String other = spaces.get(0).id.equals(id) ? spaces.get(1).id : spaces.get(0).id;
-            switchTo(other);
+        List<LbPhoneShell> shells = new ArrayList<>();
+        List<String> moves = movesForDeleting(id, shells);
+        if (moves == null) return;
+        for (int i = 0; i < moves.size(); i++) {
+            if (!moves.get(i).isEmpty()) shells.get(i).switchTo(moves.get(i));
         }
         SpaceStore.remove(id);
+        spacesChanged();
         if (mAllTabs != null) mAllTabs.refresh();
+    }
+
+    /** The spaces changed (a name, icon or colour, or one gone): every window shows them again. */
+    void spacesChanged() {
+        for (LbPhoneShell shell : new ArrayList<>(sShells.values())) shell.updateSpaceButton();
     }
 
     void updateSpaceButton() {
@@ -831,6 +1030,73 @@ public class LbPhoneShell {
         if (mObservedTabs.remove(tab)) tab.removeObserver(mTabObserver);
     }
 
+    /** Drops what the shell keeps for a tab leaving the window; returns its extras, if any. */
+    private @Nullable TabExtra forget(Tab tab) {
+        mTabPreviews.remove(tab.getId());
+        unobserve(tab);
+        return mExtras.remove(tab.getId());
+    }
+
+    /** The pinned tabs, in order. */
+    private List<Tab> pinnedTabs() {
+        TabModel model = regularModel();
+        List<Tab> pinned = new ArrayList<>();
+        for (int i = 0; i < model.getCount(); i++) {
+            Tab tab = model.getTabAt(i);
+            if (tab != null && tab.getIsPinned()) pinned.add(tab);
+        }
+        return pinned;
+    }
+
+    /**
+     * Makes the pinned groups whole (lb-core's normalize): a group's tabs side by side, a split
+     * run a group of its own, so each group has one header.
+     */
+    void normalizePinnedGroups() {
+        List<Tab> pinned = pinnedTabs();
+        String[] groups = new String[pinned.size()];
+        for (int i = 0; i < groups.length; i++) groups[i] = extra(pinned.get(i)).pinnedGroupId;
+        String[] whole = PinnedGroups.normalize(groups);
+        for (int i = 0; i < groups.length && i < whole.length; i++) {
+            extra(pinned.get(i)).pinnedGroupId = whole[i];
+        }
+    }
+
+    /** A pinned tab was dragged: it joins or leaves a group by where it lands (lb-core's rule). */
+    private void pinnedTabMoved(Tab tab) {
+        List<Tab> pinned = pinnedTabs();
+        int at = pinned.indexOf(tab);
+        if (at < 0) return;
+        TabExtra mine = extra(tab);
+        String before = at > 0 ? extra(pinned.get(at - 1)).pinnedGroupId : "";
+        String after = at + 1 < pinned.size() ? extra(pinned.get(at + 1)).pinnedGroupId : "";
+        boolean ownHasOthers = false;
+        for (Tab other : pinned) {
+            if (other != tab && !mine.pinnedGroupId.isEmpty()
+                    && extra(other).pinnedGroupId.equals(mine.pinnedGroupId)) {
+                ownHasOthers = true;
+            }
+        }
+        String group = PinnedGroups.groupAfterMove(mine.pinnedGroupId, before, after, ownHasOthers);
+        if (!group.equals(mine.pinnedGroupId)) joinPinnedGroup(tab, group);
+        normalizePinnedGroups();
+    }
+
+    /** Puts pinned {@code tab} in pinned group {@code group} ("" for none), taking its look. */
+    private void joinPinnedGroup(Tab tab, String group) {
+        TabExtra mine = extra(tab);
+        mine.pinnedGroupId = group;
+        for (Tab other : pinnedTabs()) {
+            TabExtra theirs = extra(other);
+            if (other != tab && !group.isEmpty() && theirs.pinnedGroupId.equals(group)) {
+                mine.pinnedGroupTitle = theirs.pinnedGroupTitle;
+                mine.pinnedGroupColor = theirs.pinnedGroupColor;
+                mine.pinnedGroupCollapsed = theirs.pinnedGroupCollapsed;
+                return;
+            }
+        }
+    }
+
     private boolean handleClose(TabClosureParams params, boolean allowDialog) {
         if (!allowDialog || params.isAllTabs || params.tabs == null || params.tabs.size() != 1) {
             return false;
@@ -839,28 +1105,34 @@ public class LbPhoneShell {
         TabModel model = regularModel();
         int index = model.indexOf(tab);
         if (index < 0) return false;
-        List<TabInfo> all = snapshot();
+        boolean shown = index == model.index();
+        TabInfo closing = info(tab, shown);
+        WebContents contents = tab.getIsPinned() ? tab.getWebContents() : null;
+        if (contents != null) {
+            int input = TabRules.pageInput(contents);
+            closing.asksBeforeLeaving = (input & TabRules.ASKS_BEFORE_LEAVING) != 0;
+            closing.hadUserEdits = (input & TabRules.HAD_USER_EDITS) != 0;
+        }
         List<TabInfo> others = new ArrayList<>();
         List<Tab> otherTabs = new ArrayList<>();
-        for (int i = 0; i < all.size(); i++) {
-            if (i == index) continue;
-            others.add(all.get(i));
+        for (int i = 0; i < model.getCount(); i++) {
             Tab other = model.getTabAt(i);
-            if (other != null) otherTabs.add(other);
+            if (i == index || other == null) continue;
+            others.add(info(other, false));
+            otherTabs.add(other);
         }
-        long[] lastShown = new long[others.size()];
-        for (int i = 0; i < others.size(); i++) {
-            Long shown = mLastShown.get(others.get(i).id);
-            lastShown[i] = shown == null ? 0 : shown;
+        // When each was last shown, as Chromium keeps it (across restarts too).
+        long[] lastShown = new long[otherTabs.size()];
+        for (int i = 0; i < lastShown.length; i++) {
+            lastShown[i] = Math.max(0, otherTabs.get(i).getTimestampMillis());
         }
         TabExtra extra = extra(tab);
         PinnedClose.Decision decision =
-                PinnedClose.decide(all.get(index), index == model.index(), extra.hidden, others,
-                        lastShown);
+                PinnedClose.decide(closing, shown, extra.hidden, others, lastShown);
         if (decision.close) return false;
         if (decision.show >= 0 && decision.show < otherTabs.size()) {
             model.setIndex(model.indexOf(otherTabs.get(decision.show)), TabSelectionType.FROM_USER);
-        } else if (index == model.index()) {
+        } else if (shown) {
             // Nothing else to show: a new tab, as the sidebar opens one.
             model.getTabCreator()
                     .createNewTab(
@@ -933,19 +1205,35 @@ public class LbPhoneShell {
         return SpaceTabs.fromSaved(SpaceStore.tabs(spaceId));
     }
 
-    /** Shows tab {@code index} of the space {@code spaceId}, switching to it first. */
+    /**
+     * Shows tab {@code index} of the space {@code spaceId}, switching to it first, in the window
+     * that shows it. The tab is found by its address: the switch may put it elsewhere (a pinned
+     * tab moved in goes among the pinned tabs).
+     */
     void showTab(String spaceId, int index) {
         Space space = SpaceStore.find(spaceId);
-        if (space != null && ProfileSpaces.needsOtherWindow(space, mWindowProfile)) {
-            // Its tabs are in that profile's window.
-            showInProfileWindow(space);
+        if (space == null) return;
+        LbPhoneShell owner = otherShowing(spaceId);
+        if (owner == null && ProfileSpaces.needsOtherWindow(space, mWindowProfile)) {
+            owner = profileWindowFor(space.profile, spaceId);
+            if (owner == null) {
+                // Its tabs are in that profile's window, which isn't open: it opens on the space.
+                showInProfileWindow(space);
+                return;
+            }
+        }
+        if (owner != null) {
+            owner.showTab(spaceId, index);
+            ApiCompatibilityUtils.moveTaskToFront(mActivity, owner.mActivity.getTaskId(), 0);
             return;
         }
-        if (!spaceId.equals(mSpaceId)) switchTo(spaceId);
-        TabModel model = regularModel();
-        if (index >= 0 && index < model.getCount()) {
-            model.setIndex(index, TabSelectionType.FROM_USER);
-        }
+        List<TabInfo> tabs = spaceId.equals(mSpaceId) ? snapshot() : savedTabsOf(spaceId);
+        if (index < 0 || index >= tabs.size()) return;
+        String url = tabs.get(index).url;
+        switchTo(spaceId);
+        if (!spaceId.equals(mSpaceId)) return;
+        int found = SpaceTabs.indexOfTab(snapshot(), index, url);
+        if (found >= 0) regularModel().setIndex(found, TabSelectionType.FROM_USER);
     }
 
     /**
@@ -961,22 +1249,10 @@ public class LbPhoneShell {
         List<TabSuggestions.Row> rows = new ArrayList<>();
         // Incognito searches show no regular tabs.
         if (!mRestored || mSelector.isIncognitoSelected()) return rows;
-        List<SearchTabs.Entry> entries = new ArrayList<>();
         Map<String, Space> spaces = new HashMap<>();
         for (Space space : spaces()) spaces.put(space.id, space);
-        int shown = -1;
-        List<TabInfo> here = snapshot();
-        for (int i = 0; i < here.size(); i++) {
-            TabInfo tab = here.get(i);
-            if (tab.active) shown = i;
-            entries.add(entry(mSpaceId, i, tab));
-        }
-        for (Space space : spaces.values()) {
-            if (space.id.equals(mSpaceId)) continue;
-            List<TabInfo> saved = savedTabsOf(space.id);
-            for (int i = 0; i < saved.size(); i++) entries.add(entry(space.id, i, saved.get(i)));
-        }
-        for (SearchTabs.Entry entry : SearchTabs.pick(query, entries, shown)) {
+        int shown = regularModel().index();
+        for (SearchTabs.Entry entry : SearchTabs.pick(query, searchEntries(), shown)) {
             Space space = spaces.get(entry.spaceId);
             String host = GURL.isEmptyOrInvalid(new GURL(entry.url)) ? entry.url
                     : new GURL(entry.url).getHost();
@@ -993,9 +1269,29 @@ public class LbPhoneShell {
         return rows;
     }
 
+    /**
+     * The tabs search looks through: the shown space's, then the other spaces' saved ones in the
+     * spaces' order, as the sidebar lists them.
+     */
+    List<SearchTabs.Entry> searchEntries() {
+        List<SearchTabs.Entry> entries = new ArrayList<>();
+        List<TabInfo> here = snapshot();
+        for (int i = 0; i < here.size(); i++) entries.add(entry(mSpaceId, i, here.get(i)));
+        for (Space space : spaces()) {
+            if (space.id.equals(mSpaceId)) continue;
+            List<TabInfo> saved = savedTabsOf(space.id);
+            for (int i = 0; i < saved.size(); i++) entries.add(entry(space.id, i, saved.get(i)));
+        }
+        return entries;
+    }
+
     private static SearchTabs.Entry entry(String spaceId, int index, TabInfo tab) {
         return new SearchTabs.Entry(
-                spaceId, index, TabNames.titleToShow(tab.custom, tab.title), tab.title, tab.url);
+                spaceId,
+                index,
+                TabNames.titleToShow(tab.custom, tab.title, tab.asleep),
+                tab.title,
+                tab.url);
     }
 
     /** A new tab in the shown space, from the all-tabs view's ＋. */
@@ -1022,8 +1318,12 @@ public class LbPhoneShell {
             case MOVE_TO_SPACE -> moveToSpace(tab, target);
             case ADD_TO_NEW_GROUP -> {
                 if (tab.getIsPinned()) {
+                    // A group of its own, as the desktop's: unnamed, grey, expanded.
                     extra.pinnedGroupId = Token.createRandom().toString();
                     extra.pinnedGroupTitle = "";
+                    extra.pinnedGroupColor = 0;
+                    extra.pinnedGroupCollapsed = false;
+                    normalizePinnedGroups();
                 } else {
                     model.createSingleTabGroup(tab);
                 }
@@ -1031,7 +1331,7 @@ public class LbPhoneShell {
             case ADD_TO_GROUP -> addToGroup(tab, target);
             case REMOVE_FROM_GROUP -> {
                 if (tab.getIsPinned()) {
-                    extra.pinnedGroupId = "";
+                    leavePinnedGroup(tab);
                 } else {
                     List<Tab> one = new ArrayList<>();
                     one.add(tab);
@@ -1072,7 +1372,12 @@ public class LbPhoneShell {
         Tab tab = regularModel().getTabById(tabId);
         if (tab == null) return;
         TabExtra extra = extra(tab);
-        extra.custom = extra.custom.withName(TabNames.nameFromInput(typed, tab.getTitle()));
+        // The title the tab shows without its name (a pinned tab's link's, or its page's), which
+        // the prompt started with.
+        String untitled =
+                TabNames.titleToShow(
+                        extra.custom.withName(""), tab.getTitle(), extra.asleep || tab.isFrozen());
+        extra.custom = extra.custom.withName(TabNames.nameFromInput(typed, untitled));
         scheduleSave();
     }
 
@@ -1083,7 +1388,12 @@ public class LbPhoneShell {
         if (tab == null || url == null) return false;
         TabExtra extra = extra(tab);
         extra.custom = TabNames.withPinnedUrl(extra.custom, url);
-        tab.loadUrl(new LoadUrlParams(url));
+        if (tab.getWebContents() == null) {
+            // Asleep (unloaded), it can't load: it goes to its new link when it is shown.
+            extra.custom = TabNames.afterPinnedSleep(extra.custom, tab.getUrl().getSpec());
+        } else {
+            tab.loadUrl(new LoadUrlParams(url));
+        }
         scheduleSave();
         return true;
     }
@@ -1091,19 +1401,18 @@ public class LbPhoneShell {
     private void addToGroup(Tab tab, String groupId) {
         TabModel model = regularModel();
         if (tab.getIsPinned()) {
+            // It goes after the group's last tab, so the group stays whole.
+            int last = -1;
             for (int i = 0; i < model.getCount(); i++) {
                 Tab other = model.getTabAt(i);
-                if (other == null || other == tab) continue;
-                TabExtra theirs = extra(other);
-                if (theirs.pinnedGroupId.equals(groupId)) {
-                    TabExtra mine = extra(tab);
-                    mine.pinnedGroupId = groupId;
-                    mine.pinnedGroupTitle = theirs.pinnedGroupTitle;
-                    mine.pinnedGroupColor = theirs.pinnedGroupColor;
-                    mine.pinnedGroupCollapsed = theirs.pinnedGroupCollapsed;
-                    return;
+                if (other != null && other != tab && extra(other).pinnedGroupId.equals(groupId)) {
+                    last = i;
                 }
             }
+            if (groupId.isEmpty() || last < 0) return;
+            joinPinnedGroup(tab, groupId);
+            moveTabTo(tab, last + 1);
+            normalizePinnedGroups();
             return;
         }
         for (int i = 0; i < model.getCount(); i++) {
@@ -1118,17 +1427,55 @@ public class LbPhoneShell {
         }
     }
 
+    /**
+     * Moves {@code tab} to before index {@code index} of the tab model (Chromium's moveTab), as the
+     * shell's own arranging, which doesn't change its group.
+     */
+    private void moveTabTo(Tab tab, int index) {
+        mArranging = true;
+        try {
+            regularModel().moveTab(tab.getId(), index);
+        } finally {
+            mArranging = false;
+        }
+    }
+
+    /** Takes pinned {@code tab} out of its group: it goes after the group, so the rest stays whole. */
+    private void leavePinnedGroup(Tab tab) {
+        TabModel model = regularModel();
+        String group = extra(tab).pinnedGroupId;
+        int last = -1;
+        for (int i = 0; i < model.getCount(); i++) {
+            Tab other = model.getTabAt(i);
+            if (other != null && extra(other).pinnedGroupId.equals(group)) last = i;
+        }
+        extra(tab).pinnedGroupId = "";
+        if (!group.isEmpty() && last > model.indexOf(tab)) moveTabTo(tab, last + 1);
+        normalizePinnedGroups();
+    }
+
     /** Moves a tab to another space: it leaves its group and goes last in that space's area. */
     private void moveToSpace(Tab tab, String spaceId) {
         if (SpaceStore.find(spaceId) == null || spaceId.equals(mSpaceId)) return;
         TabModel model = regularModel();
         TabInfo info = info(tab, false);
         info.groupId = "";
+        info.active = false;
         List<TabInfo> moved = new ArrayList<>();
         moved.add(info);
-        List<SpaceStore.SavedTab> records = SpaceStore.tabs(spaceId);
-        records.addAll(SpaceTabs.toSaved(moved));
-        SpaceStore.writeTabs(spaceId, records);
+        LbPhoneShell owner = otherShowing(spaceId);
+        if (owner != null) {
+            // That window shows the space: the tab opens there, or its next save would drop it.
+            owner.createTabs(moved);
+            owner.normalizePinnedGroups();
+            owner.scheduleSave();
+        } else {
+            List<SpaceStore.SavedTab> saved = SpaceTabs.toSaved(moved);
+            if (!saved.isEmpty()) {
+                SpaceStore.writeTabs(
+                        spaceId, SpaceTabs.withMoved(SpaceStore.tabs(spaceId), saved.get(0)));
+            }
+        }
         model.getTabRemover()
                 .forceCloseTabs(
                         TabClosureParams.closeTab(tab)

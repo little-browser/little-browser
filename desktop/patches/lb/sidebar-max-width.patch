@@ -1,0 +1,52 @@
+# Little Browser: the sidebar opens 312 px wide, and narrows no further, just room for the toolbar's
+# row of buttons beside the window buttons (not Chromium's 240 and 126), and can be dragged up to
+# 600 px wide, shown or slid in, not only Chromium's 400 (docs/ux.md §2). Every limit on its width,
+# and the macOS glass behind it, reads these constants; a width the user set is kept, within them
+# (one saved before they changed, such as Chromium's 240, comes back at the minimum).
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+@@ -7,13 +7,20 @@
+ 
+ namespace tabs {
+ 
+-inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
++// Little Browser: the sidebar opens, and narrows to, just wide enough for the
++// toolbar's one row beside the window buttons: the toggle, back, forward,
++// reload, Tab Search and the menu (lb/browser/ui/views/sidebar/sidebar_toolbar.h),
++// also where the window buttons take the most room (86 px on macOS 26, 94 px
++// before it).
++inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 312;
+ // TODO(crbug.com/465833741): Replace constant with derived value based on
+ // caption buttons.
+-inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
++inline constexpr int kVerticalTabStripUncollapsedMinWidth =
++    kVerticalTabStripDefaultUncollapsedWidth;  // Little Browser
+ // TODO(crbug.com/465832180): Replace constant based width final max width for
+ // view.
+-inline constexpr int kVerticalTabStripUncollapsedMaxWidth = 400;
++// Little Browser: the sidebar can be made wider than Chromium's 400 px.
++inline constexpr int kVerticalTabStripUncollapsedMaxWidth = 600;
+ inline constexpr int kVerticalTabStripCollapsedWidth = 56;
+ // TODO(crbug.com/465833741): Determine snapping behavior.
+ inline constexpr int kVerticalTabStripCollapseSnapWidth =
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h"
+ 
++#include <algorithm>
+ #include <optional>
+ 
+ #include "base/i18n/rtl.h"
+@@ -218,6 +219,10 @@
+ }
+ 
+ void VerticalTabStripStateControllerImpl::SetUncollapsedWidth(int width) {
++  // Little Browser: within the sidebar's limits, also for a width saved before
++  // they changed (a profile's pref, a session's window).
++  width = std::clamp(width, kVerticalTabStripUncollapsedMinWidth,
++                     kVerticalTabStripUncollapsedMaxWidth);
+   if (state_.uncollapsed_width != width) {
+     state_.uncollapsed_width = width;
+     NotifyCollapseChanged();

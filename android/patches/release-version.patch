@@ -1,0 +1,66 @@
+# Little Browser: Settings > About and chrome://version show the release people installed,
+# <Chromium version>-<revision> (157.0.8103.78-3), not the Chromium version alone, as on the
+# desktop (desktop/patches/lb/release-version-ui.patch). chrome://version's change is the same as
+# the desktop's, which keeps its WebUI patches in its own series; the desktop's About string
+# (VersionUI::GetAnnotatedVersionStringForUi) isn't built on Android. The text comes from
+# lb::ReleaseVersion() (//lb:engine); the user agent and everything else keep the Chromium version.
+
+--- a/chrome/browser/android/BUILD.gn
++++ b/chrome/browser/android/BUILD.gn
+@@ -959,6 +959,7 @@
+       "//content/public/browser",
+       "//device/fido:cablev2_registration",
+       "//ipc:param_traits",
++      "//lb:engine",  # Little Browser: About shows the release version (lb/browser/version)
+       "//media/mojo/clients",
+       "//rlz:rlz_utils",
+       "//sandbox",
+--- a/chrome/browser/android/preferences/about_settings_bridge.cc
++++ b/chrome/browser/android/preferences/about_settings_bridge.cc
+@@ -9,6 +9,7 @@
+ #include "base/strings/string_util.h"
+ #include "chrome/browser/ui/android/android_about_app_info.h"
+ #include "components/version_info/version_info.h"
++#include "lb/browser/version/release_version.h"
+ 
+ // Must come after all headers that specialize FromJniType() / ToJniType().
+ #include "chrome/android/chrome_jni_headers/AboutSettingsBridge_jni.h"
+@@ -17,7 +18,7 @@
+ 
+ static std::string JNI_AboutSettingsBridge_GetApplicationVersion() {
+   return base::JoinString({base::android::apk_info::host_package_label(),
+-                           version_info::GetVersionNumber()},
++                           lb::ReleaseVersion()},
+                           kSeparator);
+ }
+ 
+--- a/chrome/browser/ui/webui/version/BUILD.gn
++++ b/chrome/browser/ui/webui/version/BUILD.gn
+@@ -30,6 +30,7 @@
+     "//components/webui/version",
+     "//components/webui/version/resources",
+     "//content/public/common",
++    "//lb:engine",  # Little Browser: the release version (lb/browser/version)
+     "//ui/base",
+     "//v8:v8_version",
+   ]
+--- a/chrome/browser/ui/webui/version/version_ui.cc
++++ b/chrome/browser/ui/webui/version/version_ui.cc
+@@ -40,6 +40,7 @@
+ #include "content/public/browser/url_data_source.h"
+ #include "content/public/browser/web_ui.h"
+ #include "content/public/browser/web_ui_data_source.h"
++#include "lb/browser/version/release_version.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/resource/resource_bundle.h"
+ #include "ui/base/webui/web_ui_util.h"
+@@ -247,8 +248,7 @@
+                                   VersionProcessorVariation());
+ 
+   // Data strings.
+-  html_source->AddString(version_ui::kVersion,
+-                         version_info::GetVersionNumber());
++  html_source->AddString(version_ui::kVersion, lb::ReleaseVersion());
+   html_source->AddString(version_ui::kVersionSuffix,
+                          GetVersionInformationalSuffix());
+ 

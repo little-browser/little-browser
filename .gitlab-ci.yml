@@ -210,7 +210,7 @@ auto-tag:
   stage: build
   timeout: 8h
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-[1-9]\d{0,3}$/
     - when: manual
       allow_failure: true
 
@@ -224,7 +224,7 @@ macos-arm64-host:
     name: public.ecr.aws/aws-cli/aws-cli:2.27.50
     entrypoint: [""]
   rules:
-    - if: $LB_MACOS_HOST == "ec2" && $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $LB_MACOS_HOST == "ec2" && $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-[1-9]\d{0,3}$/
   timeout: 4h                    # a recycled host can scrub for a while before it takes an instance
   script:
     - desktop/scripts/macos-host.sh up
@@ -236,7 +236,7 @@ macos-arm64-host:
 .macos-chromium:
   extends: .chromium
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-[1-9]\d{0,3}$/
   variables:
     GIT_DEPTH: 1
     GIT_CLEAN_FLAGS: -ffdx -e desktop/build/
@@ -244,7 +244,7 @@ macos-arm64-host:
   script:
     - rm -rf desktop/build/src
     - desktop/scripts/fetch.sh "$LB_ARCH"
-    - desktop/scripts/build.sh "$LB_ARCH"
+    - LB_RELEASE="${CI_COMMIT_TAG#v}" desktop/scripts/build.sh "$LB_ARCH"   # the tag's version on About
     - (cd desktop/build/src && ninja -C out/Default lb_unittests lb_core_unittests && out/Default/lb_unittests && out/Default/lb_core_unittests)
 
 macos-arm64:
@@ -310,13 +310,17 @@ macos-x64:
   script:
     - android/scripts/fetch.sh
     - android/build/src/build/install-build-deps.sh --android --no-prompt --no-chromeos-fonts
-    - android/scripts/build.sh "$LB_ANDROID_CPU"
+    # On a release tag (the rules' form above), its version on About; on any other pipeline, none.
+    - if [[ "${CI_COMMIT_TAG:-}" =~ ^v[0-9]+(\.[0-9]+){3}-[1-9][0-9]{0,3}$ ]]; then export LB_RELEASE="${CI_COMMIT_TAG#v}"; fi
+    # A failed build or test fails the job only after the steps below, which keep what it made.
+    - android/scripts/build.sh "$LB_ANDROID_CPU" || build_status=$?
     # Chrome's Java classpath, for compiling our Java elsewhere (android/README.md): the same for
     # every CPU, so from the arm64 job only; never fails the job.
     - if [ "$LB_ANDROID_CPU" = arm64 ]; then python3 android/scripts/java_classpath.py android/build/src/out/arm64 java-classpath.tar.gz || true; fi
     # For reading crash stacks: libchrome.so's function symbols (the APK's copy has none) and
     # R8's map of the renamed Java classes; never fails the job.
     - android/build/src/third_party/llvm-build/Release+Asserts/bin/llvm-nm --defined-only -n -C android/build/src/out/$LB_ANDROID_CPU/lib.unstripped/libchrome.so | grep -E '^[0-9a-f]+ [tTwW] ' | gzip > libchrome-symbols.txt.gz || true
+    - exit "${build_status:-0}"
   artifacts:
     paths:
       - android/build/src/out/$LB_ANDROID_CPU/apks/ChromePublic.apk
@@ -362,7 +366,7 @@ android-x64:
 .macos-package:
   stage: package
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-[1-9]\d{0,3}$/
   variables:
     GIT_STRATEGY: none           # keep the build job's tree; a checkout would clean out the
                                  # ignored build/ folder
@@ -413,7 +417,7 @@ macos-x64-package:
   stage: publish
   resource_group: downloads      # one releases.json writer at a time
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-[1-9]\d{0,3}$/
       when: manual               # a person publishes after internal testing; nothing is rebuilt
   variables:
     GIT_DEPTH: 0                 # the release notes read the commits since the last release
@@ -444,7 +448,7 @@ publish-macos-x64:
   image: python:3-slim
   resource_group: gitlab-release
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-[1-9]\d{0,3}$/
   variables:
     GIT_DEPTH: 1
   script:

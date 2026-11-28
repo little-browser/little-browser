@@ -51,13 +51,14 @@ CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
 # shellcheck source=../../chromium/VERSIONS
 source "$CHROMIUM/VERSIONS"
 
-die() { echo "error: $*" >&2; exit 1; }
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$CHROMIUM/scripts/lib.sh"   # die, release_revision
 
 [ $# -eq 2 ] || die "usage: publish-release.sh <version> <LittleBrowser-macos-<arch>.dmg> (exactly one disk image)"
 VERSION="$1"
 FILE="$2"
 : "${LB_DOWNLOADS_BUCKET:?}" "${LB_DOWNLOADS_DISTRIBUTION:?}" "${LB_DOWNLOADS_URL:?}"
-[[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){3}-[0-9]+$ ]] || die "version $VERSION is not <chromium version>-<revision>"
+release_revision "$VERSION" "$CHROMIUM_VERSION" >/dev/null   # the form CI and the builds accept
 [ -f "$FILE" ] || die "no such file: $FILE"
 DRY="${LB_DRY_RUN:-0}"
 UPDATE_INFO="${FILE%.dmg}.update.json"

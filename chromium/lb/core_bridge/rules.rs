@@ -186,6 +186,11 @@ mod ffi {
         fn site_ads_exception(allowed: bool, allowed_without_exception: bool) -> SiteAdsException;
 
         fn command_bar_offers_result(mode: CommandBarMode, kind: CommandBarResult) -> bool;
+        fn command_bar_search_goes_first(
+            mode: CommandBarMode,
+            has_top: bool,
+            top_score: f64,
+        ) -> bool;
         fn command_bar_result_boost(kind: CommandBarResult) -> f64;
         fn command_bar_max_bookmark_results() -> usize;
         fn pick_bookmark_results(scores: &[f64]) -> Vec<usize>;
@@ -469,6 +474,10 @@ fn to_kind(kind: ffi::CommandBarResult) -> command_bar::ResultKind {
 
 fn command_bar_offers_result(mode: ffi::CommandBarMode, kind: ffi::CommandBarResult) -> bool {
     command_bar::offers_result(to_mode(mode), to_kind(kind))
+}
+
+fn command_bar_search_goes_first(mode: ffi::CommandBarMode, has_top: bool, top_score: f64) -> bool {
+    command_bar::search_goes_first(to_mode(mode), has_top.then_some(top_score))
 }
 
 fn command_bar_result_boost(kind: ffi::CommandBarResult) -> f64 {

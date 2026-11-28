@@ -26,6 +26,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_group_header_view.h"
+#include "chrome/browser/ui/views/tabs/common/tab_strip_view.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/groups/tab_group_editor_bubble_view.h"
 #include "components/prefs/pref_service.h"
@@ -51,6 +52,7 @@
 #include "ui/events/event.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/separator.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
@@ -65,6 +67,8 @@ constexpr char kDemo[] = "pinned-groups";
 constexpr char kRestartDemo[] = "pinned-groups-restart";
 constexpr char kDropsDemo[] = "pinned-groups-drops";
 constexpr char kSnapshotSwitch[] = "lb-ui-snapshot-pinned-drag";
+// pinned-groups-restart: the window with the collapsed group as the last pinned item.
+constexpr char kFolderSnapshotSwitch[] = "lb-ui-snapshot-pinned-folder";
 constexpr char16_t kGroupTitle[] = u"Work stuff";
 constexpr int kGroupColor = static_cast<int>(tab_groups::TabGroupColorId::kCyan);
 
@@ -728,6 +732,51 @@ void AddRestartSteps(Run& run) {
     run.Expect(group && Shows(HeaderOf(run.browser.get(), group->id)), "no header after restart");
     if (group) {
       CheckHeaderFill(run, *group);
+      run.group = group->id;
+      run.groups().SetCollapsed(run.group, true);
+    }
+  }));
+  // A collapsed group as the last pinned item: its header stays above the divider under the
+  // pinned tabs, with the same gap as a tab's (docs/ux.md §6.1).
+  run.steps.push_back(base::BindOnce([](Run& run) {
+    PinnedGroupHeaderView* header = HeaderOf(run.browser.get(), run.group);
+    std::vector<TabStripView*> strips =
+        FindViewsForDemo<TabStripView>(WindowViewForDemo(run.browser.get()));
+    views::View* divider = strips.empty() ? nullptr : strips.front()->GetTabsSeparator();
+    run.Expect(Shows(header) && divider && divider->GetVisible(), "no header or no divider");
+    if (header && divider) {
+      const gfx::Rect head = header->GetBoundsInScreen();
+      const gfx::Rect line = divider->GetBoundsInScreen();
+      run.Expect(line.y() >= head.bottom() + 1,
+                 "the collapsed header covers the divider: header " + head.ToString() +
+                     " divider " + line.ToString());
+    }
+    // No today tabs: show the group's tab D (a collapsed group shows its shown tab) and close
+    // the today tabs.
+    run.model()->ActivateTabAt(0);
+    for (int i = run.model()->count() - 1; i >= run.model()->IndexOfFirstNonPinnedTab(); --i) {
+      run.model()->CloseWebContentsAt(i, TabCloseTypes::CLOSE_NONE);
+    }
+  }));
+  // The last pinned row stays above the divider then too.
+  run.steps.push_back(base::BindOnce([](Run& run) {
+    std::vector<TabStripView*> strips =
+        FindViewsForDemo<TabStripView>(WindowViewForDemo(run.browser.get()));
+    views::View* divider = strips.empty() ? nullptr : strips.front()->GetTabsSeparator();
+    TabView* last = run.model()->count() ? FindTabViewForDemo(run.browser.get(),
+                                                              run.model()->GetActiveTab())
+                                         : nullptr;
+    run.Expect(run.model()->IndexOfFirstNonPinnedTab() == run.model()->count(), "a today tab is left");
+    run.Expect(Shows(last) && divider && divider->GetVisible(), "no shown tab or no divider");
+    if (last && divider) {
+      const gfx::Rect row = last->GetBoundsInScreen();
+      const gfx::Rect line = divider->GetBoundsInScreen();
+      run.Expect(line.y() >= row.bottom() + 1, "with no today tabs the last pinned row covers the "
+                                               "divider: row " + row.ToString() + " divider " +
+                                                   line.ToString());
+    }
+    if (divider && base::CommandLine::ForCurrentProcess()->HasSwitch(kFolderSnapshotSwitch)) {
+      MaybeScheduleUiSnapshot(divider->GetWidget(), kFolderSnapshotSwitch);
     }
   }));
 }

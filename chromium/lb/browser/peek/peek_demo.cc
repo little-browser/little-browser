@@ -4,6 +4,7 @@
 
 #include "lb/browser/peek/peek_demo.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -25,6 +26,7 @@
 #include "base/values.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/printing/print_preview_dialog_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -43,6 +45,7 @@
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/url_formatter/url_formatter.h"
+#include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/page.h"
@@ -66,6 +69,7 @@
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/base/clipboard/clipboard_buffer.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/hit_test.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/keycodes/dom/dom_code.h"
@@ -208,7 +212,8 @@ class PeekDemo {
   }
   void Poll(const std::string& what, Condition done, Step next) {
     if (!browser_) {
-      return ReportDemo(kMode, false, "the window closed");
+      ReportDemo(kMode, false, "the window closed");
+      return;
     }
     if (done.Run()) {
       return (this->*next)();
@@ -333,8 +338,67 @@ class PeekDemo {
     url_d_ = net::FilePathToFileURL(dir.AppendASCII("d.html"));
     chrome::AddTabAt(browser_.get(), url_a_, -1, /*foreground=*/true);
     page_ = model()->GetActiveWebContents()->GetWeakPtr();
-    WaitFor("the page", Is(&PeekDemo::PageLoaded), &PeekDemo::ShiftClickLink);
+    WaitFor("the page", Is(&PeekDemo::PageLoaded), &PeekDemo::CmdClickOnPage);
   }
+
+  // 0. Cmd+click on page A's target=_blank link opens it in a tab behind, with the "Opened in a
+  // new tab" notice; that tab then goes.
+  void CmdClickOnPage() {
+    tabs_ = model()->count();
+    clicks_ = 0;
+    WaitFor("a tab behind the page", Is(&PeekDemo::CmdClickedTab), &PeekDemo::CheckPageNotice);
+  }
+  // A page that has just loaded may not take input yet: the click goes again every second until
+  // its tab opens.
+  bool CmdClickedTab() {
+    if (OneMoreTab()) {
+      return true;
+    }
+    if (page_ && clicks_++ % 60 == 0) {  // kPollEvery * 60: about a second
+      Click(page_.get(), 0.75f, 0.5f, blink::WebInputEvent::kMetaKey);
+    }
+    return false;
+  }
+  void CheckPageNotice() {
+    Check("cmd_click_notice", BackgroundTabNoticeForTesting(browser_.get()) ==
+                                  std::u16string(u"Opened in a new tab") &&
+                                  model()->GetActiveWebContents() == page_.get());
+    // A click on the notice brings up the tab it announced.
+    content::WebContents* noticed = BackgroundTabNoticeTabForTesting(browser_.get());
+    Check("notice_knows_its_tab",
+          noticed && noticed != page_.get() && noticed->GetVisibleURL() == url_c_);
+    // With the pointer on it, another Cmd+click shows it again, and it stays past its time.
+    Check("notice_hovered", HoverBackgroundTabNoticeForTesting(browser_.get(), true));
+    tabs_ = model()->count();
+    clicks_ = 0;
+    WaitFor("a second tab behind the page", Is(&PeekDemo::CmdClickedTab),
+            &PeekDemo::NoticeShownAgain);
+  }
+  void NoticeShownAgain() { After(base::Milliseconds(3500), &PeekDemo::CheckNoticeStays); }
+  void CheckNoticeStays() {
+    Check("notice_stays_under_pointer", BackgroundTabNoticeForTesting(browser_.get()).has_value());
+    HoverBackgroundTabNoticeForTesting(browser_.get(), false);
+    content::WebContents* noticed = BackgroundTabNoticeTabForTesting(browser_.get());
+    noticed_ = noticed ? noticed->GetWeakPtr() : nullptr;
+    Check("notice_clickable", ClickBackgroundTabNoticeForTesting(browser_.get()));
+    WaitFor("the noticed tab to come up", Is(&PeekDemo::NoticedTabShown), &PeekDemo::BackToPage);
+  }
+  bool NoticedTabShown() {
+    return noticed_ && model()->GetActiveWebContents() == noticed_.get() &&
+           !BackgroundTabNoticeForTesting(browser_.get());
+  }
+  void BackToPage() {
+    Check("notice_click_shows_tab", true);
+    model()->ActivateTabAt(model()->GetIndexOfWebContents(page_.get()));
+    for (int i = model()->count() - 1; i >= 0; --i) {
+      if (model()->GetWebContentsAt(i) != page_.get() &&
+          model()->GetWebContentsAt(i)->GetVisibleURL() == url_c_) {
+        model()->CloseWebContentsAt(i, TabCloseTypes::CLOSE_NONE);
+      }
+    }
+    WaitFor("the notice to go", Is(&PeekDemo::NoNotice), &PeekDemo::ShiftClickLink);
+  }
+  bool NoNotice() { return !BackgroundTabNoticeForTesting(browser_.get()); }
   bool PageLoaded() {
     return page_ && !page_->IsLoading() && page_->GetLastCommittedURL() == url_a_ &&
            page_->GetRenderWidgetHostView();
@@ -367,7 +431,7 @@ class PeekDemo {
           model()->count() == tabs_ && model()->GetActiveWebContents() == page_.get());
     Check("card_window_height_narrower",
           card == PeekCardBounds(page, window) && card.bottom() == window.bottom() &&
-              card.height() > page.height() && card.width() < page.width());
+              card.width() < page.width());
     // With macOS's Reduce motion it fades in where it ends up.
     Check("grew", gfx::Animation::PrefersReducedMotion()
                       ? smallest_card_ == card
@@ -415,6 +479,46 @@ class PeekDemo {
   }
   void CheckViewSource() {
     Check("page_commands_ignored", model()->count() == tabs_ && PeekShowsB());
+    // Print prints the Peek's page: its print preview opens over the Peek, not over the page
+    // under it.
+    chrome::ExecuteCommand(browser_.get(), IDC_PRINT);
+    WaitFor("print preview over the Peek", Is(&PeekDemo::PeekPrintPreviewUp),
+            &PeekDemo::ClosePrintPreview);
+  }
+  bool PeekPrintPreviewShown() {
+    return peek() && printing::PrintPreviewDialogController::GetInstance()
+                         ->GetPrintPreviewForContents(peek());
+  }
+  // Shown as a dialog over the Peek's page, which the Peek hosts.
+  bool PeekPrintPreviewUp() {
+    const auto* dialogs =
+        peek() ? web_modal::WebContentsModalDialogManager::FromWebContents(peek()) : nullptr;
+    content::WebContents* preview =
+        peek() ? printing::PrintPreviewDialogController::GetInstance()->GetPrintPreviewForContents(
+                     peek())
+               : nullptr;
+    return preview && !preview->IsLoading() && dialogs && dialogs->IsDialogActive();
+  }
+  void ClosePrintPreview() {
+    Check("print_previews_peek",
+          !printing::PrintPreviewDialogController::GetInstance()->GetPrintPreviewForContents(
+              page_.get()) &&
+              PeekShowsB());
+    // Cancel, as the preview's own button does.
+    printing::PrintPreviewDialogController::GetInstance()
+        ->GetPrintPreviewForContents(peek())
+        ->GetPrimaryMainFrame()
+        ->ExecuteJavaScriptForTests(u"chrome.send('dialogClose'); true", base::NullCallback(),
+                                    content::ISOLATED_WORLD_ID_GLOBAL);
+    WaitFor("print preview to close", Is(&PeekDemo::NoPeekDialog), &PeekDemo::AfterPrint);
+  }
+  bool NoPeekDialog() {
+    const auto* dialogs =
+        peek() ? web_modal::WebContentsModalDialogManager::FromWebContents(peek()) : nullptr;
+    return dialogs && !dialogs->IsDialogActive();
+  }
+  void AfterPrint() {
+    Check("print_preview_cancels", true);
     WaitFor("the Peek to settle", Is(&PeekDemo::PeekSettledB), &PeekDemo::PressEsc);
   }
 
@@ -531,9 +635,54 @@ class PeekDemo {
     WaitFor("a tab behind the Peek", Is(&PeekDemo::OneMoreTab), &PeekDemo::CheckBackgroundTab);
   }
   bool OneMoreTab() { return model()->count() == tabs_ + 1; }
+  int clicks_ = 0;
+  base::WeakPtr<content::WebContents> noticed_;
+  base::WeakPtr<content::WebContents> blank_before_;
   void CheckBackgroundTab() {
     Check("cmd_click_in_peek_opens_tab_behind", PeekShowsB());
+    Check("cmd_click_in_peek_notice", BackgroundTabNoticeForTesting(browser_.get()).has_value());
+    Check("cmd_click_in_peek_notice_tab",
+          BackgroundTabNoticeTabForTesting(browser_.get()) &&
+              BackgroundTabNoticeTabForTesting(browser_.get()) != peek());
     Check("peek_keeps_keyboard", !peek_was_active_ || IsPeekActiveForTesting(browser_.get()));
+    tabs_ = model()->count();
+    WaitFor("the Peek to settle", Is(&PeekDemo::PeekSettledB), &PeekDemo::CmdClickBlankInPeek);
+  }
+  // 7b. The same for a target=_blank link in the Peek (a page the renderer creates); the notice,
+  // already up, shows again above the Peek, now in front of it.
+  void CmdClickBlankInPeek() {
+    content::WebContents* before = BackgroundTabNoticeTabForTesting(browser_.get());
+    blank_before_ = before ? before->GetWeakPtr() : nullptr;
+    RaisePeekForTesting(browser_.get());
+    peek()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
+        u"document.body.insertAdjacentHTML('beforeend', \"<a id=lbblank href='c.html' "
+        u"target=_blank style='position:fixed;inset:0;z-index:9'>c</a>\"); true",
+        base::NullCallback(), content::ISOLATED_WORLD_ID_GLOBAL);
+    clicks_ = 0;
+    WaitFor("a tab behind the Peek from its target=_blank link", Is(&PeekDemo::BlankClickedInPeek),
+            &PeekDemo::CheckBlankInPeek);
+  }
+  bool BlankClickedInPeek() {
+    if (OneMoreTab()) {
+      return true;
+    }
+    if (peek() && clicks_++ % 60 == 0) {  // about a second, until the link is there
+      Click(peek(), 0.5f, 0.5f, blink::WebInputEvent::kMetaKey);
+    }
+    return false;
+  }
+  void CheckBlankInPeek() {
+    // The notice now announces the new tab, not the one before.
+    content::WebContents* noticed = BackgroundTabNoticeTabForTesting(browser_.get());
+    Check("blank_cmd_click_in_peek_opens_tab_behind", PeekShowsB());
+    Check("blank_cmd_click_in_peek_notice",
+          BackgroundTabNoticeForTesting(browser_.get()).has_value() && noticed &&
+              noticed != blank_before_.get() && noticed != peek() &&
+              model()->GetIndexOfWebContents(noticed) != TabStripModel::kNoTab);
+    Check("notice_above_peek", IsBackgroundTabNoticeAbovePeekForTesting(browser_.get()));
+    peek()->GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
+        u"document.getElementById('lbblank').remove(); true", base::NullCallback(),
+        content::ISOLATED_WORLD_ID_GLOBAL);
     tabs_ = model()->count();
     WaitFor("the Peek to settle", Is(&PeekDemo::PeekSettledB), &PeekDemo::OpenTabInFront);
   }
@@ -701,7 +850,69 @@ class PeekDemo {
           model()->count() == tabs_ + 1 &&
               little_->GetTabStripModel()->GetActiveWebContents()->GetVisibleURL() == url_a_);
     tabs_ = model()->count();
+    CmdClickInLittle();
+  }
+
+  // 13b. Cmd+click in a little window: the tab opens in the space's window, behind; the little
+  // window's notice brings it up there. The notice goes with its window.
+  void CmdClickInLittle() {
+    clicks_ = 0;
+    WaitFor("a tab from the little window", Is(&PeekDemo::LittleCmdClickedTab),
+            &PeekDemo::CheckLittleNotice);
+  }
+  bool LittleCmdClickedTab() {
+    if (OneMoreTab()) {
+      return true;
+    }
+    if (little_ && clicks_++ % 60 == 0) {  // about a second
+      Click(little_->GetTabStripModel()->GetActiveWebContents(), 0.75f, 0.5f,
+            blink::WebInputEvent::kMetaKey);
+    }
+    return false;
+  }
+  void CheckLittleNotice() {
+    content::WebContents* noticed = BackgroundTabNoticeTabForTesting(little_.get());
+    Check("little_window_notice", BackgroundTabNoticeForTesting(little_.get()).has_value());
+    Check("little_window_notice_knows_tab",
+          noticed && model()->GetIndexOfWebContents(noticed) != TabStripModel::kNoTab &&
+              model()->GetActiveWebContents() != noticed);
+    noticed_ = noticed ? noticed->GetWeakPtr() : nullptr;
+    ClickBackgroundTabNoticeForTesting(little_.get());
+    WaitFor("the little window's noticed tab to come up", Is(&PeekDemo::LittleNoticedTabShown),
+            &PeekDemo::NoticeInClosingLittle);
+  }
+  bool LittleNoticedTabShown() {
+    return noticed_ && model()->GetActiveWebContents() == noticed_.get() && little_ &&
+           !BackgroundTabNoticeForTesting(little_.get());
+  }
+  void NoticeInClosingLittle() {
+    Check("little_window_notice_shows_tab", true);
+    LOG(INFO) << "lb demo: peek space window active after the notice: "
+              << browser_->GetWindow()->IsActive();
+    model()->CloseWebContentsAt(model()->GetIndexOfWebContents(noticed_.get()),
+                                TabCloseTypes::CLOSE_NONE);
+    clicks_ = 0;
+    WaitFor("another tab from the little window", Is(&PeekDemo::LittleCmdClickedTab),
+            &PeekDemo::CloseLittleWithNotice);
+  }
+  void CloseLittleWithNotice() {
+    Check("little_window_notice_again", BackgroundTabNoticeForTesting(little_.get()).has_value());
     little_->GetWindow()->Close();
+    After(base::Seconds(1), &PeekDemo::CheckNoticeGone);
+  }
+  void CheckNoticeGone() {
+    Check("notice_goes_with_window", !little_ && BackgroundTabNoticeCountForTesting() == 0);
+    for (int i = model()->count() - 1; i >= 0; --i) {
+      if (model()->GetWebContentsAt(i)->GetVisibleURL() == url_c_) {
+        model()->CloseWebContentsAt(i, TabCloseTypes::CLOSE_NONE);
+      }
+    }
+    // Past the notice's time: its timer went with it.
+    After(base::Seconds(3), &PeekDemo::AfterNoticeTime);
+  }
+  void AfterNoticeTime() {
+    Check("notice_timer_after_window_closed", true);
+    tabs_ = model()->count();
     browser_->GetWindow()->Activate();
     NewLittleWindow();
   }
@@ -729,12 +940,32 @@ class PeekDemo {
     Check("cmd_option_n", model()->count() == tabs_);
     little_ = LittleWindowAt(url_c_)->GetWeakPtr();
     moved_ = little_->GetTabStripModel()->GetActiveWebContents()->GetWeakPtr();
-    // The page's area, as Chromium sizes popup windows (the screen here has room for it), less
-    // the line under the toolbar.
-    const gfx::Size page = moved_->GetContainerBounds().size();
-    LOG(INFO) << "lb demo: peek little window page " << page.ToString();
-    Check("little_window_size", std::abs(page.width() - kLittleWindowSize.width()) <= 2 &&
-                                    std::abs(page.height() - kLittleWindowSize.height()) <= 2);
+    // Most of the window it opens over (kLittleWindowShare each way), centred on it, when the
+    // screen has room.
+    const gfx::Rect parent = browser_->GetWindow()->GetBounds();
+    const gfx::Rect window = little_->GetWindow()->GetBounds();
+    LOG(INFO) << "lb demo: peek little window " << window.ToString() << " over "
+              << parent.ToString();
+    Check("little_window_size",
+          std::abs(window.width() - static_cast<int>(parent.width() * kLittleWindowShare)) <= 2 &&
+              std::abs(window.height() - static_cast<int>(parent.height() * kLittleWindowShare)) <=
+                  2 &&
+              std::abs(window.CenterPoint().x() - parent.CenterPoint().x()) <= 2);
+    // One row, as in Arc: the window buttons, then the address beside them, with no title bar
+    // above; the page right under it; the row drags the window, the address doesn't.
+    const LittleWindowRow row = GetLittleWindowRowForTesting(little_.get());
+    LOG(INFO) << "lb demo: peek little window row: buttons " << row.close_button.ToString()
+              << " address " << row.address.ToString() << " page at " << row.page_top
+              << " hits " << row.hit_after_buttons << "/" << row.hit_on_address;
+    Check("little_window_one_row",
+          !row.close_button.IsEmpty() && !row.address.IsEmpty() &&
+              row.address.x() >= row.close_button.right() &&
+              std::abs(row.address.CenterPoint().y() - row.close_button.CenterPoint().y()) <= 3);
+    Check("little_window_page_under_row",
+          row.page_top > row.close_button.bottom() &&
+              row.page_top <= std::max(row.close_button.bottom(), row.address.bottom()) + 10);
+    Check("little_window_row_drags",
+          row.hit_after_buttons == HTCAPTION && row.hit_on_address == HTCLIENT);
     space_name_ = SpaceName();
     Check("open_in_space_label",
           GetOpenInSpaceLabelForTesting(little_.get()) == OpenInSpaceLabel(space_name_));

@@ -21,6 +21,9 @@
 # LB_NINJA_FLAGS="-k 0" keeps going after failures to collect every error in one pass.
 # LB_CC_WRAPPER=sccache runs every compile through a content-keyed compiler cache (GN cc_wrapper);
 # configure the cache itself with sccache's own SCCACHE_* variables.
+# LB_RELEASE=<version> (CI, on a release tag: 157.0.8103.78-3 for v157.0.8103.78-3) builds that
+# release: the About page and chrome://version show its version, revision included. It stops on a
+# tree that isn't on that release's Chromium version.
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -56,6 +59,7 @@ ARCH="${ARCH:-$HOST}"
 check_arch "$ARCH"
 [ -d "$SRC" ] || die "run desktop/scripts/fetch.sh first"
 check_tree_links "$SRC" "$DESKTOP/.."
+check_release_tree "$SRC"
 OUT_REL="$(out_dir Default "$ARCH" "$HOST")"
 ARG_FILES=("$UG/flags.gn" "$PU/$PLATFORM_FLAGS" "$DESKTOP/args/common.gn" "$DESKTOP/args/$PLATFORM.gn")
 if [ "$DEV" = 1 ]; then

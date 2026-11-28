@@ -24,6 +24,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
+#include "lb/browser/ui/tabs/pinned_tab_sleep.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/menus/simple_menu_model.h"
@@ -205,17 +206,17 @@ bool HasLeftPinnedUrl(const tabs::TabInterface* tab) {
 }
 
 std::u16string TabRowTitle(const tabs::TabInterface* tab, std::u16string page_title) {
-  return TabTitleToShow(GetTabCustom(tab), page_title);
+  return TabTitleToShow(GetTabCustom(tab), page_title, tab && IsAsleep(*tab));
 }
 
 bool HasTabName(const tabs::TabInterface* tab) {
-  return HasOwnTitle(GetTabCustom(tab));
+  return HasOwnTitle(GetTabCustom(tab), tab && IsAsleep(*tab));
 }
 
 std::u16string TabTitleWithoutName(const tabs::TabInterface* tab, std::u16string page_title) {
   TabCustom custom = GetTabCustom(tab);
   custom.name.clear();
-  return TabTitleToShow(custom, page_title);
+  return TabTitleToShow(custom, page_title, tab && IsAsleep(*tab));
 }
 
 void AddTabNameMenuItems(ui::SimpleMenuModel* menu, TabStripModel* model, int index) {

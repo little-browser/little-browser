@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
@@ -223,6 +224,15 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
     }
   }
 
+  // views::WidgetDelegate: in step 1 with nothing picked yet, the focus starts on Cancel: Next
+  // can't take it, and the first radio (the fallback) would be checked by it.
+  views::View* GetInitiallyFocusedView() override {
+    if (page_ == Page::kBrowsers && SelectedRow() < 0) {
+      return GetCancelButton();
+    }
+    return BrowserModalDialog::GetInitiallyFocusedView();
+  }
+
   // views::DialogDelegate:
   bool IsDialogButtonEnabled(ui::mojom::DialogButton button) const override {
     if (button != ui::mojom::DialogButton::kOk) {
@@ -263,6 +273,10 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
       }
     }
     state.can_accept = IsDialogButtonEnabled(ui::mojom::DialogButton::kOk);
+    if (page_ == Page::kBrowsers) {
+      state.checked_row = SelectedRow();
+    }
+    state.ok_enabled = GetOkButton() && GetOkButton()->GetEnabled();
     state.title = GetWindowTitle();
     state.cancel_label = GetDialogButtonLabel(ui::mojom::DialogButton::kCancel);
     if (const views::Widget* widget = GetWidget()) {
@@ -285,6 +299,16 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
       }
     }
     return false;
+  }
+
+  bool FocusRowForTesting(size_t row) {
+    if (page_ != Page::kBrowsers || row >= radios_.size()) {
+      return false;
+    }
+    // What RadioButton::OnFocus does (Tab or an arrow key, with Full Keyboard Access): checks it,
+    // with no press.
+    radios_[row]->SetChecked(true);
+    return true;
   }
 
   bool ImportForTesting() {
@@ -391,6 +415,7 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
   }
 
   void Clear() {
+    radio_checked_.clear();
     radios_.clear();
     choice_boxes_.clear();
     item_boxes_.clear();
@@ -443,7 +468,7 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
   }
 
   void OnSourcesFound(std::vector<ImportSource> sources) {
-    sources_ = std::move(sources);  // the default browser first, so it is picked
+    sources_ = std::move(sources);  // the default browser first
     ShowBrowsers();
   }
 
@@ -465,6 +490,10 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
           std::make_unique<views::RadioButton>(LabelOfRow(row), kRadioGroup));
       radio->SetCallback(
           base::BindRepeating(&ImportDialog::DialogModelChanged, base::Unretained(this)));
+      // Checked by the keyboard too: a radio is checked when it gets the focus (Tab, an arrow
+      // key), with no press.
+      radio_checked_.push_back(radio->AddCheckedChangedCallback(
+          base::BindRepeating(&ImportDialog::DialogModelChanged, base::Unretained(this))));
       radios_.push_back(radio);
     }
     // Without Full Disk Access, Chromium can't read Safari's bookmarks, so Safari isn't listed.
@@ -473,7 +502,11 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
       AddText(body_, kSafariExportHint)
           ->SetProperty(views::kMarginsKey, gfx::Insets::TLBR(4, 0, 0, 0));
     }
-    radios_[std::min(row_, RowCount() - 1)]->SetChecked(true);
+    // Nothing is picked until the user picks a browser or a file; back from the second step,
+    // the one picked before.
+    if (row_picked_) {
+      radios_[std::min(row_, RowCount() - 1)]->SetChecked(true);
+    }
     SetButtons(static_cast<int>(ui::mojom::DialogButton::kOk) |
                static_cast<int>(ui::mojom::DialogButton::kCancel));
     SetButtonLabel(ui::mojom::DialogButton::kOk, kNext);
@@ -484,6 +517,7 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
   // The second step: the browser's profiles or spaces, and what comes along.
   void ShowChoose() {
     row_ = static_cast<size_t>(SelectedRow());
+    row_picked_ = true;
     page_ = Page::kChoose;
     Clear();
     SetTitle(TitleOfRow(row_));
@@ -802,7 +836,9 @@ class ImportDialog : public BrowserModalDialog, public ui::SelectFileDialog::Lis
   const bool first_run_;
   raw_ptr<views::MdTextButton> back_ = nullptr;
   size_t row_ = 0;  // the row picked in the first step
+  bool row_picked_ = false;  // a row was picked (the second step was shown)
   std::vector<raw_ptr<views::RadioButton>> radios_;
+  std::vector<base::CallbackListSubscription> radio_checked_;
   std::vector<raw_ptr<views::Checkbox>> choice_boxes_;
   std::map<ImportItem, raw_ptr<views::Checkbox>> item_boxes_;
   uint32_t imported_seen_ = 0;  // items OnItemImported has reported this import (for testing)
@@ -868,6 +904,10 @@ bool ImportDialogCancelForTesting() {
 
 bool ImportDialogBackForTesting() {
   return g_open_dialog && g_open_dialog->BackForTesting();
+}
+
+bool ImportDialogFocusRowForTesting(size_t row) {
+  return g_open_dialog && g_open_dialog->FocusRowForTesting(row);
 }
 
 void MaybeShowImportOffer(BrowserWindowInterface* browser, base::OnceClosure then) {

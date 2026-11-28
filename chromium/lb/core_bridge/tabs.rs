@@ -131,8 +131,13 @@ mod ffi {
 
         fn clean_tab_name(typed: &str) -> String;
         fn name_from_input(typed: &str, page_title: &str) -> String;
-        fn tab_title_to_show(name: &str, pinned_title: &str, page_title: &str) -> String;
-        fn has_own_title(name: &str, pinned_title: &str) -> bool;
+        fn tab_title_to_show(
+            name: &str,
+            pinned_link: &PinnedLink,
+            page_title: &str,
+            asleep: bool,
+        ) -> String;
+        fn has_own_title(name: &str, pinned_link: &PinnedLink, asleep: bool) -> bool;
         fn has_left_pinned_link(link: &str, page: &str) -> bool;
         fn settle_pinned_link(
             pinned_link: &PinnedLink,
@@ -239,12 +244,17 @@ fn name_from_input(typed: &str, page_title: &str) -> String {
     tabs::name_from_input(typed, page_title)
 }
 
-fn tab_title_to_show(name: &str, pinned_title: &str, page_title: &str) -> String {
-    tabs::tab_title_to_show(name, pinned_title, page_title)
+fn tab_title_to_show(
+    name: &str,
+    pinned_link: &ffi::PinnedLink,
+    page_title: &str,
+    asleep: bool,
+) -> String {
+    tabs::tab_title_to_show(name, &to_link(pinned_link), page_title, asleep)
 }
 
-fn has_own_title(name: &str, pinned_title: &str) -> bool {
-    tabs::has_own_title(name, pinned_title)
+fn has_own_title(name: &str, pinned_link: &ffi::PinnedLink, asleep: bool) -> bool {
+    tabs::has_own_title(name, &to_link(pinned_link), asleep)
 }
 
 fn has_left_pinned_link(link: &str, page: &str) -> bool {

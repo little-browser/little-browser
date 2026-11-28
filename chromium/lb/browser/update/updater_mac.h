@@ -12,8 +12,9 @@ namespace lb {
 // Starts the updater (docs/design.md §7.13) if this app was packaged with it: Sparkle in
 // Contents/Frameworks and its feed and public key in Info.plist (desktop/scripts/
 // package-macos.sh). Development builds have neither, so they never update. Sparkle checks the
-// feed every four hours, shows its own update window, downloads and checks the update and
-// restarts the browser into it. `before_update_quit` runs just before that quit, which then
+// feed every four hours and shows its own update window once the user is in the browser, which is
+// kept above the front browser window (lb::PlaceUpdateWindow); it downloads and checks the update
+// and restarts the browser into it. `before_update_quit` runs just before that quit, which then
 // needs no "Quit Little Browser?" question. Call once, on the UI thread.
 void StartUpdater(base::RepeatingClosure before_update_quit);
 

@@ -4,10 +4,11 @@
 # bar, snapshot tool, pinned tab sleep and pinned groups, extensions demo, first-run dialogs, the
 # ad blocker's switch and demos, Peek, little window, import, the space avatar, the
 # tracking-parameters and element-hiding demos, tab names and pinned links, the load progress line,
-# the hidden sidebar's edge watcher) with the region view's target.
+# the hidden sidebar's edge watcher) with the region view's target, checked for unsafe buffer use
+# as //lb's own targets are (//lb:unsafe_buffers).
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -537,7 +537,91 @@
+@@ -537,7 +537,97 @@
  
  source_set("vertical_tab_strip_region_view") {
    public = [ "vertical_tab_strip_region_view.h" ]
@@ -78,6 +79,9 @@
 +    "//lb/browser/ui/views/sidebar/sidebar_footer_view.h",
 +    "//lb/browser/ui/views/sidebar/sidebar_header_view.cc",
 +    "//lb/browser/ui/views/sidebar/sidebar_header_view.h",
++    "//lb/browser/ui/views/sidebar/sidebar_toolbar.cc",
++    "//lb/browser/ui/views/sidebar/sidebar_toolbar.h",
++    "//lb/browser/ui/views/sidebar/sidebar_toolbar_mac.mm",
 +    "//lb/browser/ui/views/sidebar/new_space_dialog.cc",
 +    "//lb/browser/ui/views/sidebar/new_space_dialog.h",
 +    "//lb/browser/ui/views/password/password_manager_choice_dialog.cc",
@@ -97,10 +101,13 @@
 +    "//lb/browser/ui/views/sidebar/tab_search_demo.cc",
 +    "//lb/browser/ui/views/sidebar/tab_search_demo.h",
 +  ]
++  # Little Browser: no unsafe buffer use in our files above (//lb's own targets
++  # have the same check; Chromium's files here aren't affected).
++  configs += [ "//lb:unsafe_buffers" ]
    public_deps = [
      ":base_tab_strip_region_view",
      "//base",
-@@ -557,6 +641,20 @@
+@@ -557,6 +647,20 @@
      "//ui/views",
    ]
    deps = [

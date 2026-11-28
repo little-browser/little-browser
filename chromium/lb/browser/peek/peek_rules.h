@@ -43,6 +43,11 @@ struct LinkOpen {
 // still opens a window, and a script can't open a Peek, with or without a click.
 bool OpensInPeek(const LinkOpen& open);
 
+// Whether opening the link shows the "Opened in a new tab" notice: the user's Cmd+click (or
+// middle click), which opens the link in a tab behind the page, out of sight (docs/ux.md §6).
+// Not for the browser's own background tabs (a menu, a restore) or a script's.
+bool AnnouncesBackgroundTab(const LinkOpen& open);
+
 // What a link opened from the page in the Peek does.
 enum class PeekLinkAction {
   kLoadInPeek,    // the same page: the Peek navigates
@@ -71,8 +76,8 @@ bool CanOpenPeekInSplitView(WindowKind window, bool page_in_split_view);
 enum class PeekCommandAction {
   kPass,         // not about the page (new tab, switch tab, settings, ...): as usual
   kClosePeek,    // Cmd+W, Esc: the Peek goes, the tab stays
-  kForPeekPage,  // reload, stop, back, forward, zoom, copy URL: on the Peek's page
-  kIgnore,       // find, print, view source, DevTools, the address, ...: nothing, until it is a tab
+  kForPeekPage,  // reload, stop, back, forward, zoom, copy URL, print: on the Peek's page
+  kIgnore,       // find, view source, DevTools, the address, ...: nothing, until it is a tab
 };
 PeekCommandAction PeekCommandActionFor(int command_id);
 

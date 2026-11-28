@@ -79,13 +79,41 @@ def make_rebrand(product: str, company: str, always_in_message: bool, chrome: bo
     return rebrand
 
 
-def message_ids(grit, grd: Path) -> dict:
+def drop_duplicate_translations(xtb: str) -> tuple[str, int]:
+    """Keeps the first translation of each id (and gender). Messages that differed only in the
+    names rebranded ("Chrome" and "Chromium") now have the same text, so the same id, and grit
+    refuses a translation file that has one twice."""
+    seen = set()
+    dropped = 0
+
+    def keep_first(m):
+        nonlocal dropped
+        key = (m.group(1), m.group(2))
+        if key in seen:
+            dropped += 1
+            return ''
+        seen.add(key)
+        return m.group(0)
+
+    body = re.sub(r'<translation id="(\d+)"([^>]*)>.*?</translation>\n?', keep_first, xtb,
+                  flags=re.S)
+    return body, dropped
+
+
+def message_ids(grit, grd: Path) -> list[tuple[str, str]]:
+    """Every message's (name, fingerprint), in document order. A name can appear more than once,
+    once per <if> branch, so the list keeps them all."""
     root = grit.grd_reader.Parse(str(grd), dir=str(grd.parent), skip_validation_checks=True)
-    ids = {}
-    for node in root.GetChildrenOfType(grit.node.message.MessageNode):
-        clique = node.GetCliques()[0]
-        ids[node.attrs['name']] = clique.GetMessage().GetId()
-    return ids
+    return [(node.attrs['name'], node.GetCliques()[0].GetMessage().GetId())
+            for node in root.GetChildrenOfType(grit.node.message.MessageNode)]
+
+
+def id_remap(before: list[tuple[str, str]], after: list[tuple[str, str]]) -> dict:
+    """Old id -> new id for each message whose fingerprint changed. Rebranding changes text only,
+    so both parses list the same messages in the same order and are paired by position."""
+    if [name for name, _ in before] != [name for name, _ in after]:
+        sys.exit('rebrand_strings: the messages changed between parses')
+    return {old: new for (_, old), (_, new) in zip(before, after) if old != new}
 
 
 def main() -> int:
@@ -120,10 +148,10 @@ def main() -> int:
             print(f'{rel}: nothing to rebrand')
             continue
         after = message_ids(grit_mod, grd)
-        remap = {before[k]: after[k] for k in before if k in after and before[k] != after[k]}
+        remap = id_remap(before, after)
 
         xtbs = re.findall(r'<file\s+path="([^"]+\.xtb)"', new_text)
-        rekeyed = 0
+        rekeyed = dropped = 0
         for x in xtbs:
             xtb = grd.parent / x
             if not xtb.exists():
@@ -139,9 +167,12 @@ def main() -> int:
                 return m.group(1) + remap[old] + m.group(3) + rebrand_text(m.group(4))[0] + m.group(5)
 
             body = re.sub(r'(<translation id=")(\d+)("[^>]*>)(.*?)(</translation>)', fix, body, flags=re.S)
+            body, n_dropped = drop_duplicate_translations(body)
+            dropped += n_dropped
             xtb.write_text(body, encoding='utf-8')
         print(f'{rel}: {n} replacements, {len(remap)} messages re-keyed, '
-              f'{rekeyed} translations updated across {len(xtbs)} languages')
+              f'{rekeyed} translations updated across {len(xtbs)} languages, '
+              f'{dropped} duplicates dropped')
     return 0
 
 

@@ -277,6 +277,8 @@ class SidebarController : public TabStripModelObserver {
 
   base::RepeatingCallback<void(CommandBarMode)> show_command_bar_;
   tabs::TabHandle command_bar_tab_;
+  // Shows the command bar for `command_bar_tab_` as it is.
+  bool ShowCommandBarWithTab(CommandBarMode mode);
 
   raw_ptr<BrowserWindowInterface> browser_;
   std::unique_ptr<PinnedGroupTracker> pinned_groups_;

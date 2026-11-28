@@ -77,6 +77,10 @@ bool ResizesSlidInSidebar(bool collapsed, bool slid_in) {
   return collapsed && slid_in;
 }
 
+bool SlidInTopRow(bool collapsed, bool slides_in, int width, int snap_width) {
+  return collapsed && slides_in && width >= snap_width;
+}
+
 int SlidInSidebarWidth(int proposed, int min, int max) {
   return std::clamp(proposed, min, std::max(min, max));
 }

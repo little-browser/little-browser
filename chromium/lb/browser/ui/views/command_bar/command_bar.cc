@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -37,6 +38,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "ui/base/base_window.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -106,9 +108,22 @@ void OpenUrlIn(BrowserWindowInterface* browser, CommandBarMode mode, const GURL&
   }
 }
 
-// Searches for `query` with the default engine, if one is usable by now.
+// Opens `url` in the tab whose address the bar edits (a little window's), in its window, which
+// comes to the front; nothing if that tab has gone.
+void OpenUrlInTab(tabs::TabHandle handle, const GURL& url) {
+  tabs::TabInterface* tab = handle.Get();
+  BrowserWindowInterface* window = tab ? tab->GetBrowserWindowInterface() : nullptr;
+  if (window) {
+    OpenUrlIn(window, CommandBarMode::kEditAddress, url);
+    window->GetWindow()->Activate();
+  }
+}
+
+// Searches for `query` with the default engine, if one is usable by now: in `tab` when the bar
+// edits that tab's address, else as `mode` opens pages.
 void SearchIn(base::WeakPtr<BrowserWindowInterface> browser,
               CommandBarMode mode,
+              std::optional<tabs::TabHandle> tab,
               const std::u16string& query) {
   if (!browser) {
     return;
@@ -119,17 +134,22 @@ void SearchIn(base::WeakPtr<BrowserWindowInterface> browser,
       !engine->url_ref().SupportsReplacement(service->search_terms_data())) {
     return;
   }
-  OpenUrlIn(browser.get(), mode,
-            GURL(engine->url_ref().ReplaceSearchTerms(TemplateURLRef::SearchTermsArgs(query),
-                                                      service->search_terms_data())));
+  const GURL url(engine->url_ref().ReplaceSearchTerms(TemplateURLRef::SearchTermsArgs(query),
+                                                      service->search_terms_data()));
+  if (tab) {
+    OpenUrlInTab(*tab, url);
+  } else {
+    OpenUrlIn(browser.get(), mode, url);
+  }
 }
 
 // No engine yet: ask for one, then run the search.
 void ChooseEngineThenSearch(base::WeakPtr<BrowserWindowInterface> browser,
                             CommandBarMode mode,
+                            std::optional<tabs::TabHandle> tab,
                             const std::u16string& query) {
   if (browser) {
-    ShowSearchChoice(browser.get(), base::BindOnce(&SearchIn, browser, mode, query));
+    ShowSearchChoice(browser.get(), base::BindOnce(&SearchIn, browser, mode, tab, query));
   }
 }
 
@@ -217,6 +237,10 @@ class CommandBarView : public views::View, public views::TextfieldController {
       if (content::WebContents* contents = browser->GetTabStripModel()->GetActiveWebContents()) {
         field_->SetText(base::UTF8ToUTF16(contents->GetVisibleURL().spec()));
       }
+    } else if (mode_ == CommandBarMode::kLittleWindow && target) {
+      // A little window's address, to edit: what is chosen opens in that window.
+      field_->SetPlaceholderText(u"Edit the address, or search");
+      field_->SetText(base::UTF8ToUTF16(target->GetContents()->GetVisibleURL().spec()));
     } else if (mode_ == CommandBarMode::kLittleWindow) {
       field_->SetPlaceholderText(u"Search or enter an address for a little window");
     } else {
@@ -298,13 +322,26 @@ class CommandBarView : public views::View, public views::TextfieldController {
       case CommandBarMode::kNewTab:
         return u"Open in new tab";
       case CommandBarMode::kLittleWindow:
-        return u"Open in a little window";
+        return controller_->command_bar_tab() ? u"Go" : u"Open in a little window";
       default:
         return u"Go";
     }
   }
 
+  // The tab whose address the bar edits: a little window's (its pages open there), if any.
+  std::optional<tabs::TabHandle> EditedTab() {
+    tabs::TabInterface* const target = controller_->command_bar_tab();
+    if (mode_ == CommandBarMode::kLittleWindow && target) {
+      return target->GetHandle();
+    }
+    return std::nullopt;
+  }
+
   base::RepeatingClosure Open(const GURL& url) {
+    // Editing a little window's address: the page opens in that window, which comes to the front.
+    if (const std::optional<tabs::TabHandle> tab = EditedTab()) {
+      return base::BindRepeating(&OpenUrlInTab, *tab, url);
+    }
     return base::BindRepeating(&OpenUrlIn, browser(), mode_, url);
   }
 
@@ -330,7 +367,8 @@ class CommandBarView : public views::View, public views::TextfieldController {
                                                              service->search_terms_data())))};
     }
     return {query, u"No search engine yet \u2014 choose one", u"", 0,
-            base::BindRepeating(&ChooseEngineThenSearch, browser()->GetWeakPtr(), mode_, query)};
+            base::BindRepeating(&ChooseEngineThenSearch, browser()->GetWeakPtr(), mode_,
+                                EditedTab(), query)};
   }
 
   // The one result of a bar renaming a tab or editing a pinned tab's link (docs/ux.md §6).
@@ -592,10 +630,11 @@ class CommandBarView : public views::View, public views::TextfieldController {
       Item go = {base::UTF8ToUTF16(address->url.spec()), GoLabel(), u"", 100, Open(address->url)};
       items_.insert(items_.begin(), address->certain ? std::move(go) : std::move(search));
       items_.insert(items_.begin() + 1, address->certain ? std::move(search) : std::move(go));
-    } else if (!items_.empty() && items_.front().score >= 3) {
-      items_.insert(items_.begin() + 1, std::move(search));
-    } else {
+    } else if (SearchGoesFirst(mode_, items_.empty() ? std::nullopt
+                                                     : std::optional(items_.front().score))) {
       items_.insert(items_.begin(), std::move(search));
+    } else {
+      items_.insert(items_.begin() + 1, std::move(search));
     }
     Render();
     QueryHistory(query);
@@ -726,6 +765,7 @@ CommandBar* g_open_bar = nullptr;
 }  // namespace
 
 CommandBar::~CommandBar() {
+  returns_to_ = nullptr;
   Close();
 }
 
@@ -753,8 +793,22 @@ std::optional<std::u16string> CommandBarTextForTesting() {
   return g_open_bar ? g_open_bar->TextForTesting() : std::nullopt;
 }
 
+bool CloseCommandBarForTesting() {
+  if (!g_open_bar) {
+    return false;
+  }
+  g_open_bar->Close();
+  return true;
+}
+
 void CommandBar::Show(CommandBarMode mode) {
+  returns_to_ = nullptr;  // this bar takes the front
   Close();
+  tabs::TabInterface* tab = controller_->command_bar_tab();
+  BrowserWindowInterface* tab_window = tab ? tab->GetBrowserWindowInterface() : nullptr;
+  if (tab_window && tab_window != controller_->browser()) {
+    returns_to_ = tab_window->GetWeakPtr();
+  }
   widget_ = std::make_unique<views::Widget>();
   // TYPE_POPUP: no non-client view, so the contents view can be set directly.
   views::Widget::InitParams params(views::Widget::InitParams::CLIENT_OWNS_WIDGET,
@@ -789,6 +843,20 @@ void CommandBar::Close() {
   // (e.g. activation changes during destruction) see the bar as closed.
   std::unique_ptr<views::Widget> widget = std::move(widget_);
   widget.reset();
+  // Closed with Esc or a click away, or a result picked (which brings it up too): the window the
+  // bar was for comes back up, after the activation changes of the bar's closing.
+  base::WeakPtr<BrowserWindowInterface> window = returns_to_;
+  returns_to_ = nullptr;
+  if (window) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(
+                       [](base::WeakPtr<BrowserWindowInterface> window) {
+                         if (window) {
+                           window->GetWindow()->Activate();
+                         }
+                       },
+                       window));
+  }
 }
 
 void CommandBar::UpdateBounds() {

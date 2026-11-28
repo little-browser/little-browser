@@ -52,8 +52,8 @@ GURL CurrentUrlOf(const tabs::TabInterface* tab);
 
 // Hooks (patches/lb/tab-names.patch, patches/lb/tab-names-ui.patch):
 // The title of `tab`'s row and its accessible name: its name; for a pinned tab, its link's page
-// title; or `page_title` (lb::TabTitleToShow). A title of its own (HasTabName) also means no
-// "Loading…" title.
+// title while it sleeps (IsAsleep) away from its link; or `page_title` (lb::TabTitleToShow). A
+// title of its own (HasTabName) also means no "Loading…" title.
 std::u16string TabRowTitle(const tabs::TabInterface* tab, std::u16string page_title);
 bool HasTabName(const tabs::TabInterface* tab);
 // The title the row shows when the tab has no name: what renaming it back to starts from.

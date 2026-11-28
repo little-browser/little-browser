@@ -2,7 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Tests for publish-release.sh, run as a dry run against a stand-in `aws` (no uploads):
-python3 -I -m unittest discover -s desktop/scripts. Needs bash, jq and git."""
+python3 -I -m unittest discover -s desktop/scripts. Needs bash, jq and git. Its version check
+takes the release form the builds and CI's release rules take (release_revision in
+chromium/scripts/lib.sh), before anything is uploaded."""
 
 import json
 import os
@@ -14,8 +16,9 @@ import tempfile
 import unittest
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(SCRIPTS))
 PUBLISH = os.path.join(SCRIPTS, "publish-release.sh")
-with open(os.path.join(os.path.dirname(os.path.dirname(SCRIPTS)), "chromium", "VERSIONS")) as _f:
+with open(os.path.join(REPO, "chromium", "VERSIONS")) as _f:
     CHROMIUM = re.search(r"^CHROMIUM_VERSION=(\S+)", _f.read(), re.M).group(1)
 HOST = "https://downloads.invalid"
 
@@ -136,6 +139,49 @@ class PublishReleaseTest(unittest.TestCase):
         release = next(r for r in self.releases(result)["releases"] if r["version"] == version(5))
         self.assertTrue(release["security"])
         self.assertEqual(release["notes"][0], "Based on Chromium %s, with its security fixes." % CHROMIUM)
+
+
+
+# Where publish-release.sh stops once the version is accepted: the disk image doesn't exist.
+PAST_THE_CHECK = "no such file: missing.dmg"
+
+
+class VersionTest(unittest.TestCase):
+    """A repository with publish-release.sh, lib.sh and VERSIONS where they live."""
+
+    def setUp(self):
+        self.repo = tempfile.mkdtemp(prefix="lb-publish-release-")
+        self.addCleanup(shutil.rmtree, self.repo)
+        for rel in ("desktop/scripts/publish-release.sh", "chromium/scripts/lib.sh"):
+            os.makedirs(os.path.dirname(os.path.join(self.repo, rel)), exist_ok=True)
+            shutil.copy2(os.path.join(REPO, rel), os.path.join(self.repo, rel))
+        with open(os.path.join(self.repo, "chromium/VERSIONS"), "w") as f:
+            f.write("CHROMIUM_VERSION=1.2.3.4\n")
+
+    def publish(self, version):
+        env = {k: v for k, v in os.environ.items() if k != "CI"}
+        env.update(LB_DOWNLOADS_BUCKET="b", LB_DOWNLOADS_DISTRIBUTION="d",
+                   LB_DOWNLOADS_URL="https://downloads.invalid", LB_DRY_RUN="1")
+        return subprocess.run(
+            ["bash", os.path.join(self.repo, "desktop/scripts/publish-release.sh"), version,
+             "missing.dmg"], capture_output=True, text=True, env=env, cwd=self.repo)
+
+    def test_a_release(self):
+        for version in ("1.2.3.4-1", "1.2.3.4-12"):
+            self.assertIn(PAST_THE_CHECK, self.publish(version).stderr, version)
+
+    def test_not_a_release(self):
+        for version in ("1.2.3.4", "1.2.3.4-0", "1.2.3.4-01", "1.2.3.4-10000", "v1.2.3.4-1"):
+            result = self.publish(version)
+            self.assertNotEqual(result.returncode, 0, version)
+            self.assertIn("is not <Chromium version>-<revision>", result.stderr, version)
+            self.assertNotIn(PAST_THE_CHECK, result.stderr, version)
+
+    def test_a_release_on_another_chromium_version(self):
+        result = self.publish("1.2.3.5-1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not on this tree's Chromium version, 1.2.3.4", result.stderr)
+
 
 
 if __name__ == "__main__":

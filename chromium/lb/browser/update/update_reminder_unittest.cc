@@ -69,5 +69,97 @@ TEST(UpdateReminderTest, ClockThatWentBackDoesNotHoldItBack) {
   EXPECT_TRUE(ShouldOfferUpdate(state));
 }
 
+UpdateWindowState Shown() {
+  UpdateWindowState state;
+  state.visible = true;
+  state.front_usable = true;
+  return state;
+}
+
+TEST(UpdateReminderTest, ShownUpdateWindowGoesAboveTheFrontBrowserWindow) {
+  EXPECT_EQ(PlaceUpdateWindow(Shown()), UpdateWindowMove::kAttachToFront);
+}
+
+TEST(UpdateReminderTest, UpdateWindowAboveTheFrontWindowStays) {
+  UpdateWindowState state = Shown();
+  state.has_parent = true;
+  state.parent_is_front = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kKeep);
+}
+
+TEST(UpdateReminderTest, UpdateWindowFollowsAnotherWindowComingToTheFront) {
+  UpdateWindowState state = Shown();
+  state.has_parent = true;
+  state.parent_is_front = false;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kAttachToFront);
+}
+
+TEST(UpdateReminderTest, UpdateWindowWaitsWithoutAUsableFrontWindow) {
+  // None on screen, all minimised, or the front one on another Space.
+  UpdateWindowState state = Shown();
+  state.front_usable = false;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kKeep);
+  state.has_parent = true;  // keeps the window it is above
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kKeep);
+}
+
+TEST(UpdateReminderTest, UpdateWindowLeavesAParentThatGoesAway) {
+  UpdateWindowState state = Shown();
+  state.has_parent = true;
+  state.parent_is_front = true;
+  state.parent_going_away = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kDetach);
+  state.front_usable = false;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kDetach);
+}
+
+TEST(UpdateReminderTest, HiddenUpdateWindowIsNoLongerAChild) {
+  UpdateWindowState state;
+  state.visible = false;
+  state.has_parent = true;
+  state.front_usable = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kDetach);
+  state.has_parent = false;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kKeep);
+}
+
+TEST(UpdateReminderTest, UpdateWindowClosedWithItsParentComesBackAboveTheNextWindow) {
+  // Closing the window it is above orders that window out first, and the update window with it.
+  UpdateWindowState state;
+  state.visible = false;
+  state.has_parent = true;
+  state.parent_hidden = true;
+  state.front_usable = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kShowAgainAboveFront);
+  // No other window to go above yet: it waits for one.
+  state.front_usable = false;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kShowAgainLater);
+  state.has_parent = false;
+  state.parent_hidden = false;
+  state.hidden_with_parent = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kShowAgainLater);
+  state.front_usable = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kShowAgainAboveFront);
+}
+
+TEST(UpdateReminderTest, UpdateWindowSparkleHidItselfStaysHidden) {
+  // Off screen with its parent on screen: Sparkle ordered it out.
+  UpdateWindowState state;
+  state.visible = false;
+  state.has_parent = true;
+  state.front_usable = true;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kDetach);
+  state.has_parent = false;
+  EXPECT_EQ(PlaceUpdateWindow(state), UpdateWindowMove::kKeep);
+}
+
+TEST(UpdateReminderTest, SparklesPromptAndProgressAreUpdateWindows) {
+  EXPECT_TRUE(IsUpdateWindow("SUUpdateAlert"));
+  EXPECT_TRUE(IsUpdateWindow("SUStatusController"));
+  EXPECT_FALSE(IsUpdateWindow("BrowserWindowController"));
+  EXPECT_FALSE(IsUpdateWindow("SUUpdateAlertX"));
+  EXPECT_FALSE(IsUpdateWindow(""));
+}
+
 }  // namespace
 }  // namespace lb

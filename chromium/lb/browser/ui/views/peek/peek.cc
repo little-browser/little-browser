@@ -11,13 +11,15 @@
 #include <string>
 #include <utility>
 
+#include "base/callback_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
-#include "base/scoped_observation.h"
+#include "base/observer_list.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/timer/timer.h"
 #include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -33,6 +35,8 @@
 #include "chrome/browser/page_load_metrics/page_load_metrics_initialize.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+#include "chrome/browser/printing/print_view_manager_common.h"
+#include "chrome/browser/printing/printing_init.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/chrome_security_state_util.h"
 #include "chrome/browser/subresource_filter/chrome_content_subresource_filter_web_contents_helper_factory.h"
@@ -42,6 +46,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_helpers.h"
@@ -50,6 +55,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/common/pref_names.h"
 #include "components/blocked_content/popup_blocker.h"
 #include "components/blocked_content/popup_blocker_tab_helper.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
@@ -58,12 +64,16 @@
 #include "components/javascript_dialogs/app_modal_dialog_manager.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/omnibox/browser/location_bar_model_util.h"
+#include "components/prefs/pref_service.h"
 #include "components/performance_manager/embedder/performance_manager_registry.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "components/security_state/core/security_state.h"
 #include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
+#include "components/web_modal/web_contents_modal_dialog_host.h"
+#include "components/web_modal/web_contents_modal_dialog_manager.h"
+#include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
 #include "components/zoom/page_zoom.h"
 #include "content/public/browser/eye_dropper.h"
 #include "content/public/browser/file_select_listener.h"
@@ -78,6 +88,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/page_zoom.h"
 #include "extensions/browser/view_type_utils.h"
+#include "printing/buildflags/buildflags.h"
 #include "extensions/common/mojom/view_type.mojom.h"
 #include "lb/browser/demo/demo_report.h"
 #include "lb/browser/peek/peek_rules.h"
@@ -88,8 +99,11 @@
 #include "third_party/blink/public/mojom/frame/fullscreen.mojom.h"
 #include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/accelerators/accelerator_manager.h"
+#include "ui/base/cursor/cursor.h"
+#include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -114,6 +128,7 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
+#include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/highlight_path_generator.h"
@@ -123,6 +138,7 @@
 #include "ui/views/controls/webview/webview.h"
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/layout/fill_layout.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
@@ -156,6 +172,11 @@ class PreviewTab {
     }
     extensions::WebNavigationTabObserver::CreateForWebContents(contents);
     extensions::TabHelper::CreateForWebContents(contents);
+#if BUILDFLAG(ENABLE_PRINTING)
+    printing::InitializePrintingForWebContents(contents);  // Print, and the page's window.print()
+#endif
+    // Dialogs over the page (print preview); the Peek hosts them while it shows the page.
+    web_modal::WebContentsModalDialogManager::CreateForWebContents(contents);
   }
 };
 
@@ -193,6 +214,257 @@ class Peek;
 std::map<const BrowserWindowInterface*, std::unique_ptr<Peek>>& Peeks() {
   static base::NoDestructor<std::map<const BrowserWindowInterface*, std::unique_ptr<Peek>>> peeks;
   return *peeks;
+}
+
+// "Opened in a new tab": a short notice at the bottom of the page when a Cmd+click opens a link
+// in a tab behind it (AnnouncesBackgroundTab). One per window; another Cmd+click restarts it. A
+// click on it brings that tab up; it stays while the pointer is on it.
+constexpr char16_t kBackgroundTabNotice[] = u"Opened in a new tab";
+constexpr char16_t kBackgroundTabNoticeAction[] = u"Show the new tab";
+constexpr base::TimeDelta kNoticeShownFor = base::Seconds(3);
+constexpr int kNoticeBottomMargin = 24;
+
+void HideBackgroundTabNotice(BrowserWindowInterface* browser);
+void ShowNoticedTab(BrowserWindowInterface* browser);
+
+// The notice's pill: a button with the text, which pauses the notice's timer while the pointer is
+// on it.
+class NoticeButton : public views::Button {
+  METADATA_HEADER(NoticeButton, views::Button)
+
+ public:
+  NoticeButton(PressedCallback pressed, base::RepeatingCallback<void(bool)> hovered)
+      : views::Button(std::move(pressed)), hovered_(std::move(hovered)) {
+    SetLayoutManager(std::make_unique<views::FillLayout>());
+    label_ = AddChildView(std::make_unique<views::Label>(kBackgroundTabNotice));
+    label_->SetEnabledColor(ui::kColorSysInverseOnSurface);
+    label_->SetCanProcessEventsWithinSubtree(false);
+    SetBackground(views::CreateRoundedRectBackground(ui::kColorSysInverseSurface, 8));
+    SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(8, 14)));
+    SetTooltipText(kBackgroundTabNoticeAction);
+    GetViewAccessibility().SetName(std::u16string(kBackgroundTabNotice) + u". " +
+                                   kBackgroundTabNoticeAction);
+  }
+
+  std::u16string text() const { return std::u16string(label_->GetText()); }
+
+  // views::Button:
+  ui::Cursor GetCursor(const ui::MouseEvent& event) override {
+    return ui::mojom::CursorType::kHand;
+  }
+  void OnMouseEntered(const ui::MouseEvent& event) override {
+    views::Button::OnMouseEntered(event);
+    hovered_.Run(true);
+  }
+  void OnMouseExited(const ui::MouseEvent& event) override {
+    views::Button::OnMouseExited(event);
+    hovered_.Run(false);
+  }
+
+ private:
+  raw_ptr<views::Label> label_ = nullptr;
+  base::RepeatingCallback<void(bool)> hovered_;
+};
+
+BEGIN_METADATA(NoticeButton)
+END_METADATA
+
+// A window's notice and the tab it announces: given, or the next one the receiving window's tab
+// strip gets (the notice can show just before the link's tab is added). A little window's links
+// open their tabs in the space's window (TabsOpenIn), so its notice watches that window's strip.
+// It goes with its window.
+class Notice : public TabStripModelObserver {
+ public:
+  explicit Notice(BrowserWindowInterface* browser) : browser_(browser) {
+    browser_closed_ =
+        browser->RegisterBrowserDidClose(base::BindRepeating(&HideBackgroundTabNotice));
+  }
+  ~Notice() override = default;
+
+  views::Widget* widget() { return widget_.get(); }
+  NoticeButton* button() {
+    return widget_ ? views::AsViewClass<NoticeButton>(widget_->GetContentsView()) : nullptr;
+  }
+  tabs::TabInterface* tab() { return tab_.Get(); }
+
+  // Going: no more timer, tabs or window (it may close before this is deleted).
+  void Stop() {
+    timer_.Stop();
+    WatchTabsOf(nullptr);
+    browser_closed_ = {};
+    browser_ = nullptr;
+    if (widget_) {
+      widget_->Hide();
+    }
+  }
+
+  void Show(content::WebContents* new_contents) {
+    BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+    views::Widget* browser_widget = browser_view ? browser_view->GetWidget() : nullptr;
+    if (!browser_widget || !browser_view->contents_container()) {
+      return;
+    }
+    tabs::TabInterface* given =
+        new_contents ? tabs::TabInterface::MaybeGetFromContents(new_contents) : nullptr;
+    tab_ = given ? given->GetHandle() : tabs::TabHandle();
+    awaiting_tab_ = !given;
+    if (!given) {
+      WatchTabsOf(TabsOpenIn());
+    }
+    const bool shown = widget_ && widget_->IsVisible();
+    if (!widget_) {
+      widget_ = std::make_unique<views::Widget>();
+      views::Widget::InitParams params(views::Widget::InitParams::CLIENT_OWNS_WIDGET,
+                                       views::Widget::InitParams::TYPE_POPUP);
+      params.parent = browser_widget->GetNativeView();
+      params.activatable = views::Widget::InitParams::Activatable::kNo;
+      params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
+      params.shadow_type = views::Widget::InitParams::ShadowType::kNone;
+      params.name = "LittleBrowserBackgroundTabNotice";
+      widget_->Init(std::move(params));
+      BrowserWindowInterface* browser = browser_;
+      widget_->SetContentsView(std::make_unique<NoticeButton>(
+          base::BindRepeating(&ShowNoticedTab, base::Unretained(browser)),
+          base::BindRepeating(&Notice::OnHovered, base::Unretained(this))));
+    }
+    // Centred at the bottom of the page.
+    const gfx::Rect page = browser_view->contents_container()->GetBoundsInScreen();
+    const gfx::Size size = widget_->GetContentsView()->GetPreferredSize();
+    widget_->SetBounds(gfx::Rect(page.x() + (page.width() - size.width()) / 2,
+                                 page.bottom() - kNoticeBottomMargin - size.height(),
+                                 size.width(), size.height()));
+    widget_->ShowInactive();
+    if (shown) {
+      // Already up: above what opened over the page since (a Peek), as a new one would be.
+      widget_->StackAtTop();
+    }
+    // Under the pointer it stays until the pointer leaves.
+    if (hovered_) {
+      timer_.Stop();
+    } else {
+      StartTimer();
+    }
+  }
+
+  // TabStripModelObserver:
+  void OnTabStripModelChanged(TabStripModel* model,
+                              const TabStripModelChange& change,
+                              const TabStripSelectionChange& selection) override {
+    if (!awaiting_tab_ || change.type() != TabStripModelChange::kInserted) {
+      return;
+    }
+    for (const auto& inserted : change.GetInsert()->contents) {
+      if (inserted.tab && model->GetActiveTab() != inserted.tab) {
+        tab_ = inserted.tab->GetHandle();
+        awaiting_tab_ = false;
+      }
+    }
+  }
+
+ private:
+  // The window a background tab opened from this one goes to: this one, or for a window
+  // without tabs of its own (a little window) the profile's tabbed window, as Chromium's
+  // navigator picks it (GetOrCreateBrowser).
+  BrowserWindowInterface* TabsOpenIn() {
+    if (WindowKindOf(browser_) == WindowKind::kNormal) {
+      return browser_;
+    }
+    return ProfileBrowserCollection::GetForProfile(browser_->GetProfile())->FindTabbedBrowser();
+  }
+  void WatchTabsOf(BrowserWindowInterface* window) {
+    TabStripModel* model = window ? window->GetTabStripModel() : nullptr;
+    if (model == watched_) {
+      return;
+    }
+    if (watched_) {
+      watched_->RemoveObserver(this);
+    }
+    watched_ = model;
+    if (model) {
+      model->AddObserver(this);  // a TabStripModelObserver stops observing when it goes
+    }
+  }
+  void StartTimer() {
+    timer_.Start(FROM_HERE, kNoticeShownFor,
+                 base::BindOnce(&Notice::Expire, weak_factory_.GetWeakPtr()));
+  }
+  void Expire() { HideBackgroundTabNotice(browser_); }
+  void OnHovered(bool hovered) {
+    hovered_ = hovered;
+    if (hovered) {
+      timer_.Stop();
+    } else {
+      StartTimer();
+    }
+  }
+  void OnTabStripModelDestroyed(TabStripModel* model) override { watched_ = nullptr; }
+
+  raw_ptr<BrowserWindowInterface> browser_;
+  base::CallbackListSubscription browser_closed_;
+  std::unique_ptr<views::Widget> widget_;
+  base::OneShotTimer timer_;
+  tabs::TabHandle tab_;
+  raw_ptr<TabStripModel> watched_ = nullptr;
+  bool awaiting_tab_ = false;
+  bool hovered_ = false;
+  base::WeakPtrFactory<Notice> weak_factory_{this};
+};
+
+std::map<const BrowserWindowInterface*, std::unique_ptr<Notice>>& Notices() {
+  static base::NoDestructor<std::map<const BrowserWindowInterface*, std::unique_ptr<Notice>>>
+      notices;
+  return *notices;
+}
+
+Notice* NoticeFor(const BrowserWindowInterface* browser) {
+  const auto it = Notices().find(browser);
+  return it == Notices().end() ? nullptr : it->second.get();
+}
+
+void HideBackgroundTabNotice(BrowserWindowInterface* browser) {
+  // Deleted soon: the notice may be running the click that hides it.
+  auto it = Notices().find(browser);
+  if (it == Notices().end()) {
+    return;
+  }
+  std::unique_ptr<Notice> notice = std::move(it->second);
+  Notices().erase(it);
+  notice->Stop();
+  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(FROM_HERE, std::move(notice));
+}
+
+// The notice's click: its tab comes up, in the window it is in (a little window's tabs open in
+// the space's window), if it is still open.
+void ShowNoticedTab(BrowserWindowInterface* browser) {
+  Notice* notice = NoticeFor(browser);
+  tabs::TabInterface* tab = notice ? notice->tab() : nullptr;
+  BrowserWindowInterface* window = tab ? tab->GetBrowserWindowInterface() : nullptr;
+  TabStripModel* model = window ? window->GetTabStripModel() : nullptr;
+  if (model && model->GetIndexOfTab(tab) != TabStripModel::kNoTab) {
+    model->ActivateTabAt(model->GetIndexOfTab(tab));
+    if (window != browser) {
+      window->GetWindow()->Activate();
+    }
+  }
+  HideBackgroundTabNotice(browser);
+}
+
+void ShowBackgroundTabNotice(BrowserWindowInterface* browser,
+                             content::WebContents* new_contents) {
+  std::unique_ptr<Notice>& notice = Notices()[browser];
+  if (!notice) {
+    notice = std::make_unique<Notice>(browser);
+  }
+  notice->Show(new_contents);
+}
+
+// `new_contents`: the link's page if its tab is already added.
+void MaybeNoticeBackgroundTab(BrowserWindowInterface* browser,
+                              const LinkOpen& open,
+                              content::WebContents* new_contents = nullptr) {
+  if (browser && AnnouncesBackgroundTab(open)) {
+    ShowBackgroundTabNotice(browser, new_contents);
+  }
 }
 
 Peek* PeekFor(const BrowserWindowInterface* browser) {
@@ -419,13 +691,18 @@ class Peek : public content::WebContentsDelegate,
              public views::ViewObserver,
              public TabStripModelObserver,
              public gfx::AnimationDelegate,
-             public ui::AcceleratorTarget {
+             public ui::AcceleratorTarget,
+             public web_modal::WebContentsModalDialogManagerDelegate,
+             public web_modal::WebContentsModalDialogHost {
  public:
   explicit Peek(BrowserWindowInterface* browser) : browser_(browser) {}
   Peek(const Peek&) = delete;
   Peek& operator=(const Peek&) = delete;
 
   ~Peek() override {
+    for (web_modal::ModalDialogHostObserver& observer : dialog_host_observers_) {
+      observer.OnHostDestroying();
+    }
     // The widget (and its WebView) goes before the page it shows.
     widget_.reset();
     if (contents_) {
@@ -504,6 +781,7 @@ class Peek : public content::WebContentsDelegate,
     contents_ = std::move(contents);
     PreviewTab::Adopt(contents_.get());
     contents_->SetDelegate(this);
+    web_modal::WebContentsModalDialogManager::FromWebContents(contents_.get())->SetDelegate(this);
     Observe(contents_.get());
     view_->web_view()->SetWebContents(contents_.get());
     UpdateSite();
@@ -596,6 +874,32 @@ class Peek : public content::WebContentsDelegate,
     }
   }
 
+  // web_modal::WebContentsModalDialogManagerDelegate:
+  web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost(
+      content::WebContents* web_contents) override {
+    return this;
+  }
+  bool IsWebContentsVisible(content::WebContents* web_contents) override {
+    return widget_ && widget_->IsVisible() && !closing_;
+  }
+
+  // web_modal::WebContentsModalDialogHost: dialogs over the page sit centred on the card.
+  gfx::NativeView GetHostView() const override {
+    return widget_ ? widget_->GetNativeView() : gfx::NativeView();
+  }
+  gfx::Point GetDialogPosition(const gfx::Size& size) override {
+    const gfx::Rect card = PageInWidget();
+    return gfx::Point(card.x() + std::max(0, (card.width() - size.width()) / 2),
+                      card.y() + std::max(0, (card.height() - size.height()) / 2));
+  }
+  gfx::Size GetMaximumDialogSize() override { return PageInWidget().size(); }
+  void AddObserver(web_modal::ModalDialogHostObserver* observer) override {
+    dialog_host_observers_.AddObserver(observer);
+  }
+  void RemoveObserver(web_modal::ModalDialogHostObserver* observer) override {
+    dialog_host_observers_.RemoveObserver(observer);
+  }
+
   // content::WebContentsDelegate:
   content::WebContents* OpenURLFromTab(
       content::WebContents* source,
@@ -641,6 +945,7 @@ class Peek : public content::WebContentsDelegate,
       }
     }
     RunHandleCallback(navigation_handle_callback, Navigate(popup->nav_params()));
+    MaybeNoticeBackgroundTab(browser_, open, popup->nav_params()->navigated_or_inserted_contents);
     KeepKeyFocus();
     return popup->nav_params()->navigated_or_inserted_contents;
   }
@@ -672,6 +977,7 @@ class Peek : public content::WebContentsDelegate,
         browser_, disposition == WindowOpenDisposition::NEW_PICTURE_IN_PICTURE ? source : nullptr,
         std::move(new_contents), target_url, disposition, window_features,
         NavigateParams::WindowAction::kNoAction, user_gesture);
+    MaybeNoticeBackgroundTab(browser_, open, opened);
     KeepKeyFocus();
     return opened;
   }
@@ -836,6 +1142,14 @@ class Peek : public content::WebContentsDelegate,
     return page_view_->GetBoundsInScreen() - widget_->GetWindowBoundsInScreen().OffsetFromOrigin();
   }
   gfx::Rect Window() const { return gfx::Rect(widget_->GetWindowBoundsInScreen().size()); }
+  // The Peek's page (its WebView) in the widget's coordinates; empty before it opens.
+  gfx::Rect PageInWidget() const {
+    if (!widget_ || !view_) {
+      return gfx::Rect();
+    }
+    return view_->web_view()->GetBoundsInScreen() -
+           widget_->GetWindowBoundsInScreen().OffsetFromOrigin();
+  }
 
   // Where the card goes for "Open as tab" (the page area) or "Open in split view" (its right half).
   gfx::Rect ExpandedBounds() const { return split_ ? PeekSplitBounds(page_) : page_; }
@@ -849,6 +1163,12 @@ class Peek : public content::WebContentsDelegate,
     }
     javascript_dialogs::AppModalDialogManager::GetInstance()->CancelDialogs(contents_.get(),
                                                                             /*reset_state=*/true);
+    // Dialogs over the page (print preview) were the Peek's: they go with it. A tab the page
+    // becomes hosts its own.
+    if (auto* dialogs = web_modal::WebContentsModalDialogManager::FromWebContents(contents_.get())) {
+      dialogs->CloseAllDialogs();
+      dialogs->SetDelegate(nullptr);
+    }
     contents_->SetDelegate(nullptr);
     Observe(nullptr);
     return std::move(contents_);
@@ -921,6 +1241,25 @@ class Peek : public content::WebContentsDelegate,
       case IDC_COPY_URL:
         chrome::CopyURL(browser_, contents_.get());
         return;
+#if BUILDFLAG(ENABLE_PRINTING)
+      case IDC_PRINT:
+      case IDC_BASIC_PRINT: {
+        // As for a tab: not while a dialog is over the page, or when printing is off by policy.
+        PrefService* prefs = browser_->GetProfile()->GetPrefs();
+        const auto* dialogs = web_modal::WebContentsModalDialogManager::FromWebContents(contents_.get());
+        if (!prefs->GetBoolean(prefs::kPrintingEnabled) || contents_->IsCrashed() ||
+            (dialogs && dialogs->IsDialogActive())) {
+          return;
+        }
+        if (command_id == IDC_BASIC_PRINT) {
+          printing::StartBasicPrint(contents_.get());
+        } else {
+          printing::StartPrint(contents_.get(), prefs->GetBoolean(prefs::kPrintPreviewDisabled),
+                               /*has_selection=*/false);
+        }
+        return;
+      }
+#endif
       default:
         return;
     }
@@ -938,6 +1277,10 @@ class Peek : public content::WebContentsDelegate,
       from_ = to_;
     }
     AnimationProgressed(&animation_);
+    // A dialog over the page follows it.
+    for (web_modal::ModalDialogHostObserver& observer : dialog_host_observers_) {
+      observer.OnPositionRequiresUpdate();
+    }
   }
 
   // "Open as tab" and "Open in split view": the card grows to fill the page area, or its right
@@ -1025,6 +1368,7 @@ class Peek : public content::WebContentsDelegate,
   bool closing_ = false;
   base::ScopedObservation<views::Widget, views::WidgetObserver> browser_widget_observation_{this};
   base::ScopedObservation<views::View, views::ViewObserver> page_view_observation_{this};
+  base::ObserverList<web_modal::ModalDialogHostObserver> dialog_host_observers_;
   base::WeakPtrFactory<Peek> weak_factory_{this};
 };
 
@@ -1065,6 +1409,7 @@ content::WebContents* MaybeOpenLinkInPeek(
       browser ? WindowKindOf(browser) : WindowKind::kOther,
       params.triggering_event_info == blink::mojom::TriggeringEventInfo::kFromUntrustedEvent};
   if (!OpensInPeekFrom(browser, source, open)) {
+    MaybeNoticeBackgroundTab(browser, open);
     return nullptr;
   }
   std::unique_ptr<content::WebContents> contents =
@@ -1091,6 +1436,72 @@ bool ShouldShowNewContentsInPeek(BrowserWindowInterface* browser,
 content::WebContents* ShowNewContentsInPeek(BrowserWindowInterface* browser,
                                             std::unique_ptr<content::WebContents> contents) {
   return ShowInPeek(browser, std::move(contents));
+}
+
+void NoticeNewContents(BrowserWindowInterface* browser,
+                       WindowOpenDisposition disposition,
+                       bool user_gesture) {
+  // As in ShouldShowNewContentsInPeek: only the user's input makes this disposition here.
+  if (browser) {
+    MaybeNoticeBackgroundTab(browser, {disposition, /*renderer_initiated=*/true, user_gesture,
+                                       WindowKindOf(browser)});
+  }
+}
+
+std::optional<std::u16string> BackgroundTabNoticeForTesting(BrowserWindowInterface* browser) {
+  Notice* notice = NoticeFor(browser);
+  if (!notice || !notice->button() || !notice->widget()->IsVisible()) {
+    return std::nullopt;
+  }
+  return notice->button()->text();
+}
+
+content::WebContents* BackgroundTabNoticeTabForTesting(BrowserWindowInterface* browser) {
+  Notice* notice = NoticeFor(browser);
+  return notice && notice->tab() ? notice->tab()->GetContents() : nullptr;
+}
+
+bool ClickBackgroundTabNoticeForTesting(BrowserWindowInterface* browser) {
+  Notice* notice = NoticeFor(browser);
+  if (!notice || !notice->button() || !notice->widget()->IsVisible()) {
+    return false;
+  }
+  ClickViewForDemo(notice->button());
+  return true;
+}
+
+bool HoverBackgroundTabNoticeForTesting(BrowserWindowInterface* browser, bool hovered) {
+  Notice* notice = NoticeFor(browser);
+  if (!notice || !notice->button() || !notice->widget()->IsVisible()) {
+    return false;
+  }
+  const gfx::Point center = notice->button()->GetLocalBounds().CenterPoint();
+  const ui::MouseEvent event(hovered ? ui::EventType::kMouseEntered : ui::EventType::kMouseExited,
+                             center, center, base::TimeTicks::Now(), ui::EF_NONE, ui::EF_NONE);
+  if (hovered) {
+    notice->button()->OnMouseEntered(event);
+  } else {
+    notice->button()->OnMouseExited(event);
+  }
+  return true;
+}
+
+bool IsBackgroundTabNoticeAbovePeekForTesting(BrowserWindowInterface* browser) {
+  Notice* notice = NoticeFor(browser);
+  Peek* peek = PeekFor(browser);
+  return notice && notice->widget() && notice->widget()->IsVisible() && peek && peek->widget() &&
+         peek->widget()->IsVisible() &&
+         notice->widget()->IsStackedAbove(peek->widget()->GetNativeView());
+}
+
+void RaisePeekForTesting(BrowserWindowInterface* browser) {
+  if (Peek* peek = PeekFor(browser); peek && peek->widget()) {
+    peek->widget()->StackAtTop();
+  }
+}
+
+size_t BackgroundTabNoticeCountForTesting() {
+  return Notices().size();
 }
 
 bool ClosePeek(BrowserWindowInterface* browser) {

@@ -186,4 +186,9 @@ bool OffersResult(CommandBarMode mode, CommandBarResult kind) {
   return core::command_bar_offers_result(ToCore(mode), ToCore(kind));
 }
 
+bool SearchGoesFirst(CommandBarMode mode, std::optional<double> top_score) {
+  return core::command_bar_search_goes_first(ToCore(mode), top_score.has_value(),
+                                             top_score.value_or(0));
+}
+
 }  // namespace lb

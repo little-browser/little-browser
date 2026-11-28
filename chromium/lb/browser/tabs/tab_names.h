@@ -54,13 +54,16 @@ std::u16string CleanTabName(std::u16string_view typed);
 // the page's title).
 std::u16string NameFromInput(std::u16string_view typed, std::u16string_view page_title);
 
-// The title a tab row shows: the user's name for it; for a pinned tab, its link's page title,
-// whatever page it shows; otherwise the page's title.
-std::u16string TabTitleToShow(const TabCustom& custom, const std::u16string& page_title);
+// The title a tab row shows: the user's name for it; for a pinned tab `asleep` away from its link
+// (`wakes_at_link`), its link's page title; otherwise the page's title. Awake, even woken in the
+// background with `wakes_at_link` still set, it follows its page.
+std::u16string TabTitleToShow(const TabCustom& custom,
+                              const std::u16string& page_title,
+                              bool asleep);
 
-// Whether the row's title is the tab's own (a name, or a pinned tab's link's title), not the
-// page's: the row then shows no "Loading…" title.
-bool HasOwnTitle(const TabCustom& custom);
+// Whether the row's title is the tab's own (a name, or a sleeping pinned tab's link's title), not
+// the page's: the row then shows no "Loading…" title.
+bool HasOwnTitle(const TabCustom& custom, bool asleep);
 
 // Whether a pinned tab is showing a page other than its link (docs/ux.md §6: closing it then takes
 // it back to its link). The part after "#" doesn't count. False without a link or a page.

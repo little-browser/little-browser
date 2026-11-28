@@ -5,6 +5,8 @@
 #ifndef LB_BROWSER_UI_VIEWS_SEARCH_SEARCH_CHOICE_DIALOG_H_
 #define LB_BROWSER_UI_VIEWS_SEARCH_SEARCH_CHOICE_DIALOG_H_
 
+#include <cstddef>
+
 #include "base/functional/callback.h"
 #include "lb/browser/prefs/lb_prefs.h"  // kSearchChoiceShownPref: the choice was offered
 
@@ -25,6 +27,10 @@ void ShowSearchChoice(BrowserWindowInterface* browser, base::OnceClosure on_chos
 
 // Closes the dialog as "Not now" does (the --lb-sidebar-demo=search-again check).
 void CloseSearchChoiceForTesting();
+
+// Picks the `index`th engine in the open dialog and accepts it, as the user does; false if no
+// dialog is open or it has no such engine (the --lb-sidebar-demo=little-window-menu check).
+bool ChooseSearchEngineForTesting(size_t index);
 
 // Whether the dialog is open in any window (the --lb-sidebar-demo=password-manager check).
 bool IsSearchChoiceOpenForTesting();

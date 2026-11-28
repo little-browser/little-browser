@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import("//build/buildflag_header.gni")
 import("//build/config/clang/clang.gni")
 import("//build/rust/rust_static_library.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
@@ -159,11 +160,28 @@ source_set("prefs") {
   ]
 }
 
+declare_args() {
+  # The release's revision, the N of its tag v<Chromium version>-N, which the About page and
+  # chrome://version show after the Chromium version (browser/version/release_version.h). 0: not
+  # a release. build.sh sets it from LB_RELEASE (write_gn_args in chromium/scripts/lib.sh).
+  lb_release_revision = 0
+}
+
+# BUILDFLAG(LB_RELEASE_REVISION) for browser/version/release_version.cc, the one file that
+# includes it, so a new revision recompiles that file only.
+buildflag_header("release_buildflags") {
+  header = "release_buildflags.h"
+  header_dir = "lb/browser/version"
+  flags = [ "LB_RELEASE_REVISION=$lb_release_revision" ]
+}
+
 # Engine logic every Chromium platform builds, with no views and no browser window: the ad
-# blocker's filter lists and per-site rule, tracking parameters, the text helpers element hiding
-# uses, spaces and their saved tabs (Local State lb.spaces, lb.space_tabs), tab names and pinned
-# links, command matching and the search engine choice on Chromium's engines. Unit tested by
-# lb_unittests.
+# blocker's filter lists and per-site rule, merging imported bookmarks into the bookmark model
+# (the desktop's importers and Android's bookmarks file), tracking parameters, the text helpers
+# element hiding uses, spaces and their saved tabs (Local State lb.spaces, lb.space_tabs), tab names and pinned
+# links, command matching, the search engine choice on Chromium's engines, and the release
+# version the About page and chrome://version show (desktop/patches/lb/release-version-ui.patch,
+# android/patches/release-version.patch). Unit tested by lb_unittests.
 source_set("engine") {
   configs += [ ":unsafe_buffers" ]
   sources = [
@@ -171,6 +189,8 @@ source_set("engine") {
     "browser/adblock/filter_lists.h",
     "browser/adblock/site_ads.cc",
     "browser/adblock/site_ads.h",
+    "browser/bookmarks/bookmark_merge.cc",
+    "browser/bookmarks/bookmark_merge.h",
     "browser/command_bar/command_matching.cc",
     "browser/command_bar/command_matching.h",
     "browser/importer/import_text.cc",
@@ -189,6 +209,8 @@ source_set("engine") {
     "browser/tabs/pinned_groups.h",
     "browser/tabs/tab_names.cc",
     "browser/tabs/tab_names.h",
+    "browser/version/release_version.cc",
+    "browser/version/release_version.h",
   ]
   public_deps = [
     ":core_bridge",
@@ -200,7 +222,10 @@ source_set("engine") {
     "//third_party/blink/public/common",  # tracking parameters: the loader throttle
   ]
   deps = [
+    ":release_buildflags",
     "//base",
+    "//base/version_info",  # the release version: the Chromium version it extends
+    "//components/bookmarks/browser",  # merging imported bookmarks
     "//components/search_engines",  # the search engine choice
     "//components/subresource_filter/core/common",
     "//components/subresource_filter/tools/rule_parser",
@@ -211,8 +236,8 @@ source_set("engine") {
   ]
 }
 
-# Our browser-process code every Chromium platform runs: the ad blocker's list updates, the
-# browser side of element hiding, and merging imported bookmarks into the bookmark model. chrome/browser depends on it (chromium/patches/lb-browser.patch)
+# Our browser-process code every Chromium platform runs: the ad blocker's list updates and the
+# browser side of element hiding. chrome/browser depends on it (chromium/patches/lb-browser.patch)
 # and the shared patches call into it. It depends on Chromium's small browser targets, not on
 # //chrome/browser itself, so there is no cycle.
 source_set("browser") {
@@ -222,8 +247,6 @@ source_set("browser") {
     "browser/adblock/ad_blocker.h",
     "browser/adblock/element_hiding_host.cc",
     "browser/adblock/element_hiding_host.h",
-    "browser/bookmarks/bookmark_merge.cc",
-    "browser/bookmarks/bookmark_merge.h",
   ]
   public_deps = [
     ":engine",
@@ -268,6 +291,7 @@ source_set("browser") {
     deps += [
       "//chrome/browser/profiles:profile_manager",
       "//chrome/browser/search_engines",  # the search engine choice
+      "//components/performance_manager",  # tab_rules_android.cc's page nodes
       "//components/search_engines",
       "//lb/android:jni_headers",
     ]
@@ -282,6 +306,8 @@ if (!is_android) {
   source_set("model") {
     configs += [ ":unsafe_buffers" ]
     sources = [
+      "browser/demo/demo_log.cc",  # the demos' result log, for the updater's demo too
+      "browser/demo/demo_log.h",
       "browser/first_run/first_run_questions.cc",
       "browser/first_run/first_run_questions.h",
       "browser/importer/imported_tabs.cc",
@@ -312,6 +338,8 @@ if (!is_android) {
       "browser/tabs/sidebar_width.h",
       "browser/tabs/tab_to_show.cc",
       "browser/tabs/tab_to_show.h",
+      "browser/tabs/toolbar_place.cc",
+      "browser/tabs/toolbar_place.h",
       "browser/ui/lb_command_ids.h",  # also in the sidebar's views target, which includes it
       "browser/update/update_reminder.cc",
       "browser/update/update_reminder.h",
@@ -369,10 +397,14 @@ if (is_mac) {
       "browser/update/updater_mac.mm",
     ]
     deps = [
+      ":engine",  # the release version the update prompt shows
       ":model",
       "//base",
     ]
-    frameworks = [ "Foundation.framework" ]
+    frameworks = [
+      "AppKit.framework",
+      "Foundation.framework",
+    ]
   }
 }
 
@@ -384,10 +416,13 @@ if (!is_android) {
       "browser/adblock/ad_blocking_unittest.cc",
       "browser/adblock/filter_lists_unittest.cc",
       "browser/adblock/site_ads_unittest.cc",
+      "browser/bookmarks/bookmark_merge_unittest.cc",
+      "browser/demo/demo_log_unittest.cc",
       "browser/command_bar/command_matching_unittest.cc",
       "browser/extensions/update_check_unittest.cc",
       "browser/extensions/web_store_unittest.cc",
       "browser/first_run/first_run_questions_unittest.cc",
+      "browser/help/help_url_unittest.cc",
       "browser/importer/imported_tabs_unittest.cc",
       "browser/importer/chromium_profile_reader_unittest.cc",
       "browser/importer/cookie_decryptor_unittest.cc",
@@ -412,16 +447,24 @@ if (!is_android) {
       "browser/tabs/sidebar_width_unittest.cc",
       "browser/tabs/tab_names_unittest.cc",
       "browser/tabs/tab_to_show_unittest.cc",
+      "browser/tabs/toolbar_place_unittest.cc",
+      "browser/ui/views/frame/contents_card_unittest.cc",
       "core_bridge/core_bridge_unittest.cc",
       "common/page_names_unittest.cc",
       "browser/update/update_reminder_unittest.cc",
+      "browser/version/release_version_unittest.cc",
     ]
     deps = [
       ":core_bridge",
+      ":engine",
       ":model",
       ":page_names",
       "//base",
       "//base/test:test_support",
+      "//components/bookmarks/browser",  # merging imported bookmarks
+      "//components/bookmarks/test",
+      "//ui/base",  # merging imported bookmarks: the model's folder names
+      "//base/version_info",
       "//chrome/app:command_ids",
       "//chrome/common:chrome_features",  # HTTPS-First's default
       "//chrome/common:constants",  # pref defaults

@@ -157,23 +157,40 @@ pub fn name_from_input(typed: &str, page_title: &str) -> String {
     }
 }
 
-/// The title a tab row shows: the user's name for it; for a pinned tab, its link's page title
-/// (`pinned_title`, empty without a link or before the link's page has one), whatever page it
-/// shows; otherwise the page's title.
-pub fn tab_title_to_show(name: &str, pinned_title: &str, page_title: &str) -> String {
+/// The link's title a pinned tab's row shows instead of its page's: only while it is `asleep` and
+/// wakes at its link (it was closed away from it, docs/ux.md §6). Empty for none, also before the
+/// link's page has a title. Awake, even woken in the background with `wakes_at_link` still set,
+/// its row follows the page it shows.
+fn sleeping_link_title(pinned_link: &PinnedLink, asleep: bool) -> &str {
+    if asleep && pinned_link.wakes_at_link && !pinned_link.link.is_empty() {
+        &pinned_link.title
+    } else {
+        ""
+    }
+}
+
+/// The title a tab row shows: the user's name for it; for a pinned tab `asleep` away from its
+/// link, its link's page title, the page it goes back to; otherwise the page's title.
+pub fn tab_title_to_show(
+    name: &str,
+    pinned_link: &PinnedLink,
+    page_title: &str,
+    asleep: bool,
+) -> String {
+    let link_title = sleeping_link_title(pinned_link, asleep);
     if !name.is_empty() {
         name.to_owned()
-    } else if !pinned_title.is_empty() {
-        pinned_title.to_owned()
+    } else if !link_title.is_empty() {
+        link_title.to_owned()
     } else {
         page_title.to_owned()
     }
 }
 
-/// Whether the row's title is the tab's own (a name, or a pinned tab's link's title), not the
-/// page's: the row then shows no "Loading…" title.
-pub fn has_own_title(name: &str, pinned_title: &str) -> bool {
-    !name.is_empty() || !pinned_title.is_empty()
+/// Whether the row's title is the tab's own (a name, or a sleeping pinned tab's link's title), not
+/// the page's: the row then shows no "Loading…" title.
+pub fn has_own_title(name: &str, pinned_link: &PinnedLink, asleep: bool) -> bool {
+    !name.is_empty() || !sleeping_link_title(pinned_link, asleep).is_empty()
 }
 
 fn without_fragment(url: &str) -> &str {
@@ -513,18 +530,72 @@ mod tests {
         assert_eq!(name_from_input("  ", "Inbox"), "");
     }
 
-    #[test]
-    fn the_title_to_show_is_the_name_then_the_links_title_then_the_page_title() {
-        assert_eq!(tab_title_to_show("Mail", "Inbox (3)", "Sent"), "Mail");
-        assert_eq!(tab_title_to_show("", "Inbox (3)", "Sent"), "Inbox (3)");
-        assert_eq!(tab_title_to_show("", "", "Sent"), "Sent");
+    fn link_titled(title: &str, wakes_at_link: bool) -> PinnedLink {
+        PinnedLink {
+            link: "https://mail.example.com/".into(),
+            wakes_at_link,
+            title: title.into(),
+        }
     }
 
     #[test]
-    fn a_name_or_a_links_title_is_the_tabs_own_title() {
-        assert!(has_own_title("Mail", ""));
-        assert!(has_own_title("", "Inbox"));
-        assert!(!has_own_title("", ""));
+    fn a_sleeping_pinned_tab_shows_its_links_title_an_awake_one_its_pages() {
+        let asleep = link_titled("Inbox (3)", true);
+        assert_eq!(tab_title_to_show("Mail", &asleep, "Sent", true), "Mail");
+        assert_eq!(tab_title_to_show("", &asleep, "Sent", true), "Inbox (3)");
+        // Awake (browsing away from its link, or back on it): the page's title.
+        assert_eq!(
+            tab_title_to_show("", &link_titled("Inbox (3)", false), "Sent", false),
+            "Sent"
+        );
+        // No title for the link yet, or no link: the page's title.
+        assert_eq!(
+            tab_title_to_show("", &link_titled("", true), "Sent", true),
+            "Sent"
+        );
+        let no_link = PinnedLink {
+            wakes_at_link: true,
+            title: "Inbox".into(),
+            ..PinnedLink::default()
+        };
+        assert_eq!(tab_title_to_show("", &no_link, "Sent", true), "Sent");
+    }
+
+    #[test]
+    fn a_pinned_tab_woken_in_the_background_follows_its_page() {
+        // Reloaded without being shown (tab menu Reload): awake on the page it was closed on, it
+        // still wakes at its link when closed, but its row shows that page and its loading title.
+        let woken = link_titled("Inbox", true);
+        assert_eq!(tab_title_to_show("", &woken, "News", false), "News");
+        assert!(!has_own_title("", &woken, false));
+        assert_eq!(tab_title_to_show("Mail", &woken, "News", false), "Mail");
+        assert!(has_own_title("Mail", &woken, false));
+    }
+
+    #[test]
+    fn a_name_or_a_sleeping_links_title_is_the_tabs_own_title() {
+        assert!(has_own_title("Mail", &PinnedLink::default(), false));
+        assert!(has_own_title("", &link_titled("Inbox", true), true));
+        assert!(!has_own_title("", &link_titled("Inbox", false), true));
+        assert!(!has_own_title("", &link_titled("Inbox", false), false));
+        assert!(!has_own_title("", &link_titled("", true), true));
+        assert!(!has_own_title("", &PinnedLink::default(), true));
+    }
+
+    #[test]
+    fn closing_a_pinned_tab_away_from_its_link_brings_back_the_links_title() {
+        let on_link =
+            take_pinned_title(link_titled("", false), "https://mail.example.com/", "Inbox");
+        // Browsing elsewhere: the row follows the page; the link keeps its title.
+        let browsing = take_pinned_title(on_link, "https://news.example.com/", "News");
+        assert_eq!(tab_title_to_show("", &browsing, "News", false), "News");
+        // Closed there: asleep, it shows its link's title again.
+        let asleep = after_pinned_sleep(browsing, "https://news.example.com/");
+        assert_eq!(tab_title_to_show("", &asleep, "News", true), "Inbox");
+        // Shown again, it loads its link and follows that page.
+        let (load_link, shown) = on_tab_shown(asleep);
+        assert!(load_link);
+        assert_eq!(tab_title_to_show("", &shown, "Inbox", false), "Inbox");
     }
 
     #[test]

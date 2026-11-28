@@ -19,7 +19,10 @@
 # certificate secret is empty it falls back to an ad-hoc signature, and without notarisation
 # credentials it signs but doesn't notarise; it says so either way.
 #
-# <version> is the release, e.g. 157.0.8103.78-1. It goes into the app's CFBundleVersion as
+# <version> is the release, e.g. 157.0.8103.78-1, which the build has to have been made for
+# (LB_RELEASE=<version> build.sh), so that the About page shows it: --release stops on a build
+# made for another revision or none, a local run warns, and so does a run without a version on a
+# build made for a release. It goes into the app's CFBundleVersion as
 # <Chromium build>.<patch>.<revision>, which the updater compares, and turns on the updater:
 # Sparkle (pinned below) in Contents/Frameworks, the feed and public key in Info.plist, and
 # LittleBrowser-macos-<arch>.update.json next to the disk image with the disk image's EdDSA
@@ -52,7 +55,7 @@ SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARK
 UPDATE_CHECK_SECONDS=14400
 
 # shellcheck source=../../chromium/scripts/lib.sh
-source "$CHROMIUM/scripts/lib.sh"   # die, host_arch, out_dir, arch_from_machine
+source "$CHROMIUM/scripts/lib.sh"   # die, host_arch, out_dir, arch_from_machine, release_revision
 warn() { echo "warning: $*" >&2; }
 usage() { die "usage: package-macos.sh [--arch <arch>] [--release] [<version>] (--release needs the version)"; }
 
@@ -71,7 +74,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 [ "$RELEASE" = 0 ] || [ -n "$VERSION" ] || usage
-APP="$DESKTOP/build/src/$(out_dir Default "$ARCH" "$HOST")/Little Browser.app"
+OUT="$DESKTOP/build/src/$(out_dir Default "$ARCH" "$HOST")"
+APP="$OUT/Little Browser.app"
 FW="$APP/Contents/Frameworks/Little Browser Framework.framework"
 HELPERS="$FW/Helpers"
 [ -d "$APP" ] || die "no release build at $APP"
@@ -80,10 +84,22 @@ HELPERS="$FW/Helpers"
 UPDATE_FEED_URL="${LB_UPDATE_FEED_URL:-https://downloads.littlebrowser.app/updates/macos-$ARCH.xml}"
 # shellcheck source=../../chromium/VERSIONS
 source "$CHROMIUM/VERSIONS"
+# The revision the build was made for, which its About page shows: lb_release_revision in its
+# args.gn (write_gn_args in chromium/scripts/lib.sh, or set by hand), the last one GN would read; 0
+# for none.
+BUILT="$(sed -n 's/^[[:space:]]*lb_release_revision[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+  "$OUT/args.gn" 2>/dev/null | tail -n 1 || true)"
+BUILT="$((10#${BUILT:-0}))"
+REVISION=""
 if [ -n "$VERSION" ]; then
-  [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){3}-([0-9]+)$ ]] || die "version $VERSION is not <chromium version>-<revision>"
-  [ "${VERSION%-*}" = "$CHROMIUM_VERSION" ] ||
-    die "version $VERSION is not on this tree's Chromium version, $CHROMIUM_VERSION"
+  REVISION="$(release_revision "$VERSION" "$CHROMIUM_VERSION")"
+  if [ "$BUILT" != "$REVISION" ]; then
+    mismatch="the build is for revision $BUILT (0: not a release), so its About page doesn't show $VERSION; build it with LB_RELEASE=$VERSION"
+    if [ "$RELEASE" = 1 ]; then die "$mismatch"; fi
+    warn "$mismatch"
+  fi
+elif [ "$BUILT" != 0 ]; then
+  warn "the build is for release $CHROMIUM_VERSION-$BUILT, which its About page shows: package it with that version, or this app has no updater and its bundle version doesn't match"
 fi
 
 # Keychain identities only count as valid in a user's own launchd session. The GitLab runner is a
@@ -221,7 +237,7 @@ for key in "${SPARKLE_KEYS[@]}"; do
   plutil -remove "$key" "$PLIST" 2>/dev/null || true
 done
 IFS=. read -r _ _ build patch <<<"$CHROMIUM_VERSION"
-BUNDLE_VERSION="$build.$patch${VERSION:+.${VERSION##*-}}"
+BUNDLE_VERSION="$build.$patch${REVISION:+.$REVISION}"
 plutil -replace CFBundleVersion -string "$BUNDLE_VERSION" "$PLIST"
 
 if [ -n "$UPDATE_KEY_JSON" ]; then

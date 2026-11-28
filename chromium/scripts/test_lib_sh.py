@@ -5,6 +5,7 @@
 desktop platform entries (desktop/platforms/*.sh)."""
 
 import os
+import re
 import shlex
 import shutil
 import stat
@@ -13,6 +14,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_patches  # noqa: E402
@@ -24,8 +26,11 @@ LIB = os.path.join(SCRIPTS, "lib.sh")
 
 
 # Variables lib.sh reads from the environment: a test sets the ones it needs, so a developer's own
-# doesn't change the results.
-LIB_ENV = ("CI", "LB_CC_WRAPPER")
+# (a release build's LB_RELEASE, say) doesn't change the results, and a developer's credentials
+# never reach a test's output.
+LIB_ENV = ("CI", "LB_RELEASE", "CHROMIUM_VERSION", "LB_CC_WRAPPER", "LB_NINJA_FLAGS", "LB_IMDS_URL",
+           "SCCACHE_BUCKET", "SCCACHE_IDLE_TIMEOUT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+           "AWS_SESSION_TOKEN")
 
 
 def bash(script, env=None, check=True):
@@ -37,6 +42,31 @@ def bash(script, env=None, check=True):
     if check and result.returncode != 0:
         raise AssertionError(f"bash failed ({result.returncode}):\n{result.stderr}")
     return result
+
+
+# Models sccache 0.19's server commands as a build uses them: --show-stats always succeeds (it
+# starts no server), --start-server fails when the cache is unreachable (UNREACHABLE set), and
+# --stop-server fails when no server runs. Each call is logged with the idle timeout it sees.
+FAKE_SCCACHE = """#!/bin/sh
+echo "sccache $* idle=${SCCACHE_IDLE_TIMEOUT:-unset}" >> "$SCCACHE_LOG"
+case "$1" in
+  --start-server)
+    if [ -n "$UNREACHABLE" ]; then echo 'cache storage failed to read' >&2; exit 2; fi ;;
+  --stop-server) exit 2 ;;
+esac
+exit 0
+"""
+
+
+class LibEnvTest(unittest.TestCase):
+    # A developer's own cache, flags and credentials don't reach the tests.
+    def test_the_developers_environment_is_left_out(self):
+        mine = {k: "mine" for k in ("SCCACHE_BUCKET", "LB_NINJA_FLAGS", "LB_IMDS_URL",
+                                    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+                                    "AWS_SESSION_TOKEN", "SCCACHE_IDLE_TIMEOUT")}
+        with mock.patch.dict(os.environ, mine):
+            out = bash('for k in ' + " ".join(mine) + '; do printf "%s|" "${!k:-}"; done').stdout
+        self.assertEqual(out, "|" * len(mine))
 
 
 def write(path, text, executable=False):
@@ -147,6 +177,16 @@ class VersionPinsTest(unittest.TestCase):
     def test_a_changed_pin_counts(self):
         self.assertNotEqual(self.pins("A=1\nB_TAG=2-1\n"), self.pins("A=1\nB_TAG=2-2\n"))
 
+    # VERSIONS is sourced: what counts is the value bash reads.
+    def test_inline_comments_quoting_and_spacing_dont_count(self):
+        self.assertEqual(self.pins("A=1\nB_TAG=2-1\n"),
+                         self.pins("A='1'  # one\nB_TAG=\"2-1\"   \n"))
+        self.assertEqual(self.pins("A=1  # one\n"), "A=1\n")
+
+    def test_a_pipe_is_read_once(self):
+        out = bash("version_pins <(printf 'A=1\\nB=2\\n')").stdout
+        self.assertEqual(out, "A=1\nB=2\n")
+
     def test_our_versions_have_pins(self):
         pins = self.pins(open(os.path.join(REPO, "chromium", "VERSIONS")).read())
         self.assertIn("CHROMIUM_VERSION=", pins)
@@ -179,7 +219,7 @@ class TreeLinksTest(unittest.TestCase):
 
     def test_android_build_stops_on_a_tree_for_another_checkout(self):
         # build.sh checks the links before building, as the desktop's does.
-        for rel in ("android/scripts/build.sh", "chromium/scripts/lib.sh"):
+        for rel in ("android/scripts/build.sh", "chromium/scripts/lib.sh", "chromium/VERSIONS"):
             os.makedirs(os.path.dirname(os.path.join(self.repo, rel)), exist_ok=True)
             shutil.copy2(os.path.join(REPO, rel), os.path.join(self.repo, rel))
         os.makedirs(os.path.join(self.repo, "android/build/src"))
@@ -225,16 +265,68 @@ class GnArgsTest(unittest.TestCase):
         with open(os.path.join(out_dir, "args.gn")) as f:
             self.assertEqual(f.read(), 'is_debug = false\ntarget_cpu = "arm64"\n')
 
+    def test_write_gn_args_for_a_release(self):
+        tmp = tempfile.mkdtemp()
+        a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
+        out_dir = os.path.join(tmp, "out")
+        bash(f"write_gn_args {out_dir} arm64 {a}",
+             env={"LB_RELEASE": "157.0.8103.78-3", "CHROMIUM_VERSION": "157.0.8103.78"})
+        with open(os.path.join(out_dir, "args.gn")) as f:
+            self.assertEqual(f.read(), 'is_debug = false\ntarget_cpu = "arm64"\n'
+                                       "lb_release_revision = 3\n")
+
+    # An empty LB_RELEASE (CI without a tag) is no release: the build keeps GN's default, 0.
+    def test_write_gn_args_with_an_empty_release(self):
+        tmp = tempfile.mkdtemp()
+        a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
+        out_dir = os.path.join(tmp, "out")
+        bash(f"write_gn_args {out_dir} arm64 {a}", env={"LB_RELEASE": ""})
+        with open(os.path.join(out_dir, "args.gn")) as f:
+            self.assertNotIn("lb_release_revision", f.read())
+
+    def test_write_gn_args_for_a_release_of_another_version(self):
+        tmp = tempfile.mkdtemp()
+        a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
+        result = bash(f"write_gn_args {tmp}/out arm64 {a}", check=False,
+                      env={"LB_RELEASE": "156.0.1.2-1", "CHROMIUM_VERSION": "157.0.8103.78"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not on this tree's Chromium version, 157.0.8103.78", result.stderr)
+        self.assertFalse(os.path.exists(os.path.join(tmp, "out", "args.gn")))
+
+    # A caller that tests write_gn_args (errexit off there) still sees it fail, with no args.gn.
+    def test_write_gn_args_for_a_wrong_release_fails_in_a_condition_too(self):
+        tmp = tempfile.mkdtemp()
+        a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
+        result = bash(f"if write_gn_args {tmp}/out arm64 {a}; then echo wrote; else echo failed; fi",
+                      env={"LB_RELEASE": "157.0.8103.79-3", "CHROMIUM_VERSION": "157.0.8103.78"})
+        self.assertEqual(result.stdout, "failed\n")
+        self.assertIn("not on this tree's Chromium version", result.stderr)
+        self.assertFalse(os.path.exists(os.path.join(tmp, "out", "args.gn")))
+
+    def test_write_gn_args_for_a_release_needs_the_chromium_version(self):
+        tmp = tempfile.mkdtemp()
+        a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
+        result = bash(f"unset CHROMIUM_VERSION; write_gn_args {tmp}/out arm64 {a}", check=False,
+                      env={"LB_RELEASE": "157.0.8103.78-3"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("source chromium/VERSIONS first", result.stderr)
+
     def test_write_gn_args_with_a_compiler_cache(self):
         tmp = tempfile.mkdtemp()
         a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
-        write(os.path.join(tmp, "bin", "sccache"), "#!/bin/sh\n", executable=True)
+        write(os.path.join(tmp, "bin", "sccache"), FAKE_SCCACHE, executable=True)
+        log = os.path.join(tmp, "calls")
         out_dir = os.path.join(tmp, "out")
         path = f"{tmp}/bin:{os.environ['PATH']}"
-        bash(f"write_gn_args {out_dir} x64 {a}", env={"LB_CC_WRAPPER": "sccache", "PATH": path})
+        bash(f"write_gn_args {out_dir} x64 {a}",
+             env={"LB_CC_WRAPPER": "sccache", "PATH": path, "SCCACHE_LOG": log})
         with open(os.path.join(out_dir, "args.gn")) as f:
             self.assertEqual(f.read().splitlines()[-2:],
                              ['cc_wrapper = "sccache"', "use_clang_modules = false"])
+        # A server already running is replaced by one that lives for the whole build.
+        with open(log) as f:
+            self.assertEqual(f.read().splitlines(), ["sccache --stop-server idle=0",
+                                                     "sccache --start-server idle=0"])
 
     # Only sccache needs Clang modules off; another wrapper leaves the tree's default.
     def test_write_gn_args_with_another_compiler_wrapper(self):
@@ -253,12 +345,12 @@ class GnArgsTest(unittest.TestCase):
     def test_write_gn_args_without_a_cache_that_cannot_start(self):
         tmp = tempfile.mkdtemp()
         a = write(os.path.join(tmp, "a.gn"), "is_debug = false\n")
-        write(os.path.join(tmp, "bin", "sccache"),
-              "#!/bin/sh\necho 'cache storage failed to read' >&2\nexit 2\n", executable=True)
+        write(os.path.join(tmp, "bin", "sccache"), FAKE_SCCACHE, executable=True)
         out_dir = os.path.join(tmp, "out")
         path = f"{tmp}/bin:{os.environ['PATH']}"
         result = bash(f"write_gn_args {out_dir} x64 {a}",
-                      env={"LB_CC_WRAPPER": "sccache", "PATH": path})
+                      env={"LB_CC_WRAPPER": "sccache", "PATH": path, "UNREACHABLE": "1",
+                           "SCCACHE_LOG": os.path.join(tmp, "calls")})
         with open(os.path.join(out_dir, "args.gn")) as f:
             self.assertEqual(f.read(), 'is_debug = false\ntarget_cpu = "x64"\n')
         self.assertIn("cache storage failed to read", result.stderr)
@@ -324,6 +416,119 @@ class GnArgsTest(unittest.TestCase):
             result = bash(f"out_dir Default {args}", check=False)
             self.assertNotEqual(result.returncode, 0, args)
             self.assertIn("is arm64 or x64", result.stderr)
+
+
+class ReleaseRevisionTest(unittest.TestCase):
+    def revision(self, release, chromium="157.0.8103.78"):
+        return bash(f"release_revision {shlex.quote(release)} {chromium}", check=False)
+
+    def test_revisions(self):
+        for release, revision in (("157.0.8103.78-1", "1"), ("157.0.8103.78-3", "3"),
+                                  ("157.0.8103.78-12", "12"), ("157.0.8103.78-9999", "9999")):
+            result = self.revision(release)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, revision + "\n")
+
+    def test_not_a_release_version(self):
+        for release in ("157.0.8103.78", "157.0.8103.78-", "157.0.8103.78-0",
+                        "157.0.8103.78-01", "v157.0.8103.78-1", "157.0.8103-1",
+                        "157.0.8103.78-1a", "157.0.8103.78-1 ", "157.0.8103.78-10000",
+                        "157.0.8103.78-4294967299"):
+            result = self.revision(release)
+            self.assertNotEqual(result.returncode, 0, release)
+            self.assertIn("is not <Chromium version>-<revision>, such as 157.0.8103.78-1",
+                          result.stderr)
+
+    def test_another_chromium_version(self):
+        result = self.revision("157.0.8103.79-1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("release 157.0.8103.79-1 is not on this tree's Chromium version, "
+                      "157.0.8103.78", result.stderr)
+
+
+
+class CiReleaseTagTest(unittest.TestCase):
+    """The release jobs in .gitlab-ci.yml run on the tags release_revision accepts, and their
+    builds get the tag's version, so About shows it."""
+
+    TAGS = ("v157.0.8103.78-1", "v157.0.8103.78-12", "v157.0.8103.78-9999", "v157.0.8103.78-0",
+            "v157.0.8103.78-01", "v157.0.8103.78-10000", "v157.0.8103.78-1-rc1",
+            "v157.0.8103-1", "157.0.8103.78-1", "android-test", "")
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(REPO, ".gitlab-ci.yml")) as f:
+            cls.ci = f.read()
+
+    @staticmethod
+    def accepted(tag):
+        """Whether release_revision accepts <tag> without its v, as a release on its own
+        Chromium version."""
+        release = tag[1:] if tag.startswith("v") else "-"
+        chromium = release.split("-", 1)[0]
+        return bash(f"release_revision {shlex.quote(release)} {shlex.quote(chromium)}",
+                    check=False).returncode == 0 and tag.startswith("v")
+
+    def test_release_rules_take_the_releases_form(self):
+        rules = set(re.findall(r"\$CI_COMMIT_TAG =~ /(.*)/$", self.ci, re.M))
+        self.assertEqual(len(rules), 1, rules)  # one form for every release job
+        rule = re.compile(rules.pop())  # GitLab's RE2 syntax here is also Python's
+        for tag in self.TAGS:
+            self.assertEqual(bool(rule.search(tag)), self.accepted(tag), tag)
+
+    def test_the_macos_build_gets_the_tag(self):
+        # One template builds every architecture (LB_ARCH), so each gets the tag.
+        self.assertRegex(self.ci, r'(?m)^    - LB_RELEASE="\$\{CI_COMMIT_TAG#v\}" '
+                                  r'desktop/scripts/build\.sh "\$LB_ARCH"')
+
+    # The Android job runs on any pipeline: only a release tag gives its build a version.
+    def test_the_android_build_gets_a_release_tag_only(self):
+        line = re.search(r'(?m)^    - (if \[\[ "\$\{CI_COMMIT_TAG:-\}" .*export LB_RELEASE=.*)$',
+                         self.ci)
+        self.assertIsNotNone(line)
+        self.assertRegex(self.ci, r'(?m)^    - android/scripts/build\.sh "\$LB_ANDROID_CPU"'
+                                  r' \|\| build_status=\$\?$')
+        for tag in self.TAGS:
+            out = bash(f'{line.group(1)}\necho "${{LB_RELEASE:-}}"',
+                       env={"CI_COMMIT_TAG": tag}).stdout
+            self.assertEqual(out, (tag[1:] if self.accepted(tag) else "") + "\n", tag)
+
+
+class ReleaseTreeTest(unittest.TestCase):
+    def tree(self, version):
+        src = tempfile.mkdtemp()
+        major, minor, build, patch = version.split(".")
+        write(os.path.join(src, "chrome", "VERSION"),
+              f"MAJOR={major}\nMINOR={minor}\nBUILD={build}\nPATCH={patch}\n")
+        return src
+
+    def test_a_release_on_the_trees_version(self):
+        src = self.tree("157.0.8103.78")
+        bash(f"check_release_tree {src}",
+             env={"LB_RELEASE": "157.0.8103.78-3", "CHROMIUM_VERSION": "157.0.8103.78"})
+
+    # A tree fetched before a VERSIONS bump would show the old version with the new revision.
+    def test_a_release_on_an_older_tree(self):
+        src = self.tree("156.0.7000.1")
+        result = bash(f"check_release_tree {src}", check=False,
+                      env={"LB_RELEASE": "157.0.8103.78-1", "CHROMIUM_VERSION": "157.0.8103.78"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("is Chromium 156.0.7000.1, not 157.0.8103.78 (chromium/VERSIONS)",
+                      result.stderr)
+
+    def test_a_release_without_a_tree(self):
+        result = bash("check_release_tree /nonexistent", check=False,
+                      env={"LB_RELEASE": "157.0.8103.78-1", "CHROMIUM_VERSION": "157.0.8103.78"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("can't read /nonexistent/chrome/VERSION", result.stderr)
+
+    def test_no_release_checks_nothing(self):
+        bash("check_release_tree /nonexistent", env={"CHROMIUM_VERSION": "157.0.8103.78"})
+
+    def test_the_build_scripts_check_it(self):
+        for script in ("desktop/scripts/build.sh", "android/scripts/build.sh"):
+            with open(os.path.join(REPO, script)) as f:
+                self.assertIn('\ncheck_release_tree "$SRC"\n', f.read(), script)
 
 
 FAKE_IMDS_CURL = """#!/bin/sh
@@ -431,15 +636,32 @@ class GnBuildTest(unittest.TestCase):
     # The cache's stats follow the build only when the args use it: a build that left an
     # unreachable sccache out (write_gn_args) doesn't fail at the end asking it for them.
     def test_sccache_stats_only_when_the_args_use_it(self):
-        write(os.path.join(self.src, "bin", "sccache"),
-              f'#!/bin/sh\necho "sccache $*" >> {shlex.quote(self.log)}\n', executable=True)
-        env = {"LB_CC_WRAPPER": "sccache", "PATH": f"{self.src}/bin:{os.environ['PATH']}"}
+        write(os.path.join(self.src, "bin", "sccache"), FAKE_SCCACHE, executable=True)
+        env = {"LB_CC_WRAPPER": "sccache", "PATH": f"{self.src}/bin:{os.environ['PATH']}",
+               "SCCACHE_LOG": self.log}
         bash(f"gn_build {self.src} out/A tools/gn tools/ninja chrome", env=env)
-        self.assertNotIn("sccache --show-stats", self.calls())
+        self.assertFalse([c for c in self.calls() if c.startswith("sccache")])
         write(os.path.join(self.src, "out", "A", "args.gn"),
               'target_cpu = "arm64"\ncc_wrapper = "sccache"\n')
         bash(f"gn_build {self.src} out/A tools/gn tools/ninja chrome", env=env)
-        self.assertEqual(self.calls()[-1], "sccache --show-stats")
+        # The stats, then the server write_gn_args started stops.
+        self.assertEqual([c.split(" idle=")[0] for c in self.calls()[-2:]],
+                         ["sccache --show-stats", "sccache --stop-server"])
+
+    # A failed build still prints the stats and stops the server, and still fails.
+    def test_sccache_stops_after_a_failed_build(self):
+        write(os.path.join(self.src, "bin", "sccache"), FAKE_SCCACHE, executable=True)
+        write(os.path.join(self.src, "tools", "ninja"),
+              f'#!/bin/sh\necho "ninja $*" >> {shlex.quote(self.log)}\nexit 1\n', executable=True)
+        write(os.path.join(self.src, "out", "A", "args.gn"),
+              'target_cpu = "arm64"\ncc_wrapper = "sccache"\n')
+        result = bash(f"gn_build {self.src} out/A tools/gn tools/ninja chrome; echo reached",
+                      env={"PATH": f"{self.src}/bin:{os.environ['PATH']}", "SCCACHE_LOG": self.log},
+                      check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("reached", result.stdout)
+        self.assertEqual([c.split(" idle=")[0] for c in self.calls()[-2:]],
+                         ["sccache --show-stats", "sccache --stop-server"])
 
     def test_gen_failure_stops_the_build(self):
         write(os.path.join(self.src, "tools", "gn"), "#!/bin/sh\nexit 3\n", executable=True)

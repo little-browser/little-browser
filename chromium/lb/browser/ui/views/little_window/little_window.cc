@@ -30,6 +30,8 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/common/chrome_switches.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -41,6 +43,7 @@
 #include "lb/browser/little_window/little_window_rules.h"
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
+#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
 #include "ui/base/base_window.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -58,6 +61,7 @@
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/window/non_client_view.h"
 #include "ui/views/widget/widget_observer.h"
 #include "url/gurl.h"
 
@@ -67,8 +71,9 @@ namespace {
 
 constexpr char16_t kCopyUrl[] = u"Copy URL";
 
-// A little window's title bar and toolbar row, before there is one to measure (macOS 26).
-constexpr int kTypicalChromeHeight = 66;
+// A little window's one row above its page and the line under it, before there is one to measure
+// (macOS 26).
+constexpr int kTypicalChromeHeight = 39;
 
 // The newest little window of `profile` (to step the next one down from), if any.
 BrowserWindowInterface* NewestLittleWindow(Profile* profile) {
@@ -85,10 +90,19 @@ BrowserWindowInterface* NewestLittleWindow(Profile* profile) {
 }
 
 gfx::Rect NewLittleWindowBounds(Profile* profile) {
-  const display::Display display = display::Screen::Get()->GetDisplayForNewWindows();
+  // Its parent: the profile's window with tabs it opens over, on that window's screen.
+  std::optional<gfx::Rect> parent;
+  if (BrowserWindowInterface* window =
+          ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
+      window && window->GetWindow()) {
+    parent = window->GetWindow()->GetBounds();
+  }
+  const display::Display display =
+      parent ? display::Screen::Get()->GetDisplayMatching(*parent)
+             : display::Screen::Get()->GetDisplayForNewWindows();
   BrowserWindowInterface* newest = NewestLittleWindow(profile);
   if (!newest) {
-    return LittleWindowBounds(display.work_area(), std::nullopt, kTypicalChromeHeight);
+    return LittleWindowBounds(display.work_area(), parent, std::nullopt, kTypicalChromeHeight);
   }
   // The newest one's window, and how much of it isn't its page.
   const gfx::Rect window = newest->GetWindow()->GetBounds();
@@ -96,7 +110,7 @@ gfx::Rect NewLittleWindowBounds(Profile* profile) {
   const int chrome = view && view->contents_container()
                          ? window.height() - view->contents_container()->height()
                          : kTypicalChromeHeight;
-  return LittleWindowBounds(display.work_area(), window, chrome);
+  return LittleWindowBounds(display.work_area(), parent, window, chrome);
 }
 
 void AddAsActiveTab(BrowserWindowInterface* window,
@@ -165,24 +179,54 @@ class LittleWindowControls : public views::View, public views::WidgetObserver {
   // views::View:
   void AddedToWidget() override {
     observation_.Observe(GetWidget());
+    WatchAddress();
     MaybeScheduleUiSnapshot(GetWidget(), "lb-ui-snapshot-little-window");
   }
-  void RemovedFromWidget() override { observation_.Reset(); }
+  void RemovedFromWidget() override {
+    observation_.Reset();
+    StopAddressClick();
+  }
+  ~LittleWindowControls() override { StopAddressClick(); }
 
   // views::WidgetObserver:
   void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
+    WatchAddress();
     if (active) {
       UpdateLabel();
     }
   }
+  void OnBoundsChanged(const gfx::Rect& previous_bounds) override { WatchAddress(); }
   void OnWidgetDestroying(views::Widget* widget) override { observation_.Reset(); }
 
  private:
   void UpdateLabel() { move_->SetText(OpenInSpaceLabel(SpaceNameFor(browser_->GetProfile()))); }
 
+  // The toolbar this row is in has the location bar.
+  void WatchAddress() {
+    auto* toolbar = address_ ? nullptr : views::AsViewClass<ToolbarView>(parent());
+    if (LocationBarView* bar = toolbar ? toolbar->location_bar_view() : nullptr) {
+      address_ = bar;
+      address_click_.set_location_bar(bar);
+      address_->AddPreTargetHandler(&address_click_);
+    }
+  }
+
+  void StopAddressClick() {
+    if (address_) {
+      address_->RemovePreTargetHandler(&address_click_);
+      address_click_.set_location_bar(nullptr);
+      address_ = nullptr;
+    }
+  }
+
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<views::ImageButton> copy_ = nullptr;
   raw_ptr<views::MdTextButton> move_ = nullptr;
+  // A click on the address (Chromium's read-only one) opens the command bar on it
+  // (ShowLittleWindowAddressBar) instead of selecting its text.
+  AddressClick address_click_{base::BindRepeating(
+      [](BrowserWindowInterface* browser) { ShowLittleWindowAddressBar(browser); }, browser_)};
+  raw_ptr<views::View> address_ = nullptr;  // the location bar, while it has address_click_
   base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
   PrefChangeRegistrar spaces_;
   PrefChangeRegistrar active_space_;
@@ -298,7 +342,11 @@ void AddLittleWindowControls(views::View* toolbar, BrowserWindowInterface* brows
   }
 }
 
-bool ShowLittleWindowCommandBar(BrowserWindowInterface* browser) {
+namespace {
+
+// The command bar's controller for `browser`: its own, or, in a window without our sidebar (a
+// little window), the profile's window with tabs (brought to the front), and with none, a new one.
+SidebarController* CommandBarControllerFor(BrowserWindowInterface* browser) {
   SidebarController* controller = SidebarController::FromBrowser(browser);
   if (!controller) {
     BrowserWindowInterface* window =
@@ -313,8 +361,42 @@ bool ShowLittleWindowCommandBar(BrowserWindowInterface* browser) {
     BrowserWindowInterface* window = chrome::OpenEmptyWindow(browser->GetProfile());
     controller = window ? SidebarController::FromBrowser(window) : nullptr;
   }
-  if (controller) {
+  return controller;
+}
+
+}  // namespace
+
+bool ShowLittleWindowCommandBar(BrowserWindowInterface* browser) {
+  if (SidebarController* controller = CommandBarControllerFor(browser)) {
     controller->ShowCommandBar(CommandBarMode::kLittleWindow);
+  }
+  return true;
+}
+
+bool ShowLittleWindowAddressBar(BrowserWindowInterface* little) {
+  tabs::TabInterface* tab = little ? little->GetTabStripModel()->GetActiveTab() : nullptr;
+  if (!tab || WindowKindOf(little) != WindowKind::kLittle) {
+    return false;
+  }
+  if (SidebarController* controller = CommandBarControllerFor(little)) {
+    controller->ShowCommandBarForTab(CommandBarMode::kLittleWindow, tab);
+  }
+  return true;
+}
+
+bool ClickLittleWindowAddressForTesting(BrowserWindowInterface* little) {
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(little);
+  LocationBarView* bar = view ? view->GetLocationBarView() : nullptr;
+  views::View* address = bar ? bar->omnibox_view() : nullptr;
+  if (!address || !address->GetWidget()) {
+    return false;
+  }
+  gfx::Point point = address->GetLocalBounds().CenterPoint();
+  views::View::ConvertPointToWidget(address, &point);
+  for (ui::EventType type : {ui::EventType::kMousePressed, ui::EventType::kMouseReleased}) {
+    ui::MouseEvent event(type, point, point, base::TimeTicks::Now(), ui::EF_LEFT_MOUSE_BUTTON,
+                         ui::EF_LEFT_MOUSE_BUTTON);
+    address->GetWidget()->OnMouseEvent(&event);
   }
   return true;
 }
@@ -357,6 +439,24 @@ bool ClickCopyUrlForTesting(BrowserWindowInterface* browser) {
   }
   ClickViewForDemo(controls->copy_button());
   return true;
+}
+
+LittleWindowRow GetLittleWindowRowForTesting(BrowserWindowInterface* browser) {
+  LittleWindowRow row;
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser);
+  views::Widget* widget = view ? view->GetWidget() : nullptr;
+  LocationBarView* bar = view ? view->GetLocationBarView() : nullptr;
+  if (!widget || !bar || !view->contents_container()) {
+    return row;
+  }
+  row.close_button = CloseButtonBoundsForTesting(widget);
+  row.address = bar->ConvertRectToWidget(bar->GetLocalBounds());
+  row.page_top = view->contents_container()->ConvertRectToWidget(gfx::Rect()).y();
+  views::NonClientView* frame = widget->non_client_view();
+  row.hit_after_buttons = frame->NonClientHitTest(
+      gfx::Point(row.close_button.right() + 50, row.close_button.CenterPoint().y()));
+  row.hit_on_address = frame->NonClientHitTest(row.address.CenterPoint());
+  return row;
 }
 
 }  // namespace lb

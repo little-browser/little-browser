@@ -15,17 +15,15 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/views/profiles/profile_menu_coordinator.h"
-#include "chrome/browser/ui/views/profiles/profile_menu_view_base.h"
 #include "lb/browser/demo/demo_report.h"
 #include "lb/browser/spaces/space_model.h"
-#include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/profiles/space_avatar.h"
 #include "lb/browser/ui/views/sidebar/sidebar_controller.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_rep.h"
 #include "ui/gfx/skia_util.h"
 #include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 
@@ -65,27 +63,26 @@ std::string Flag(bool value) {
   return value ? "1" : "0";
 }
 
-// The profile menu is open: report, and let --lb-ui-snapshot-dialog capture it.
-void CheckMenu(base::WeakPtr<BrowserWindowInterface> browser, std::string detail, bool pass) {
-  ProfileMenuCoordinator* menu = browser ? ProfileMenuCoordinator::From(browser.get()) : nullptr;
-  const bool open = menu && menu->IsShowing();
-  ReportDemo(kMode, pass && open, detail + " menu_open=" + Flag(open));
-  if (open) {
-    MaybeScheduleUiSnapshot(menu->GetProfileMenuViewBaseForTesting()->GetWidget(),
-                            "lb-ui-snapshot-dialog");
-  }
-}
-
-// After the icon change: the button shows the new emoji. Then opens the profile menu.
+// After the icon change: the button's image has the new emoji, and the button stays hidden (the
+// toolbar has no profile button; the profile menu is the ⋮ menu's Profile submenu).
 void CheckNewIcon(base::WeakPtr<BrowserWindowInterface> browser, std::string detail, bool pass) {
   if (!browser) {
     ReportDemo(kMode, false, "the window went away");
     return;
   }
   const bool new_icon = ShowsEmoji(browser.get(), SpaceIcons()[2]);
-  detail += " new_icon=" + Flag(new_icon);
+  views::LabelButton* button = AvatarButton(browser.get());
+  const bool hidden = !button || !button->GetVisible();
+  // Cmd+Shift+M (the profile menu's shortcut) opens the ⋮ menu, which has the Profile submenu.
   chrome::ExecuteCommand(browser.get(), IDC_SHOW_AVATAR_MENU);
-  PostDemoTask(base::BindOnce(&CheckMenu, browser, detail, pass && new_icon), base::Seconds(1));
+  views::MenuController* menu = views::MenuController::GetActiveInstance();
+  const bool menu_opens = menu != nullptr;
+  if (menu) {
+    menu->Cancel(views::MenuController::ExitType::kAll);
+  }
+  ReportDemo(kMode, pass && new_icon && hidden && menu_opens,
+             detail + " new_icon=" + Flag(new_icon) + " button_hidden=" + Flag(hidden) +
+                 " avatar_shortcut_opens_menu=" + Flag(menu_opens));
 }
 
 // After the switch: the button shows the second space's emoji, not the first's. Then changes the

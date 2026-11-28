@@ -14,6 +14,7 @@ step, no cookies, no analytics.
 | `/downloads` | Pick and install a build, with each file's SHA-256 |
 | `/releases` | Release notes, one anchor per version (`#v<version>`), drawn from `releases.json` |
 | `/privacy` | The privacy policy |
+| `/terms` | The terms of use; the Android welcome screen links to it (`android/patches/welcome-terms.patch`) |
 
 - **A feature page is platform-neutral.** It describes the feature, not a platform. Its
   *Availability* table (one row per platform) is the only platform-specific part: when a platform
@@ -56,8 +57,8 @@ and `sitemap.xml` with each page's alternates. Never edit the copies, the marked
   text into every language in the same change.
 - **Adding a language:** an entry in `LANGS` (URL directory, hreflang code, its own name), a
   `site-i18n/<code>.json`, and the same in `site.js`' `base` pattern.
-- `/privacy` and the 404 page stay English (legal text; one 404 file). Translated pages link to the
-  English privacy page.
+- `/privacy`, `/terms` and the 404 page stay English (legal text; one 404 file). Translated pages
+  link to the English privacy policy and terms.
 - **Choosing a language:** every address is its own page with `hreflang` alternates, so search
   engines index each one. A first visit to an English page goes to the language the browser asks
   for, if there is one (English first in the browser's list stays English; Traditional Chinese

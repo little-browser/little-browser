@@ -1,0 +1,304 @@
+# Little Browser: in a normal window with the sidebar, the toolbar (back, forward, reload, the
+# address, extensions, downloads and the menu) is at the top of the sidebar and nothing is above
+# the page (docs/ux.md §2). Chromium's own ToolbarView moves there (lb::PlaceToolbar, on the
+# strip's mode), so everything pointing at it keeps working; in the sidebar its
+# address gets a row of its own under the buttons, and the find bar goes at the page's top right,
+# not under the address. The tabbed layout leaves the moved toolbar's width out of the page's
+# minimum, still tells the strip where the window buttons are, and doesn't fade the toggle the
+# toolbar's row has borrowed. A popup from the toolbar in a slid-in hidden sidebar keeps it out
+# (lb::KeepsSidebarOutForPopup), watched until nothing does.
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -38,6 +38,7 @@
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "lb/browser/ui/views/frame/contents_card.h"
+ #include "lb/browser/tabs/sidebar_width.h"
++#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
+ #include "chrome/browser/ui/views/frame/shadow_frame_view.h"
+ #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_background_blur_backdrop.h"
+@@ -450,7 +451,11 @@
+   layout.min_content_width = kContentsContainerMinimumWidth;
+ 
+   // Get information about the vertical tabstrip, if present.
+-  const int toolbar_minimum_width = views().toolbar->GetMinimumSize().width();
++  // Little Browser: a toolbar in the sidebar takes none of the page's width.
++  const int toolbar_minimum_width =
++      lb::IsToolbarInSidebar(views().toolbar)
++          ? 0
++          : views().toolbar->GetMinimumSize().width();
+   int min_vertical_tab_strip_width = 0;
+   int preferred_vertical_tab_strip_width = 0;
+   if (layout_data_->tab_strip_type == TabStripType::kVertical) {
+@@ -701,7 +706,9 @@
+ 
+ gfx::Size BrowserViewTabbedLayoutImpl::GetMinimumMainAreaSize(
+     const BrowserLayoutParams& params) const {
+-  gfx::Size toolbar_size = views().toolbar->GetMinimumSize();
++  gfx::Size toolbar_size = lb::IsToolbarInSidebar(views().toolbar)
++                               ? gfx::Size()  // Little Browser
++                               : views().toolbar->GetMinimumSize();
+   const auto tab_strip_type = delegate().GetTabStripType();
+   if (tab_strip_type == TabStripType::kVertical) {
+     toolbar_size.Enlarge(GetExclusionWidth(params), 0);
+@@ -1304,7 +1311,9 @@
+   // Little Browser: the page is a card next to the sidebar.
+   if (layout_data_->tab_strip_type == TabStripType::kVertical &&
+       !is_fullscreen(layout_data_->window_state)) {
+-    contents_bounds = lb::ContentsCardBounds(contents_bounds);
++    // Little Browser: with the toolbar in the sidebar, inset above too.
++    contents_bounds = lb::ContentsCardBounds(
++        contents_bounds, !lb::IsToolbarInSidebar(views().toolbar));
+   }
+   auto& contents_layout =
+       layout.AddChild(views().multi_contents_view, contents_bounds);
+@@ -1374,6 +1383,14 @@
+       caption_button_width =
+           base::ClampCeil(browser_params.leading_exclusion.content.width()) -
+           tabstrip_bounds->x();
++    } else if (lb::IsToolbarInSidebar(views().toolbar)) {
++      // Little Browser: with the toolbar in the sidebar there is no toolbar
++      // row; the strip's top row still sits beside the window buttons.
++      toolbar_height =
++          base::ClampCeil(browser_params.leading_exclusion.content.height());
++      caption_button_width =
++          base::ClampCeil(browser_params.leading_exclusion.content.width()) -
++          tabstrip_bounds->x();
+     }
+ 
+     views().vertical_tab_strip_region_view->SetToolbarHeightForLayout(
+@@ -1395,7 +1412,10 @@
+         vertical_tab_strip_animation.top_offset > 0);
+ 
+     float transition_button_opacity = 1.0f;
+-    if (toolbar_height > 0 && caption_button_width > 0) {
++    // Little Browser: with the toolbar in the sidebar the strip's toggle is in
++    // the toolbar's row, which stays: it doesn't fade with the strip's top row.
++    if (toolbar_height > 0 && caption_button_width > 0 &&
++        !lb::IsToolbarInSidebar(views().toolbar)) {
+       if (!will_wrap_at_destination &&
+           (vertical_tab_strip_animation.current_motion ==
+                TabStripAnimations::kExpand ||
+@@ -1627,7 +1647,8 @@
+   // square it again in fullscreen or with tabs on top (only glass mode resets it otherwise).
+   if (layout_data_->tab_strip_type == TabStripType::kVertical &&
+       !is_fullscreen(layout_data_->window_state)) {
+-    views().multi_contents_view->SetBackgroundRadii(lb::ContentsCardRadii());
++    views().multi_contents_view->SetBackgroundRadii(
++        lb::ContentsCardRadii(!lb::IsToolbarInSidebar(views().toolbar)));
+   } else if (!in_glass_mode()) {
+     views().multi_contents_view->SetBackgroundRadii(gfx::RoundedCornersF());
+   }
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -33,6 +33,7 @@
+ #include "chrome/browser/ui/tabs/hover_tab_selector.h"
+ #include "lb/browser/tabs/sidebar_width.h"
+ #include "lb/browser/ui/views/sidebar/sidebar_edge_watcher.h"
++#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -343,7 +344,11 @@
+     if (child == content_area_view_) {
+       for (views::View* grandchild : child->children()) {
+         if (grandchild->GetVisible() && IsHitInView(grandchild, point)) {
+-          return false;
++          // Little Browser: the toolbar's row drags the window where it has
++          // no control.
++          return lb::IsSidebarToolbarCaption(
++              grandchild,
++              views::View::ConvertPointToTarget(this, grandchild, point));
+         }
+       }
+     } else if (child->GetVisible() && IsHitInView(child, point)) {
+@@ -1047,8 +1052,37 @@
+       is_expanded_on_hover_, resize_area_->is_resizing());
+   resize_area_->SetVisible(area.visible);
+   resize_area_width_ = area.wide ? kResizeAreaWidth : kCollapsedResizeAreaWidth;
++  // With the toolbar in it, the window's buttons show only while the sidebar
++  // does (lb/browser/ui/views/sidebar/sidebar_toolbar.h).
++  lb::UpdateSidebarWindowButtons(
++      this, collapsed && state_controller_->IsExpandOnHoverEnabled(),
++      is_expanded_on_hover_);
+ }
+ 
++bool VerticalTabStripRegionView::LbKeepsOutForPopup() {
++  const bool keep =
++      is_expanded_on_hover_ &&
++      lb::KeepsSidebarOutForPopup(
++          this, state_controller_->IsCollapsed() &&
++                    state_controller_->IsExpandOnHoverEnabled());
++  // Looks again until the popup closes: the pointer may be away by then. Each
++  // look asks first, so the timer stops once nothing keeps the sidebar out,
++  // also when it is shown meanwhile (UpdateExpandOnHoverState doesn't ask then).
++  if (keep && !lb_popup_timer_.IsRunning()) {
++    lb_popup_timer_.Start(
++        FROM_HERE, base::Milliseconds(250),
++        base::BindRepeating(
++            [](VerticalTabStripRegionView* view) {
++              view->LbKeepsOutForPopup();
++              view->UpdateExpandOnHoverState();
++            },
++            base::Unretained(this)));
++  } else if (!keep) {
++    lb_popup_timer_.Stop();
++  }
++  return keep;
++}
++
+ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+     std::optional<bool> hovered) {
+   // If not collapsed, then we shouldn't be in or entering the expand on hover
+@@ -1101,6 +1135,7 @@
+       !suppress_expand_on_hover_ &&
+       state_controller_->IsExpandOnHoverEnabled() &&
+       (hovered.value_or(IsMouseHovered()) || LbPointerNearEdge() ||
++       LbKeepsOutForPopup() ||
+        (GetFocusManager() && Contains(GetFocusManager()->GetFocusedView())));
+ 
+   if (!should_expand) {
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -158,6 +158,11 @@
+   }
+ 
+   views::ResizeArea* resize_area_for_testing() { return resize_area_; }
++  // Little Browser: whether a popup keeps a slid-in sidebar under watch
++  // (LbKeepsOutForPopup), for --lb-sidebar-demo=sidebar-toolbar.
++  bool lb_popup_timer_running_for_testing() const {
++    return lb_popup_timer_.IsRunning();
++  }
+   tabs::VerticalTabStripState target_collapse_state_for_testing() {
+     return target_collapse_state_;
+   }
+@@ -222,6 +227,9 @@
+   // that slides a hidden sidebar in, as hovering the strip does
+   // (lb::InSidebarOutsideZone).
+   bool LbPointerNearEdge() const;
++  // Little Browser: whether a popup from the toolbar in a slid-in hidden sidebar
++  // (a bubble anchored in it, or a menu) keeps it out (lb::KeepsSidebarOutForPopup).
++  bool LbKeepsOutForPopup();
+   void UpdateExpandOnHoverState(std::optional<bool> hovered = std::nullopt);
+   void OnMouseVelocityHeuristicInterval();
+   void CalculateMouseVelocityForExpandOnHover();
+@@ -302,6 +310,7 @@
+   // the window (lb::SidebarEdgeWatcher), and the demo's stand-in pointer.
+   std::unique_ptr<lb::SidebarEdgeWatcher> lb_edge_watcher_;
+   std::optional<bool> lb_pointer_near_edge_for_testing_;
++  base::RepeatingTimer lb_popup_timer_;
+   base::flat_set<raw_ptr<VerticalTabStripExpandOnHoverLock>> hover_locks_;
+ 
+   std::unique_ptr<TabHoverCardController::ScopedHideHoverCardLock>
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+ 
++#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
++
+ #include "lb/browser/ui/views/frame/load_progress_line.h"
+ #include "lb/browser/ui/views/little_window/little_window.h"
+ 
+@@ -745,6 +747,8 @@
+ void ToolbarView::OnVerticalTabStripModeChanged(
+     tabs::VerticalTabStripStateController* controller) {
+   should_display_vertical_tabs_ = controller->ShouldDisplayVerticalTabs();
++  // Little Browser: the toolbar goes into the sidebar, or back above the page.
++  lb::PlaceToolbarSoon(browser_view_);
+   UpdateGlicButtonVisibility();
+   UpdateGlicActorVisibility();
+   // Invalidate the layout cache so responsive buttons (forward, home, split,
+@@ -1520,6 +1524,11 @@
+   // Call super implementation to ensure layout manager and child layouts
+   // happen.
+   LayoutSuperclass<AccessiblePaneView>(this);
++
++  // Little Browser: the address's own row in the sidebar.
++  if (lb::IsToolbarInSidebar(this)) {
++    lb::LayOutSidebarAddressRow(this, location_bar_view_);
++  }
+ }
+ 
+ void ToolbarView::OnThemeChanged() {
+@@ -1790,6 +1799,20 @@
+       interior_margin.set_right(0);
+     }
+   }
++  // Little Browser: in the sidebar the address has a row of its own under the
++  // buttons (lb/browser/ui/views/sidebar/sidebar_toolbar.h).
++  if (lb::IsToolbarInSidebar(this)) {
++    interior_margin.set_bottom(interior_margin.bottom() +
++                               lb::SidebarAddressRowHeight(location_bar_view_));
++    // Its row of buttons is the window's title row: they start after the
++    // window buttons.
++    const int lb_inset = lb::SidebarToolbarLeadingInset(this);
++    if (is_rtl) {
++      interior_margin.set_right(interior_margin.right() + lb_inset);
++    } else {
++      interior_margin.set_left(interior_margin.left() + lb_inset);
++    }
++  }
+   layout_manager_->SetInteriorMargin(interior_margin);
+ 
+   // Extend buttons to the window edge if we're either in a maximized or
+@@ -2004,7 +2027,9 @@
+ 
+   CHECK(location_bar_);
+ 
+-  if (!location_bar_->IsDrawn()) {
++  // Little Browser: in the sidebar the address isn't above the page: the find
++  // bar goes at the page's top right (BrowserView::GetFindBarBoundingBox).
++  if (!location_bar_->IsDrawn() || lb::IsToolbarInSidebar(this)) {
+     return gfx::Rect();
+   }
+ 
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -107,12 +107,21 @@
+ 
+ void VerticalTabStripTopContainer::Layout(PassKey) {
+   LayoutSuperclass<views::View>(this);
+-  combo_button_->SetOrientation(combo_button_orientation_);
++  // Little Browser: not while the toolbar in the sidebar has it.
++  if (combo_button_->parent() == this) {
++    combo_button_->SetOrientation(combo_button_orientation_);
++  }
+ }
+ 
+ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+     const views::SizeBounds& size_bounds) const {
+   views::ProposedLayout layout;
++  // Little Browser: with the toolbar in the sidebar, the toggle and Tab Search
++  // are in the toolbar's row beside the window buttons, and this row is empty
++  // (lb/browser/ui/views/sidebar/sidebar_toolbar.h).
++  if (collapse_button_ && collapse_button_->parent() != this) {
++    return layout;
++  }
+   gfx::Size host_size =
+       gfx::Size(size_bounds.width().is_bounded() ? size_bounds.width().value()
+                                                  : parent()->width(),
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -233,6 +233,7 @@
+ #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
+ #include "chrome/browser/ui/views/toolbar/reload_control.h"
+ #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
++#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
+ #include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
+ #include "chrome/browser/ui/views/translate/translate_bubble_view.h"
+ #include "chrome/browser/ui/views/update_recommended_message_box.h"
+@@ -1261,6 +1262,12 @@
+           : 0;
+   if (toolbar_ && ShouldDrawVerticalTabStrip()) {
+     info.toolbar_minimum_height = toolbar_->GetMinimumSize().height();
++    // Little Browser: in the sidebar the window buttons share the toolbar's
++    // row of buttons, not its address row under them.
++    if (lb::IsToolbarInSidebar(toolbar_)) {
++      info.toolbar_minimum_height -=
++          lb::SidebarAddressRowHeight(toolbar_->location_bar_view());
++    }
+   } else if (web_app_frame_toolbar_ && ShouldDrawWebAppFrameToolbar()) {
+     info.toolbar_minimum_height =
+         web_app_frame_toolbar_->GetMinimumSize().height();

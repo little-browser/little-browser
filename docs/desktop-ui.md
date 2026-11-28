@@ -13,7 +13,7 @@ custom window frame, so the 4-weekly Chromium rebase touches as little as possib
 |---|---|
 | Vertical tabs on by default | `patches/lb/vertical-tabs-default.patch` |
 | Tab Search always in the strip: no Pin/Unpin in its button's menu or the window menu, no Settings switch, the toggle command does nothing, and a stored "unpinned" (an older profile) cleared when a window opens | `patches/lb/tab-search-always.patch`, `lb::SidebarController` |
-| Sidebar header (the space name; no address field, the toolbar has the address) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
+| Sidebar header (the space name, under the toolbar) in the vertical tab strip | `lb/browser/ui/views/sidebar/sidebar_header_view.*`, hooked by `patches/lb/sidebar-hooks.patch` |
 | Footer: space switcher and the "+" menu (new space; new tab, split view, tab group), below the strip | `lb/browser/ui/views/sidebar/sidebar_footer_view.*` |
 | "+ New Tab" between pinned and today's tabs, replacing Chromium's new-tab button | `lb/browser/ui/views/sidebar/new_tab_row_view.*`, in a slot added by `patches/lb/new-tab-row.patch` |
 | Pinned tabs as list rows | `patches/lb/pinned-list.patch` (`tab_view.cc`, `tab_view_vertical_layout.cc`, `pinned_tab_container_view.cc`) |
@@ -40,8 +40,9 @@ the page card's margin on its right and below it), so the window's background sh
 border where the pointer goes, and a collapsed strip is that band, whose layer has opacity 0, so
 it is not drawn but still takes the pointer. The band and the slid-in strip run the window's full
 height (`SidebarWidths::full_height`: the strip's top is the window's, not Chromium's
-`top_offset` below the toolbar), so the strip's header lays itself out beside the window's
-buttons as the shown sidebar's does. The pointer up to `kSidebarOutsideReach` (60 pt) left of the
+`top_offset` below the toolbar). Chromium lays a collapsed strip's top buttons out as a column;
+slid in, `lb::SlidInTopRow` has the top container lay them out as the shown sidebar's one row,
+right of the window's buttons. The pointer up to `kSidebarOutsideReach` (60 pt) left of the
 window, within its height, counts as hovering the strip (`lb::InSidebarOutsideZone`, read live
 from the cursor in `VerticalTabStripRegionView::LbPointerNearEdge`). The window gets no pointer
 events out there, so `lb::SidebarEdgeWatcher` (macOS: a global `NSEvent` monitor for pointer
@@ -63,7 +64,9 @@ for an instant while the strip animates, or with expand on hover off.
 **Load progress line.** `lb::AddLoadProgressLine` (`lb/browser/ui/views/frame/load_progress_line.*`,
 hooked into `ToolbarView::Init` by `patches/lb/load-progress-ui.patch`) adds a line to the
 toolbar's parent, the top container, along the toolbar's bottom edge and as wide as the page card
-(`multi_contents_view`). The toolbar starts right of the window's buttons while the sidebar is
+(`multi_contents_view`). With the toolbar in the sidebar, `lb::MoveLoadProgressLine` moves it into
+the BrowserView, in the card's top margin right above the card, or along the card's top edge in
+fullscreen, where the card has no margin. The toolbar starts right of the window's buttons while the sidebar is
 hidden, so the line can't live in it, and it isn't drawn over the page, which on macOS could cover
 it; the slid-in sidebar covers it. It follows the active tab's `ShouldShowLoadingUI()` and
 `GetLoadProgress()` through `lb::LoadProgress` (`lb/browser/tabs/load_progress.h`, unit tested):
@@ -74,7 +77,7 @@ colour is the theme's primary colour, which the window's space tint sets.
 `lb/browser/tabs/tab_names.h`) are kept by the tab, in a map by its `TabHandle`
 (`lb/browser/ui/tabs/tab_custom_data.h`), not with its page: a sleeping tab is discarded, which on
 desktop gives it a new WebContents. `patches/lb/tab-names.patch` hooks them in: `TabData` takes the
-row's title from `lb::TabRowTitle` (a pinned tab's is its link's title, `TabCustom::pinned_title`,
+row's title from `lb::TabRowTitle` (a pinned tab asleep away from its link shows its link's title, `TabCustom::pinned_title`,
 taken from the page whenever the tab is on its link, `lb::TakePinnedTitle`; no "Loading…" title
 for a tab with a title of its own); `TabMenuModel` gets the
 items of `lb::TabNameMenuItems` after Pin/Unpin, with command ids from 900 (below the menu's
@@ -232,9 +235,40 @@ rebuilds a tab's view when its pin state changes, which would free the views the
 dragged tab keeps its view; Esc restores the original pin state. `patches/lb/no-tab-detach.patch`
 makes a dragged tab never detach into a new window.
 
-The toolbar stays Chromium's, as a **slim toolbar** above the page card: back, forward, reload, the
-address bar, extensions, downloads, profile and menu. Moving them into the sidebar would be a large
-change to `BrowserView` and `ToolbarView`, rebased every release.
+**Toolbar in the sidebar.** In a normal window with vertical tabs, Chromium's whole `ToolbarView`
+moves into the strip, at the top of its content area (`lb::PlaceToolbar`,
+`lb/browser/ui/views/sidebar/sidebar_toolbar.*`; the rule is `lb::ToolbarPlaceFor` in
+`lb/browser/tabs/toolbar_place.h`, unit tested). Moving the view itself keeps every pointer to it
+valid: bubbles anchored to its buttons, the app menu, the extensions container, the omnibox. It is
+moved when the sidebar is built, whenever the strip's mode changes (tabs on top) and when the
+strip's collapse or expand-on-hover state changes (`lb::UpdateSidebarWindowButtons`), never during
+a layout; little windows, tabs on top and a sidebar hidden with expand on hover off (Chromium's
+column of icons, too narrow for it) keep it in the top container, where Chromium lays it out.
+`patches/lb/sidebar-toolbar-ui.patch` hooks it in: `ToolbarView` keeps its FlexLayout for the
+buttons, takes the location bar out of it (a flexible spacer keeps the trailing buttons at the end)
+and lays the location bar out on its own row under them (`lb::LayOutSidebarAddressRow`), with its
+background hidden so the sidebar's colour shows. Its row of buttons is the window's title row, as in
+Arc: the strip's own top row lends it the sidebar toggle (first) and Tab Search (after the spacer),
+the same views, so the Tab Search bubble still hangs from its button, and the top row lays out
+empty until they go back (tabs on top). The buttons start after the window buttons
+(`lb::ToolbarLeadingInset`, unit tested; in fullscreen at the row's edge, measured again on
+entering and leaving it), the macOS title bar is as high as the row of buttons, not
+the whole toolbar, so the window buttons sit centred on it (`BrowserView::GetFrameElementInfo`),
+and a press on the row that isn't on a button drags the window (`lb::IsSidebarToolbarCaption`,
+asked by the strip's hit test). The sidebar opens at, and narrows to, 312 px
+(`sidebar-max-width.patch`), just room for the row. Chromium's profile button is hidden in every
+window (`lb::PlaceToolbar`): profiles are in the ⋮ menu's Profile submenu, and Cmd+Shift+M
+(`IDC_SHOW_AVATAR_MENU`) opens the ⋮ menu (`lb::HandleCommand`). The tabbed layout leaves the toolbar out of the
+page's minimum width, insets the card on top too (`lb::ContentsCardBounds`) and still gives the
+strip the window buttons' size. A click on the address (`lb::AddressClick`, a pre-target handler on
+the location bar that takes only clicks on the field) opens the command bar in edit-address mode.
+The find bar opens at the page's top right, not under the address (`ToolbarView::GetFindBarBoundingBox`
+is empty in the sidebar, so `BrowserView::GetFindBarBoundingBox` uses the page's bounds). With the
+sidebar hidden and not slid in, the window's buttons are hidden
+(`lb::UpdateSidebarWindowButtons`, `lb::WindowButtonsShown`; in fullscreen they are macOS's, in
+the title bar it reveals at the top of the screen, and always show), and a slid-in sidebar stays out while
+a bubble anchored in it or a menu is open (`lb::KeepsSidebarOutForPopup`, rechecked every 250 ms
+until it closes).
 
 Rebase risk is concentrated in `browser_view_tabbed_layout_impl.cc`, which changes often because
 vertical tabs are new upstream. The page-card patch there stays a few lines; all logic is in `lb/`.
@@ -532,8 +566,10 @@ to the window through the popup blocker, and one that opens a tab in front first
 page into a tab (`PromotesPeekBeforeOpening`), so `window.opener` survives. While a Peek is open,
 `lb::HandleCommandFirst` (`patches/lb/command-hooks.patch`, before Chromium's command table) sends
 each browser command through `PeekCommandActionFor`: Esc/⌘W close the Peek (after the page's
-beforeunload), reload, back, zoom and Copy URL act on the Peek's page, other page commands do
-nothing, and the window's commands pass. In the Peek's page, Esc closes the Peek before the page
+beforeunload), reload, back, zoom, Copy URL and print act on the Peek's page, other page commands do
+nothing, and the window's commands pass. The Peek hosts the dialogs over its page (Chromium's
+`WebContentsModalDialogManager`, whose delegate and host it is), so print preview opens over the
+card; they close when the page leaves the Peek, and a tab it becomes hosts its own. In the Peek's page, Esc closes the Peek before the page
 gets it (the Peek's `PreHandleKeyboardEvent`, `lb::ClosesPeekBeforePage`), so a page that handles
 Esc itself can't keep it open; ⌘W and other keys go to the page first, then to the Peek's
 accelerators.
@@ -555,14 +591,22 @@ pairs it with that page (`AddToNewSplit`, as Chromium's "Open link in split view
 another tab.
 
 The **little window** (`lb/browser/ui/views/little_window/little_window.*`) is Chromium's popup
-window, whose toolbar is a single row with the address. `patches/lb/little-window-toolbar.patch`
+window, whose toolbar is a single row with the address. On macOS that row is the window's title
+bar, as in Arc: `patches/lb/little-window-title-row.patch` gives the popup the frame a window with
+tabs has (full-size content, a transparent title bar, no title), lays the toolbar out beside the
+window buttons (`BrowserViewPopupLayoutImpl`, with `lb::LittleWindowToolbarBounds`), makes the
+title bar as high as the row (`lb::LittleWindowRowHeight`) so the buttons sit centred in it,
+colours the row under the buttons as the address (the popup layout's top container background),
+sizes a popup as its page plus that row (`BrowserView::GetSavedWindowPlacement`), and lets a press
+on the row that isn't on a control drag the window. `patches/lb/little-window-toolbar.patch`
 adds Copy URL and "Open in ‹space›" to that row; the button reads the space of the profile's most
 recently used window with tabs whenever spaces change and when the little window comes to the
 front, and moves the page there as Chromium's own "Show as tab" does (detach the `WebContents`, add
 it to the window `chrome::ScopedTabbedBrowserDisplayer` finds or opens). New little windows get
-their bounds from `LittleWindowBounds` (`little_window_rules.*`): a page of 960 × 680 when the
-screen has room, the window (with its title bar and toolbar, measured from the newest little
-window) centred, or a step down from the last one while it fits. ⌥⌘N is `IDC_NEW_LITTLE_WINDOW`,
+their bounds from `LittleWindowBounds` (`little_window_rules.*`): the window (with its row,
+measured from the newest little window) is `kLittleWindowShare` (90%) of the profile's
+window with tabs each way, centred on it, or a step down from the last little window while it
+fits, always on the screen. ⌥⌘N is `IDC_NEW_LITTLE_WINDOW`,
 an id of ours (`lb/browser/ui/lb_command_ids.h`) that Chromium's command table doesn't list, so
 `lb::HandleCommandFirst` handles it before that table: it opens the command bar in its
 little-window mode, which lists only pages to open (`OffersResult`), in a new little window.

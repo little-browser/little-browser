@@ -50,9 +50,19 @@ series_paths() {
   done <<< "$list"
 }
 
-# version_pins <VERSIONS file>: its KEY=value lines, sorted, without the comments. Two files with
-# the same pins build the same release.
-version_pins() { grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$1" | sort; }
+# version_pins <VERSIONS file>: KEY=value for each key it sets, with the value the build scripts
+# read when they source it (so comments, quoting and spacing don't count), sorted. Two files with
+# the same pins build the same release. The file is read once, so a pipe works too.
+version_pins() {
+  local text
+  text="$(cat "$1")" || return
+  (
+    eval "$text" >/dev/null || exit
+    grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' <<<"$text" | while IFS='=' read -r key _; do
+      printf '%s=%s\n' "$key" "${!key-}"
+    done
+  ) | sort -u
+}
 
 # check_tree_links <src> <repo>: the Chromium tree links our code from this checkout (src/lb →
 # chromium/lb, src/lb_core → core/lb-core). A tree whose links point elsewhere was fetched for
@@ -129,6 +139,34 @@ print("\n".join(f"{k} = {v}" for k, v in args.items()))
 PY
 }
 
+# release_revision <release> <Chromium version>: the revision of a release version,
+# <Chromium version>-<revision> as its tag v<release> names it, such as 3 for 157.0.8103.78-3. The
+# revision is 1 to 9999, written without leading zeros (the CI release-tag rules in .gitlab-ci.yml
+# take the same form). A release on another Chromium version than the tree's, or not in that form,
+# is an error.
+release_revision() {
+  local release="$1" chromium="$2"
+  [[ "$release" =~ ^([0-9]+(\.[0-9]+){3})-([1-9][0-9]{0,3})$ ]] ||
+    die "release $release is not <Chromium version>-<revision>, such as $chromium-1"
+  [ "${BASH_REMATCH[1]}" = "$chromium" ] ||
+    die "release $release is not on this tree's Chromium version, $chromium"
+  echo "${BASH_REMATCH[3]}"
+}
+
+# check_release_tree <src>: with LB_RELEASE set, the tree at <src> is on CHROMIUM_VERSION, the
+# Chromium version the release names: the About page shows the tree's version (chrome/VERSION),
+# and a tree fetched before a VERSIONS bump would show the old one with the new revision. Without
+# LB_RELEASE, nothing to check.
+check_release_tree() {
+  [ -n "${LB_RELEASE:-}" ] || return 0
+  local tree
+  tree="$(awk -F= '$1 == "MAJOR" { a = $2 } $1 == "MINOR" { b = $2 } $1 == "BUILD" { c = $2 }
+    $1 == "PATCH" { d = $2 } END { print a "." b "." c "." d }' "$1/chrome/VERSION" 2>/dev/null)" ||
+    die "can't read $1/chrome/VERSION"
+  [ "$tree" = "${CHROMIUM_VERSION:?source chromium/VERSIONS first}" ] ||
+    die "$1 is Chromium $tree, not $CHROMIUM_VERSION (chromium/VERSIONS): fetch it again to build release $LB_RELEASE"
+}
+
 # export_instance_credentials: on a CI build host, the instance role's temporary credentials,
 # exported as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN for sccache's S3
 # cache. sccache's own lookup of them (IMDSv2, from the job's container) fails now and then,
@@ -156,16 +194,24 @@ print(c["AccessKeyId"]); print(c["SecretAccessKey"]); print(c["Token"])' <<<"$js
 }
 
 # write_gn_args <out dir> <target cpu> <arg file>...: <out dir>/args.gn from the merged files,
-# then target_cpu (the only one: an arg file's own is dropped), then cc_wrapper when LB_CC_WRAPPER
-# names a compiler cache (sccache). With sccache, Clang modules are off too: sccache caches no
-# compile that uses them (-fmodules, and their -Xclang flags, which C files get as well), and
-# Chromium turns them on for Android. An sccache that can't start (its cache unreachable: every
-# compile would fail) is left out, with a warning: the build is slower, not broken. A folder that
-# already holds a build for another target_cpu is left alone: rewriting it would throw that build
-# away.
+# then target_cpu (the only one: an arg file's own is dropped), then lb_release_revision when
+# LB_RELEASE names the release being built (its version, such as 157.0.8103.78-3, on
+# CHROMIUM_VERSION from chromium/VERSIONS), then cc_wrapper when LB_CC_WRAPPER names a compiler
+# cache (sccache). With sccache, Clang modules are off too: sccache caches no compile that uses
+# them (-fmodules, and their -Xclang flags, which C files get as well), and Chromium turns them on
+# for Android. The sccache server is started here, once for the whole build (gn_build stops it):
+# an sccache that can't start (its cache unreachable: every compile would fail) is left out, with
+# a warning: the build is slower, not broken. A folder that already holds a build for another
+# target_cpu is left alone: rewriting it would throw that build away.
 write_gn_args() {
-  local out="$1" cpu="$2" had
+  local out="$1" cpu="$2" had revision=""
   shift 2
+  if [ -n "${LB_RELEASE:-}" ]; then
+    # || return: a failed check stops this function even where the caller's errexit is off
+    # (in an if or after ||), which a die inside $(...) alone wouldn't.
+    revision="$(release_revision "$LB_RELEASE" "${CHROMIUM_VERSION:?source chromium/VERSIONS first}")" ||
+      return
+  fi
   mkdir -p "$out"
   had=""
   [ ! -f "$out/args.gn" ] || had="$(sed -n 's/^target_cpu = "\(.*\)"$/\1/p' "$out/args.gn" | tail -1)"
@@ -173,16 +219,24 @@ write_gn_args() {
     die "$out holds an $had build, not $cpu: move or delete it to build $cpu there"
   merge_gn_args "$@" | { grep -v '^target_cpu = ' || true; } > "$out/args.gn"
   echo "target_cpu = \"$cpu\"" >> "$out/args.gn"
+  if [ -n "$revision" ]; then echo "lb_release_revision = $revision" >> "$out/args.gn"; fi
   if [ -n "${LB_CC_WRAPPER:-}" ]; then
     command -v "$LB_CC_WRAPPER" >/dev/null || die "LB_CC_WRAPPER=$LB_CC_WRAPPER not found in PATH"
-    # An S3 cache signs with the host's role (export_instance_credentials); --show-stats starts
-    # the server, or reaches the one already running.
-    if [ "$LB_CC_WRAPPER" = sccache ] && [ -n "${SCCACHE_BUCKET:-}" ]; then
-      export_instance_credentials
-    fi
-    if [ "$LB_CC_WRAPPER" = sccache ] && ! sccache --show-stats >/dev/null; then
-      printf 'warning: sccache could not start (above); building without the compiler cache\n' >&2
-      return 0
+    if [ "$LB_CC_WRAPPER" = sccache ]; then
+      # An S3 cache signs with the host's role (export_instance_credentials).
+      if [ -n "${SCCACHE_BUCKET:-}" ]; then export_instance_credentials; fi
+      # A server that is already running has another environment: stop it. --start-server checks
+      # the cache storage and fails when it is unreachable (--show-stats starts no server, so it
+      # can't tell). With no idle timeout the server lives until gn_build stops it, rather than
+      # exiting during a long stretch without compiles (a link) and restarting mid-build, when
+      # the credentials it was started with may have expired and the new one fails every compile;
+      # it also keeps the stats of the whole build.
+      export SCCACHE_IDLE_TIMEOUT=0
+      sccache --stop-server >/dev/null 2>&1 || true
+      if ! sccache --start-server >/dev/null; then
+        printf 'warning: sccache could not start (above); building without the compiler cache\n' >&2
+        return 0
+      fi
     fi
     echo "cc_wrapper = \"$LB_CC_WRAPPER\"" >> "$out/args.gn"
     if [ "$LB_CC_WRAPPER" = sccache ]; then echo "use_clang_modules = false" >> "$out/args.gn"; fi
@@ -201,18 +255,24 @@ run_ninja() {
 
 # gn_build <src> <out dir, relative to src> <gn> <ninja> <target>...: gn gen (every arg must be
 # one the tree knows), then ninja, with LB_NINJA_FLAGS (e.g. "-k 0" to collect every error in
-# one pass). <gn> and <ninja> are commands, relative to <src> or on PATH.
+# one pass). <gn> and <ninja> are commands, relative to <src> or on PATH. With sccache, its stats
+# follow, then its server (started by write_gn_args) stops, whether the build passed or failed.
 gn_build() {
-  local src="$1" out_rel="$2" gn="$3" ninja="$4"
+  local src="$1" out_rel="$2" gn="$3" ninja="$4" status=0
   shift 4
   echo "args.gn ($out_rel):"; sed 's/^/  /' "$src/$out_rel/args.gn"
+  # Chained with &&: errexit is off inside a command followed by ||.
+  # shellcheck disable=SC2086
   (
-    cd "$src" || exit
-    "$gn" gen "$out_rel" --fail-on-unused-args
-    # shellcheck disable=SC2086
-    run_ninja "$ninja" ${LB_NINJA_FLAGS:-} -C "$out_rel" "$@"
-  )
-  if grep -q '^cc_wrapper = "sccache"' "$src/$out_rel/args.gn"; then sccache --show-stats; fi
+    cd "$src" &&
+      "$gn" gen "$out_rel" --fail-on-unused-args &&
+      run_ninja "$ninja" ${LB_NINJA_FLAGS:-} -C "$out_rel" "$@"
+  ) || status=$?
+  if grep -q '^cc_wrapper = "sccache"' "$src/$out_rel/args.gn"; then
+    sccache --show-stats
+    sccache --stop-server >/dev/null 2>&1 || true
+  fi
+  return "$status"
 }
 
 # Desktop platform entries ------------------------------------------------------------------------

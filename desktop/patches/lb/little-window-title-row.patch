@@ -1,0 +1,307 @@
+# Little Browser: a little window (Chromium's popup) has one row above its page, as in Arc: the window
+# buttons, then its toolbar, with no title bar (lb::LittleWindowToolbarBounds); the row drags the window.
+# Its saved placement (a page size) leaves out that row on saving as it adds it on restoring, so a
+# restore keeps the page's size.
+--- a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+@@ -45,6 +45,7 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/browser_widget.h"
+ #include "chrome/browser/ui/views/frame/glass_frame_service.h"
++#include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
+ #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_frame_toolbar_utils.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/common/pref_names.h"
+@@ -64,6 +65,7 @@
+ #include "components/remote_cocoa/common/native_widget_ns_window_host.mojom.h"
+ #include "components/viz/common/frame_timing_details.h"
+ #include "components/web_modal/web_contents_modal_dialog_host.h"
++#include "lb/browser/little_window/little_window_rules.h"
+ #include "ui/accessibility/platform/ax_platform_node.h"
+ #include "ui/actions/actions.h"
+ #include "ui/base/accelerators/global_accelerator_listener/global_accelerator_listener.h"
+@@ -286,7 +288,19 @@
+         std::max(top_element_info.tabstrip_preferred_height,
+                  top_element_info.toolbar_minimum_height) +
+         browser_view_->browser_widget()->GetFrameView()->GetTopInset(true);
+-    if (!browser_view_->ShouldDrawTabStrip()) {
++    if (browser_view_->browser()->GetType() ==
++        BrowserWindowInterface::Type::TYPE_POPUP) {
++      // Little Browser: a little window's title bar is its one row, as high as
++      // its window buttons and toolbar, so the buttons sit centred in it.
++      const BrowserLayoutParams params =
++          browser_view_->browser_widget()->GetFrameView()
++              ->GetBrowserLayoutParams();
++      *titlebar_height = lb::LittleWindowRowHeight(
++          base::ClampCeil(std::max(
++              params.leading_exclusion.ContentWithPadding().height(),
++              params.trailing_exclusion.ContentWithPadding().height())),
++          top_element_info.toolbar_preferred_height);
++    } else if (!browser_view_->ShouldDrawTabStrip()) {
+       *titlebar_height += kWebAppMenuMargin * 2;
+     }
+   } else {
+@@ -743,15 +757,22 @@
+                          NSWindowStyleMaskTitled | NSWindowStyleMaskResizable;
+     params->window_title_hidden = true;
+   } else if (browser_view_->GetIsNormalType() ||
+-             browser_view_->GetIsWebAppType()) {
++             browser_view_->GetIsWebAppType() ||
++             // Little Browser: a little window (a popup) draws its one row
++             // under the window buttons, with no title bar above it.
++             browser_view_->browser()->GetType() ==
++                 BrowserWindowInterface::Type::TYPE_POPUP) {
+     params->window_class = remote_cocoa::mojom::WindowClass::kBrowser;
+     params->style_mask |= NSWindowStyleMaskFullSizeContentView;
+ 
+     // Ensure tabstrip/profile button are visible.
+     params->titlebar_appears_transparent = true;
+ 
+-    // Hosted apps draw their own window title.
+-    if (browser_view_->GetIsWebAppType()) {
++    // Hosted apps draw their own window title. Little Browser: so does a
++    // little window, in its address.
++    if (browser_view_->GetIsWebAppType() ||
++        browser_view_->browser()->GetType() ==
++            BrowserWindowInterface::Type::TYPE_POPUP) {
+       params->window_title_hidden = true;
+     }
+   } else {
+--- a/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -465,12 +465,12 @@
+     return result;
+   }
+ 
+-  // In popups, the titlebar is system-drawn and the caption buttons aren't part
+-  // of the client area.
++  // In devtools windows, the titlebar is system-drawn and the caption buttons
++  // aren't part of the client area. Little Browser: a little window (a popup)
++  // has them in its one row, beside its toolbar
++  // (browser_native_widget_mac.mm).
+   if (GetBrowserView()->browser()->GetType() ==
+-          BrowserWindowInterface::Type::TYPE_POPUP ||
+-      GetBrowserView()->browser()->GetType() ==
+-          BrowserWindowInterface::Type::TYPE_DEVTOOLS) {
++      BrowserWindowInterface::Type::TYPE_DEVTOOLS) {
+     return result;
+   }
+ 
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -350,6 +350,9 @@
+ #include "ui/gfx/geometry/size.h"
+ #include "ui/gfx/scoped_canvas.h"
+ #include "ui/gfx/scrollbar_size.h"
++#include "base/numerics/safe_conversions.h"
++#include "lb/browser/little_window/little_window_rules.h"
++#include "ui/views/controls/separator.h"
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/accessibility/view_accessibility_utils.h"
+ #include "ui/views/animation/compositor_animation_runner.h"
+@@ -431,6 +434,20 @@
+ // treated as clicks to the frame, rather than clicks to the tab.
+ const int kTabShadowSize = 2;
+ 
++// Little Browser: what a little window has above its page: its one row, as
++// high as its window buttons and its toolbar, and a line under it. Saving and
++// restoring its placement (content bounds) both use it, so a restore keeps the
++// page's size.
++int LbLittleWindowRowAndLine(const BrowserLayoutParams& params,
++                             int toolbar_height) {
++  return lb::LittleWindowRowHeight(
++             base::ClampCeil(std::max(
++                 params.leading_exclusion.ContentWithPadding().height(),
++                 params.trailing_exclusion.ContentWithPadding().height())),
++             toolbar_height) +
++         views::Separator::kThickness;
++}
++
+ #if BUILDFLAG(IS_CHROMEOS)
+ // UMA histograms that record animation smoothness for tab loading animation.
+ constexpr char kTabLoadingSmoothnessHistogramName[] =
+@@ -4040,7 +4057,14 @@
+     // Invert the transformation done in GetSavedWindowPlacement().
+     gfx::Size client_size = GetFrameView()->GetBoundsForClientView().size();
+     if (IsToolbarVisible()) {
+-      client_size.Enlarge(0, -toolbar_->GetPreferredSize().height());
++      // Little Browser: a little window's row, as GetSavedWindowPlacement()
++      // adds it.
++      client_size.Enlarge(
++          0, browser_->GetType() == BrowserWindowInterface::Type::TYPE_POPUP
++                 ? -LbLittleWindowRowAndLine(
++                       GetFrameView()->GetBrowserLayoutParams(),
++                       toolbar_->GetPreferredSize().height())
++                 : -toolbar_->GetPreferredSize().height());
+     }
+     saved_bounds.set_size(client_size);
+   }
+@@ -4066,8 +4090,12 @@
+       // its desired height, since the toolbar is considered part of the
+       // window's client area as far as GetWindowBoundsForClientBounds is
+       // concerned...
++      // Little Browser: a little window's toolbar is in its one row, as high
++      // as its window buttons, with a line under it.
+       bounds->set_height(bounds->height() +
+-                         toolbar_->GetPreferredSize().height());
++                         LbLittleWindowRowAndLine(
++                             GetFrameView()->GetBrowserLayoutParams(),
++                             toolbar_->GetPreferredSize().height()));
+     }
+ 
+     gfx::Rect rect =
+@@ -4801,6 +4829,17 @@
+     }
+   }
+ 
++  // Little Browser: a little window's one row is its title bar too: a press on
++  // it that isn't on a control drags the window. HTNOWHERE lets the frame
++  // hit-test the window buttons before falling back to HTCAPTION.
++  if (browser()->GetType() == BrowserWindowInterface::TYPE_POPUP) {
++    gfx::Point test_point(point);
++    if (ConvertedHitTest(parent(), top_container_, &test_point) &&
++        top_container_->IsPositionInWindowCaption(test_point)) {
++      return HTNOWHERE;
++    }
++  }
++
+   // If the point's y coordinate is below the top of the topmost view and
+   // otherwise within the bounds of this view, the point is considered to be
+   // within the client area.
+--- a/chrome/browser/ui/views/frame/layout/browser_view_layout.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_layout.cc
+@@ -158,6 +158,9 @@
+             std::move(delegate), std::move(views), is_web_app);
+       }
+       case BrowserWindowInterface::Type::TYPE_POPUP:
++        // Little Browser: a little window (lb::LittleWindowToolbarBounds).
++        return std::make_unique<BrowserViewPopupLayoutImpl>(
++            std::move(delegate), std::move(views), /*lb_little_window=*/true);
+       case BrowserWindowInterface::Type::TYPE_DEVTOOLS:
+       case BrowserWindowInterface::Type::TYPE_PICTURE_IN_PICTURE:
+         return std::make_unique<BrowserViewPopupLayoutImpl>(std::move(delegate),
+--- a/chrome/browser/ui/views/frame/layout/browser_view_popup_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_popup_layout_impl.cc
+@@ -7,12 +7,17 @@
+ #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/infobars/infobar_container_view.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
++#include "chrome/browser/ui/views/frame/custom_corners_background.h"
++#include "lb/browser/little_window/little_window_rules.h"
+ #include "ui/views/controls/separator.h"
+ 
+ BrowserViewPopupLayoutImpl::BrowserViewPopupLayoutImpl(
+     std::unique_ptr<BrowserViewLayoutDelegate> delegate,
+-    BrowserViewLayoutViews views)
+-    : BrowserViewLayoutImpl(std::move(delegate), std::move(views)) {
++    BrowserViewLayoutViews views,
++    bool lb_little_window)
++    : BrowserViewLayoutImpl(std::move(delegate), std::move(views)),
++      lb_little_window_(lb_little_window) {
+   // Some elements may be visible when they should not be. Remove them.
+   if (this->views().horizontal_tab_strip_region_view) {
+     this->views().horizontal_tab_strip_region_view->SetVisible(false);
+@@ -46,8 +51,14 @@
+ 
+   return gfx::Size(std::max({kMinContentsSize.width(), caption_size.width(),
+                              toolbar_size.width()}),
+-                   kMinContentsSize.height() + caption_size.height() +
+-                       toolbar_size.height() + separator_height);
++                   kMinContentsSize.height() +
++                       // Little Browser: one row, the buttons beside the
++                       // toolbar.
++                       (lb_little_window_
++                            ? std::max(caption_size.height(),
++                                       toolbar_size.height())
++                            : caption_size.height() + toolbar_size.height()) +
++                       separator_height);
+ }
+ 
+ BrowserViewPopupLayoutImpl::ProposedLayout
+@@ -113,6 +124,39 @@
+     bool needs_exclusion) const {
+   const int original_top = params.visual_client_area.y();
+ 
++  // Little Browser: a little window's toolbar is in its one row, beside the window buttons.
++  if (lb_little_window_ && IsParentedTo(views().toolbar, views().top_container)) {
++    const bool show_toolbar = delegate().IsToolbarVisible();
++    const auto leading = params.leading_exclusion.ContentWithPadding();
++    const auto trailing = params.trailing_exclusion.ContentWithPadding();
++    gfx::Rect toolbar_bounds(params.visual_client_area.origin(), gfx::Size());
++    if (show_toolbar) {
++      toolbar_bounds = lb::LittleWindowToolbarBounds(
++          params.visual_client_area, base::ClampCeil(leading.width()),
++          base::ClampCeil(trailing.width()),
++          base::ClampCeil(std::max(leading.height(), trailing.height())),
++          views().toolbar->GetPreferredSize().height());
++    }
++    layout.AddChild(views().toolbar, toolbar_bounds, show_toolbar);
++    params.SetTop(toolbar_bounds.bottom());
++    if (IsParentedTo(views().top_container_separator, views().top_container)) {
++      const bool show_separator =
++          delegate().IsContentsSeparatorEnabled() && show_toolbar;
++      gfx::Rect separator_bounds;
++      if (show_separator) {
++        separator_bounds = gfx::Rect(
++            params.visual_client_area.x(), params.visual_client_area.y(),
++            params.visual_client_area.width(), views::Separator::kThickness);
++        params.SetTop(separator_bounds.bottom());
++      }
++      layout.AddChild(views().top_container_separator, separator_bounds,
++                      show_separator);
++    }
++    return gfx::Rect(params.visual_client_area.x(), original_top,
++                     params.visual_client_area.width(),
++                     params.visual_client_area.y() - original_top);
++  }
++
+   // Layout starts beneath the caption buttons because title is laid out by the
+   // OS in popup mode.
+   params.SetTop(base::ClampCeil(
+@@ -154,3 +198,18 @@
+                    params.visual_client_area.width(),
+                    params.visual_client_area.y() - original_top);
+ }
++
++void BrowserViewPopupLayoutImpl::ConfigureTopContainerBackground(
++    const BrowserLayoutParams& params,
++    CustomCornersBackground* background) {
++  // Little Browser: a little window's row has the address's colour all the
++  // way across, under the window buttons too.
++  if (lb_little_window_ &&
++      !is_fullscreen(delegate().GetBrowserWindowState())) {
++    background->SetVisible(true);
++    background->SetPrimaryColor(kColorLocationBarBackground);
++    background->SetCorners(CustomCornersBackground::Corners());
++    return;
++  }
++  BrowserViewLayoutImpl::ConfigureTopContainerBackground(params, background);
++}
+--- a/chrome/browser/ui/views/frame/layout/browser_view_popup_layout_impl.h
++++ b/chrome/browser/ui/views/frame/layout/browser_view_popup_layout_impl.h
+@@ -16,7 +16,8 @@
+  public:
+   BrowserViewPopupLayoutImpl(
+       std::unique_ptr<BrowserViewLayoutDelegate> delegate,
+-      BrowserViewLayoutViews views);
++      BrowserViewLayoutViews views,
++      bool lb_little_window = false);
+   ~BrowserViewPopupLayoutImpl() override;
+ 
+  protected:
+@@ -27,6 +28,14 @@
+   gfx::Rect CalculateTopContainerLayout(ProposedLayout& layout,
+                                         BrowserLayoutParams params,
+                                         bool needs_exclusion) const override;
++  void ConfigureTopContainerBackground(
++      const BrowserLayoutParams& params,
++      CustomCornersBackground* background) override;
++
++ private:
++  // Little Browser: a little window (Chromium's popup) has one row above its page, the window
++  // buttons and then the toolbar, with no title bar (lb::LittleWindowToolbarBounds).
++  const bool lb_little_window_;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_LAYOUT_BROWSER_VIEW_POPUP_LAYOUT_IMPL_H_

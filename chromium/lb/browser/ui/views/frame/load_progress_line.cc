@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+#include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -36,6 +37,9 @@
 namespace lb {
 
 namespace {
+
+// With the toolbar in the sidebar, the line's gap above the page card.
+constexpr int kLoadProgressGap = 3;
 
 PageLoad LoadOf(content::WebContents* contents) {
   if (!contents) {
@@ -73,6 +77,19 @@ class LoadProgressLineView : public views::View,
     gfx::Rect filled = FilledBounds();
     views::View::ConvertRectToScreen(this, &filled);
     return {progress_.line(), GetBoundsInScreen(), filled, opacity_};
+  }
+
+  // Moves the line into `host` (the BrowserView with the toolbar in the sidebar, else the
+  // toolbar's parent) and places it there.
+  void MoveTo(views::View* host, bool toolbar_in_sidebar) {
+    toolbar_in_sidebar_ = toolbar_in_sidebar;
+    if (host && parent() != host) {
+      host->AddChildView(this);
+    }
+    if (toolbar_ && toolbar_->parent() && !observations_.IsObservingSource(toolbar_->parent())) {
+      observations_.AddObservation(toolbar_->parent());
+    }
+    Position();
   }
 
   void SetLoadForTesting(const PageLoad& load) {
@@ -169,6 +186,16 @@ class LoadProgressLineView : public views::View,
     if (!host || !toolbar_ || !toolbar_->parent()) {
       return;
     }
+    // With the toolbar in the sidebar: in the card's top margin, right above the card; with no
+    // room above it (fullscreen, where the card has no margin), along the card's top edge.
+    if (views::View* page = Page(); toolbar_in_sidebar_ && page) {
+      gfx::Rect card = page->bounds();
+      card = views::View::ConvertRectToTarget(page->parent(), host, card);
+      const int above = card.y() - kLoadProgressHeight - kLoadProgressGap;
+      SetBoundsRect(
+          gfx::Rect(card.x(), above >= 0 ? above : card.y(), card.width(), kLoadProgressHeight));
+      return;
+    }
     const gfx::Rect toolbar =
         views::View::ConvertRectToTarget(toolbar_->parent(), host, toolbar_->bounds());
     gfx::Rect bounds(toolbar.x(), toolbar.bottom() - kLoadProgressHeight, toolbar.width(),
@@ -245,6 +272,7 @@ class LoadProgressLineView : public views::View,
 
   const raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<views::View> toolbar_;
+  bool toolbar_in_sidebar_ = false;
   raw_ptr<views::View> page_ = nullptr;
   base::ScopedMultiSourceObservation<views::View, views::ViewObserver> observations_{this};
   LoadProgress progress_;
@@ -259,19 +287,32 @@ class LoadProgressLineView : public views::View,
 BEGIN_METADATA(LoadProgressLineView)
 END_METADATA
 
-LoadProgressLineView* LineOf(BrowserWindowInterface* browser) {
-  BrowserView* view = browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
-  views::View* toolbar = view ? view->toolbar() : nullptr;
-  views::View* host = toolbar && toolbar->parent() ? toolbar->parent() : toolbar;
-  if (!host) {
-    return nullptr;
-  }
-  for (views::View* child : host->children()) {
+LoadProgressLineView* LineIn(views::View* host) {
+  for (views::View* child : host ? host->children() : views::View::Views()) {
     if (auto* line = views::AsViewClass<LoadProgressLineView>(child)) {
       return line;
     }
   }
   return nullptr;
+}
+
+// The line: in the toolbar's parent (the top container), or in the BrowserView while the toolbar
+// is in the sidebar.
+LoadProgressLineView* LineOf(views::View* browser_view, views::View* toolbar) {
+  if (LoadProgressLineView* line = LineIn(browser_view)) {
+    return line;
+  }
+  if (BrowserView* view = views::AsViewClass<BrowserView>(browser_view)) {
+    if (LoadProgressLineView* line = LineIn(view->top_container())) {
+      return line;
+    }
+  }
+  return LineIn(toolbar && toolbar->parent() ? toolbar->parent() : toolbar);
+}
+
+LoadProgressLineView* LineOf(BrowserWindowInterface* browser) {
+  BrowserView* view = browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
+  return view ? LineOf(view, view->toolbar()) : nullptr;
 }
 
 }  // namespace
@@ -284,6 +325,14 @@ void AddLoadProgressLine(views::View* toolbar, BrowserWindowInterface* browser) 
   // In the toolbar's parent (the top container), so it can run the page card's whole width.
   views::View* host = toolbar->parent() ? toolbar->parent() : toolbar;
   host->AddChildView(std::make_unique<LoadProgressLineView>(browser, toolbar));
+}
+
+void MoveLoadProgressLine(views::View* browser_view, views::View* toolbar, bool toolbar_in_sidebar) {
+  LoadProgressLineView* line = LineOf(browser_view, toolbar);
+  if (!line || !toolbar) {
+    return;
+  }
+  line->MoveTo(toolbar_in_sidebar ? browser_view : toolbar->parent(), toolbar_in_sidebar);
 }
 
 std::optional<LoadProgressLineShown> GetLoadProgressLineForTesting(

@@ -24,6 +24,7 @@
 #include "lb/browser/ui/lb_ui_snapshot.h"
 #include "lb/browser/ui/views/command_bar/command_bar.h"
 #include "lb/browser/ui/views/sidebar/sidebar_footer_view.h"
+#include "lb/browser/ui/views/sidebar/sidebar_toolbar.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/color/color_id.h"
@@ -243,6 +244,10 @@ void AddSidebar(views::View* content_area,
   auto* footer = content_area->AddChildView(std::make_unique<SidebarFooterView>(weak_controller));
   footer->SetProperty(views::kMarginsKey,
                       gfx::Insets::TLBR(6, horizontal_padding, 8, horizontal_padding));
+
+  // The window's toolbar, above the space's name (sidebar_toolbar.h), once the window is built.
+  content_area->AddChildViewAt(CreateSidebarToolbarSlot(), 0);
+  PlaceToolbarSoon(browser_view);
 }
 
 void RunSidebarHeaderDemo(BrowserWindowInterface* browser) {

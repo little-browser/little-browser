@@ -10,11 +10,13 @@
 #
 # Output: android/build/src/out/<cpu>/apks/ChromePublic.apk, signed with Chromium's public debug
 # key. GN args: android/args/android.gn. Then runs our Java's tests (lb_junit_tests).
-# LB_NINJA_FLAGS and LB_CC_WRAPPER work as in desktop/scripts/build.sh.
+# LB_NINJA_FLAGS, LB_CC_WRAPPER and LB_RELEASE work as in desktop/scripts/build.sh.
 set -euo pipefail
 
 ANDROID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="$(dirname "$ANDROID_DIR")"
+# shellcheck source=../../chromium/VERSIONS
+source "$REPO/chromium/VERSIONS"
 # shellcheck source=../../chromium/scripts/lib.sh
 source "$REPO/chromium/scripts/lib.sh"
 SRC="$ANDROID_DIR/build/src"
@@ -23,6 +25,7 @@ CPU="${1:-arm64}"
 case "$CPU" in arm64|x64) ;; *) die "usage: build.sh [arm64|x64]" ;; esac
 [ -d "$SRC" ] || die "run android/scripts/fetch.sh first"
 check_tree_links "$SRC" "$REPO"
+check_release_tree "$SRC"
 OUT_REL="out/$CPU"
 OUT="$SRC/$OUT_REL"
 mkdir -p "$OUT"

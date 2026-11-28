@@ -5,11 +5,13 @@
 # window's full height, to the width the user gave the sidebar, not Chromium's
 # default; showing it while slid in keeps that width. Its edge resizes it there as it does the
 # shown sidebar (whether a drag does is decided when it starts), its resize area stays while it is
-# slid in, and it stays hidden. With expand on hover off it stays Chromium's column of icons. The
-# widths and the resize area's rule are //lb:model's (lb/browser/tabs/sidebar_width.h).
+# slid in, and it stays hidden. Slid in, its top row (the sidebar toggle and Tab Search) is one row
+# right of the window controls, as on the shown sidebar, not Chromium's column for a collapsed
+# strip. With expand on hover off it stays Chromium's column of icons. The widths, the resize
+# area's rule and the top row's are //lb:model's (lb/browser/tabs/sidebar_width.h).
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -3216,6 +3216,7 @@
+@@ -3222,6 +3222,7 @@
      "//base",
      "//build:buildflag_header_h",
      "//chrome/browser/ui:layout_constants",
@@ -367,3 +369,50 @@
    base::flat_set<raw_ptr<VerticalTabStripExpandOnHoverLock>> hover_locks_;
  
    std::unique_ptr<TabHoverCardController::ScopedHideHoverCardLock>
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -47,6 +47,7 @@
+   ]
+ 
+   deps = [
++    "//lb:model",  # Little Browser: the slid-in sidebar's top row (lb/browser/tabs/sidebar_width.h)
+     "//chrome/browser:primitives",
+     "//chrome/browser/glic",
+     "//chrome/browser/glic/browser_ui:glow",
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_segmented_control.h"
+ #include "chrome/common/pref_names.h"
++#include "lb/browser/tabs/sidebar_width.h"
+ #include "chrome/grit/generated_resources.h"
+ #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/prefs/pref_service.h"
+@@ -141,8 +142,15 @@
+                                  .width();
+   }
+ 
+-  const bool is_collapsed_with_combo =
+-      is_collapsed && combo_button_ && combo_button_->GetVisible();
++  // Little Browser: a hidden sidebar slid in over the page is collapsed to
++  // Chromium, but has the shown sidebar's one row, right of the window
++  // controls, as it runs the window's full height (lb::SlidInTopRow).
++  const bool lb_slid_in =
++      lb::SlidInTopRow(is_collapsed, is_expand_on_hover, available_width,
++                       tabs::kVerticalTabStripCollapseSnapWidth);
++  const bool is_collapsed_with_combo = is_collapsed && !lb_slid_in &&
++                                       combo_button_ &&
++                                       combo_button_->GetVisible();
+ 
+   // Once the available width is below the collapse snap width, we update the
+   // orientation in order to have smooth transition during animation.
+@@ -264,7 +272,7 @@
+     // button does not need to be shifted over.
+     const int left_alignment =
+         (wrapped_due_to_overflow || is_exiting_expand_on_hover_ ||
+-         (is_collapsed && is_expand_on_hover))
++         (is_collapsed && is_expand_on_hover && !lb_slid_in))
+             ? 0
+             : caption_button_width_;
+ 

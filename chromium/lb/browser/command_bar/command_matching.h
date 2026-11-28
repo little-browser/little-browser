@@ -40,6 +40,11 @@ enum class CommandBarResult { kOpenTab, kCommand, kBookmark, kHistory, kAddress,
 // and no commands (they'd act on it).
 bool OffersResult(CommandBarMode mode, CommandBarResult kind);
 
+// Whether "Search with ‹engine›" comes first when the typed text isn't an address; otherwise
+// second, after the best result. `top_score` is the best result's MatchScore, if there is one.
+// The little window's bar searches first whatever matches (docs/ux.md §8).
+bool SearchGoesFirst(CommandBarMode mode, std::optional<double> top_score);
+
 // What is added to a result's match score for its kind, so that among equally good matches open
 // tabs come first, then commands, then bookmarks, then history. The boost is small, so a better
 // match of any kind still comes first (docs/ux.md §4 ranks by fuzzy match).

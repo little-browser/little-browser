@@ -123,13 +123,15 @@ std::u16string NameFromInput(std::u16string_view typed, std::u16string_view page
   return ToUtf16(core::name_from_input(base::UTF16ToUTF8(typed), base::UTF16ToUTF8(page_title)));
 }
 
-std::u16string TabTitleToShow(const TabCustom& custom, const std::u16string& page_title) {
-  return ToUtf16(core::tab_title_to_show(base::UTF16ToUTF8(custom.name), LinkTitle(custom),
-                                         base::UTF16ToUTF8(page_title)));
+std::u16string TabTitleToShow(const TabCustom& custom,
+                              const std::u16string& page_title,
+                              bool asleep) {
+  return ToUtf16(core::tab_title_to_show(base::UTF16ToUTF8(custom.name), ToCore(custom),
+                                         base::UTF16ToUTF8(page_title), asleep));
 }
 
-bool HasOwnTitle(const TabCustom& custom) {
-  return core::has_own_title(base::UTF16ToUTF8(custom.name), LinkTitle(custom));
+bool HasOwnTitle(const TabCustom& custom, bool asleep) {
+  return core::has_own_title(base::UTF16ToUTF8(custom.name), ToCore(custom), asleep);
 }
 
 bool HasLeftPinnedUrl(const GURL& pinned_url, const GURL& current_url) {
