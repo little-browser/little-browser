@@ -1,0 +1,16 @@
+# Little Browser (Android): the address of our terms of use (littlebrowser.app/terms), for the
+# welcome screen's terms link (welcome-terms.patch, the Java half).
+
+diff --git a/chrome/browser/ui/android/strings/android_chrome_strings.grd b/chrome/browser/ui/android/strings/android_chrome_strings.grd
+--- a/chrome/browser/ui/android/strings/android_chrome_strings.grd
++++ b/chrome/browser/ui/android/strings/android_chrome_strings.grd
+@@ -2271,6 +2271,9 @@
+       <message name="IDS_OPEN_SOURCE_LICENSE_URL" desc="URL for open source license" translateable="false">
+         chrome://credits
+       </message>
++      <message name="IDS_LB_TERMS_URL" desc="Little Browser: the address of its terms of use" translateable="false">
++        https://littlebrowser.app/terms
++      </message>
+       <message name="IDS_GOOGLE_TERMS_OF_SERVICE_TITLE" desc="Title for Google terms of service">
+         Google Terms of Service
+       </message>

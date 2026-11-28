@@ -1,0 +1,28 @@
+# Little Browser: Chromium's page-info and Site settings Java depend on ours (chromium/lb/android)
+# for the Ads switch and setting that ads-switch-page-info.patch and ads-site-settings.patch use.
+# The native half of those changes.
+
+diff --git a/components/browser_ui/site_settings/android/BUILD.gn b/components/browser_ui/site_settings/android/BUILD.gn
+index e91f024a..473ce081 100644
+--- a/components/browser_ui/site_settings/android/BUILD.gn
++++ b/components/browser_ui/site_settings/android/BUILD.gn
+@@ -115,6 +115,7 @@ android_library("java") {
+   resources_package = "org.chromium.components.browser_ui.site_settings"
+   deps = [
+     ":java_resources",
++    "//lb/android:java",  # Little Browser: which sites have an Ads setting (SiteAds)
+     "//base:base_java",
+     "//build/android:build_java",
+     "//chrome/browser/flags:java",
+diff --git a/components/page_info/android/BUILD.gn b/components/page_info/android/BUILD.gn
+index 9a39a68c..ce184031 100644
+--- a/components/page_info/android/BUILD.gn
++++ b/components/page_info/android/BUILD.gn
+@@ -92,6 +92,7 @@ android_library("java") {
+ 
+   deps = [
+     ":java_resources",
++    "//lb/android:java",  # Little Browser: the Ads switch (SiteAds)
+     ":page_info_action_enum_java",
+     "//base:base_java",
+     "//build/android:build_java",

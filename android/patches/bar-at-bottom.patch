@@ -1,0 +1,44 @@
+# Little Browser: the bar is at the bottom by default, top in Settings (docs/ux.md §10), and stays
+# there on the new-tab page and while typing, so the search screen's input sits right above the
+# keyboard. Chromium's own bottom toolbar, otherwise unchanged.
+
+diff --git a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java
+index a066a05c..48153d61 100644
+--- a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java
++++ b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/ToolbarPositionController.java
+@@ -675,9 +675,9 @@ public class ToolbarPositionController implements OnSharedPreferenceChangeListen
+             boolean doesUserPreferTopToolbar,
+             @ControlsPosition int currentPosition) {
+         @ControlsPosition int newControlsPosition;
+-        if (ntpShowing
+-                || tabSwitcherShowing
+-                || isOmniboxFocused
++        // Little Browser: the bar stays where it is on the new-tab page and while typing in it
++        // (docs/ux.md §10: the search screen's input sits right above the keyboard).
++        if (tabSwitcherShowing
+                 || isFindInPageShowing
+                 || (isPictureInPictureShowing
+                         && ChromeFeatureList.sPictureInPictureMovesToolbarAndroid.isEnabled())
+diff --git a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/settings/AddressBarPreference.java b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/settings/AddressBarPreference.java
+--- a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/settings/AddressBarPreference.java
++++ b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/settings/AddressBarPreference.java
+@@ -50,8 +50,9 @@ public class AddressBarPreference extends ContainedRadioButtonGroupPreference
+ 
+     // We choose this as a "default return value" because top omnibox is the default today. Choose
+     // TOP_SETTINGS because TOP_LONG_PRESS causes an animation (see ToolbarPositionController).
++    // Little Browser: the bar is at the bottom by default (docs/ux.md §10).
+     private static final @ToolbarPositionAndSource int DEFAULT_POSITION_AND_SOURCE =
+-            ToolbarPositionAndSource.TOP_SETTINGS;
++            ToolbarPositionAndSource.BOTTOM_SETTINGS;
+ 
+     public AddressBarPreference(Context context, AttributeSet attrs) {
+         super(context, attrs);
+@@ -256,6 +257,7 @@ public class AddressBarPreference extends ContainedRadioButtonGroupPreference
+ 
+     private static @ToolbarPositionAndSource int fromLocalState(boolean isInBottomPosition) {
+         if (isInBottomPosition) return ToolbarPositionAndSource.BOTTOM_SETTINGS;
+-        return DEFAULT_POSITION_AND_SOURCE;
++        // Little Browser: "top" is top, whatever the default is.
++        return ToolbarPositionAndSource.TOP_SETTINGS;
+     }
+ }

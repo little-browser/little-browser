@@ -1,0 +1,16 @@
+# Little Browser (Android): no notification permission prompt at startup ("Chrome notifications
+# make things easier", then Android's own). Requests made in context, when a site or a feature
+# that needs notifications asks, still go through (docs/ux.md §1, Calm: no permission nags).
+
+diff --git a/chrome/browser/notifications/android/java/src/org/chromium/chrome/browser/notifications/permissions/NotificationPermissionController.java b/chrome/browser/notifications/android/java/src/org/chromium/chrome/browser/notifications/permissions/NotificationPermissionController.java
+--- a/chrome/browser/notifications/android/java/src/org/chromium/chrome/browser/notifications/permissions/NotificationPermissionController.java
++++ b/chrome/browser/notifications/android/java/src/org/chromium/chrome/browser/notifications/permissions/NotificationPermissionController.java
+@@ -175,6 +175,8 @@
+      * @return True if any UI was shown (either rationale dialog or OS prompt), false otherwise.
+      */
+     public boolean requestPermissionIfNeeded(boolean contextual) {
++        // Little Browser: ask only in context, never at startup.
++        if (!contextual) return false;
+         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || DeviceInfo.isRetailDemoMode()) {
+             return false;
+         }

@@ -1,0 +1,85 @@
+# Little Browser (Android): closing is final (docs/ux.md §6, §10), as on the desktop
+# (desktop/patches/lb/no-reopen-closed*.patch). No Undo bar after closing tabs: their closing is
+# committed straight after the tab model has announced it. No Recently closed list on the Recent
+# tabs page, and no Ctrl+Shift+T.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/undo_tab_close_snackbar/UndoBarController.java b/chrome/android/java/src/org/chromium/chrome/browser/undo_tab_close_snackbar/UndoBarController.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/undo_tab_close_snackbar/UndoBarController.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/undo_tab_close_snackbar/UndoBarController.java
+@@ -10,6 +10,8 @@ import android.content.Context;
+ import android.util.Pair;
+ 
+ import org.chromium.base.metrics.RecordHistogram;
++import org.chromium.base.task.PostTask;
++import org.chromium.base.task.TaskTraits;
+ import org.chromium.build.annotations.NullMarked;
+ import org.chromium.build.annotations.Nullable;
+ import org.chromium.chrome.R;
+@@ -58,6 +60,9 @@ public abstract class UndoBarController
+         }
+     }
+ 
++    // Little Browser: whether closing tabs can be undone (no-reopen-closed.patch).
++    private static final boolean LB_CLOSING_IS_FINAL = true;
++
+     /**
+      * Creates an instance of a {@link UndoBarController}.
+      *
+@@ -122,6 +127,18 @@ public abstract class UndoBarController
+     private void showUndoBar(
+             List<Tab> closedTabs, List<String> savedTabGroupSyncIds, boolean isAllTabs) {
+         if (closedTabs.isEmpty() && savedTabGroupSyncIds.isEmpty()) return;
++        // Little Browser: closing is final (no-reopen-closed.patch): no Undo, the tabs close
++        // now. Right after the model has told every observer of the closing, which it is still
++        // doing here: they all see it pending first, as without the patch.
++        if (LB_CLOSING_IS_FINAL) {
++            List<Tab> closing = new ArrayList<>(closedTabs);
++            PostTask.postTask(
++                    TaskTraits.UI_DEFAULT,
++                    () -> {
++                        for (Tab closedTab : closing) commitTabClosure(closedTab.getId());
++                    });
++            return;
++        }
+ 
+         boolean singleTab = closedTabs.size() == 1;
+         Pair<String, String> templateAndContent =
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/ntp/RecentTabsRowAdapter.java b/chrome/android/java/src/org/chromium/chrome/browser/ntp/RecentTabsRowAdapter.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/ntp/RecentTabsRowAdapter.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/ntp/RecentTabsRowAdapter.java
+@@ -1092,7 +1092,7 @@
+     @Override
+     public void notifyDataSetChanged() {
+         mGroups.clear();
+-        addGroup(mRecentlyClosedTabsGroup);
++        // Little Browser: no Recently closed list (no-reopen-closed.patch).
+         for (ForeignSession session : mRecentTabsManager.getForeignSessions()) {
+             if (!mHasForeignDataRecorded) {
+                 RecordHistogram.recordEnumeratedHistogram(
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/KeyboardShortcuts.java b/chrome/android/java/src/org/chromium/chrome/browser/KeyboardShortcuts.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/KeyboardShortcuts.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/KeyboardShortcuts.java
+@@ -437,11 +437,6 @@
+                 new KeyCombo(KeyEvent.KEYCODE_T, KeyEvent.META_CTRL_ON),
+                 R.string.keyboard_shortcut_open_new_tab,
+                 R.string.keyboard_shortcut_tab_group_header);
+-        new KeyboardShortcutDefinition(
+-                KeyboardShortcutsSemanticMeaning.OPEN_RECENTLY_CLOSED_TAB,
+-                new KeyCombo(KeyEvent.KEYCODE_T, (KeyEvent.META_CTRL_ON | KeyEvent.META_SHIFT_ON)),
+-                R.string.keyboard_shortcut_reopen_new_tab,
+-                R.string.keyboard_shortcut_tab_group_header);
+         if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
+             new KeyboardShortcutDefinition(
+                     KeyboardShortcutsSemanticMeaning.OPEN_NEW_WINDOW_INCOGNITO,
+@@ -1121,9 +1116,8 @@
+ 
+         switch (semanticMeaning) {
+             case KeyboardShortcutsSemanticMeaning.OPEN_RECENTLY_CLOSED_TAB:
+-                menuOrKeyboardActionController.onMenuOrKeyboardAction(
+-                        R.id.open_recently_closed_tab, false);
+-                return true;
++                // Little Browser: closed tabs can't be reopened (no-reopen-closed.patch).
++                return false;
+             case KeyboardShortcutsSemanticMeaning.OPEN_NEW_TAB:
+                 {
+                     boolean forced =

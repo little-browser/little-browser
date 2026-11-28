@@ -4,7 +4,7 @@
 > https://littlebrowser.app, the same week as the Widevine application. Sources checked 2026-11-17.
 > The desktop build runs Safe Browsing in **standard mode only**: a local hash-prefix database, with
 > full-hash lookups only when a prefix matches. Enhanced protection, extended reporting and
-> real-time lookups are hard-disabled (`desktop/patches/lb/safe-browsing-standard-only.patch`,
+> real-time lookups are hard-disabled (`chromium/patches/safe-browsing-standard-only.patch`,
 > `safe_browsing_mode = 1` in `desktop/args/common.gn`).
 > Threat lists need an **agreement with Google**. Until then the build has Safe Browsing wired up
 > but no lists, because Google answers keyless update requests with 400 "Permission denied".

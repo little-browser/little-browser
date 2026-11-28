@@ -1,0 +1,30 @@
+# Little Browser (Android): a profile after the first gets a GCM driver of its own (docs/ux.md §5;
+# multi-profile, profile-windows.patch). Each profile's GCMProfileService makes a
+# GCMDriverAndroid, whose Java GCMDriver was one per app and threw on the second, crashing the app
+# as a new profile was created. Incoming messages still go to the first profile's driver, as
+# before, so web push reaches only the profile the app starts with.
+
+diff --git a/components/gcm_driver/android/java/src/org/chromium/components/gcm_driver/GCMDriver.java b/components/gcm_driver/android/java/src/org/chromium/components/gcm_driver/GCMDriver.java
+--- a/components/gcm_driver/android/java/src/org/chromium/components/gcm_driver/GCMDriver.java
++++ b/components/gcm_driver/android/java/src/org/chromium/components/gcm_driver/GCMDriver.java
+@@ -59,7 +59,9 @@
+     @CalledByNative
+     private static GCMDriver create(long nativeGCMDriverAndroid) {
+         if (sInstance != null) {
+-            throw new IllegalStateException("Already instantiated");
++            // Little Browser: each profile has its own GCMDriverAndroid, and a profile after the
++            // first gets its own driver too. Messages still go to the first one.
++            return new GCMDriver(nativeGCMDriverAndroid);
+         }
+         sInstance = new GCMDriver(nativeGCMDriverAndroid);
+         // TODO(crbug.com/40620351): This has been in added in M75 to migrate the
+@@ -75,8 +77,7 @@
+      */
+     @CalledByNative
+     private void destroy() {
+-        assert sInstance == this;
+-        sInstance = null;
++        if (sInstance == this) sInstance = null;
+         mNativeGCMDriverAndroid = 0;
+     }
+ 

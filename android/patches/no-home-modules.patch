@@ -1,0 +1,27 @@
+# Little Browser (Android): no home modules (Chromium's "magic stack") on the new tab page: no
+# Chrome tips or setup list, no "continue with this tab", no Safety Hub notices, no price
+# tracking, no promo to share tabs with Android's search (docs/ux.md §1, Calm). The new tab page
+# shows no stack when no modules are registered.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
+@@ -563,6 +563,9 @@
+     private final OneshotSupplierImpl<TabSwitcher> mIncognitoTabSwitcherSupplier =
+             new OneshotSupplierImpl<>();
+     private final OneshotSupplierImpl<HubManager> mHubManagerSupplier = new OneshotSupplierImpl<>();
++    // Little Browser: whether the new tab page has home modules (no-home-modules.patch).
++    private static final boolean LB_HOME_MODULES = false;
++
+     private final OneshotSupplierImpl<ModuleRegistry> mModuleRegistrySupplier =
+             new OneshotSupplierImpl<>();
+     private final TransitiveTopInsetProvider mTransitiveTopInsetProvider =
+@@ -3643,6 +3646,8 @@
+     }
+ 
+     private void maybeRegisterHomeModules() {
++        // Little Browser: no home modules; without a registry the new tab page shows none.
++        if (!LB_HOME_MODULES) return;
+         ModuleRegistry moduleRegistry =
+                 new ModuleRegistry(
+                         HomeModulesConfigManager.getInstance(), getLifecycleDispatcher());

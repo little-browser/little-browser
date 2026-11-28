@@ -1,0 +1,197 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# The Android shell's Java (docs/android-ui.md). Its native side is in //lb:browser, which
+# chrome/browser links on every platform; on Android it adds the *_android.cc files in this
+# folder. Every class here has a <Name>Test.java under junit/ (chromium/scripts/check_lb_tests.py
+# checks it), run by lb_junit_tests.
+
+import("//build/config/android/rules.gni")
+import("//third_party/jni_zero/jni_zero.gni")
+
+# The Java classes with native methods.
+_jni_sources = [
+  "java/src/app/littlebrowser/lb/adblock/SiteAds.java",
+  "java/src/app/littlebrowser/lb/importer/BookmarksFile.java",
+  "java/src/app/littlebrowser/lb/password/PasswordManagers.java",
+  "java/src/app/littlebrowser/lb/profiles/Profiles.java",
+  "java/src/app/littlebrowser/lb/search/Matching.java",
+  "java/src/app/littlebrowser/lb/search/SearchEngines.java",
+  "java/src/app/littlebrowser/lb/spaces/SpaceStore.java",
+  "java/src/app/littlebrowser/lb/tabs/PinnedGroups.java",
+  "java/src/app/littlebrowser/lb/tabs/TabNames.java",
+  "java/src/app/littlebrowser/lb/tabs/TabRules.java",
+]
+
+generate_jni("jni_headers") {
+  sources = _jni_sources
+}
+
+# Our Java. Chrome's Java includes it (android/patches/lb-java.patch), and the Chromium Java our
+# patches call it from depends on it (android/patches/ads-switch-page-info-deps.patch).
+android_library("java") {
+  srcjar_deps = [ ":jni_headers" ]
+  sources = _jni_sources + [
+    "java/src/app/littlebrowser/lb/adblock/SiteAdsSwitch.java",
+    "java/src/app/littlebrowser/lb/search/TabSuggestions.java",
+  ]
+  deps = [
+    "//base:base_java",
+    "//build/android:build_java",
+    "//chrome/browser/profiles/android:java",
+    "//content/public/android:content_java",
+    "//third_party/androidx:androidx_annotation_annotation_java",
+    "//third_party/jni_zero:jni_zero_java",
+  ]
+}
+
+# The phone shell (docs/android-ui.md, docs/ux.md §10): spaces, the space button, the all-tabs
+# view, the spaces sheet, pinned close, tab names and links, over Chromium's tab model. Chrome's
+# Java includes it and its hooks call it (android/patches/lb-java.patch, phone-shell.patch); it
+# depends on Chromium's small Java targets, never on chrome_java itself.
+_shell_sources = [
+  "java/src/app/littlebrowser/lb/shell/AllTabsPage.java",
+  "java/src/app/littlebrowser/lb/shell/AllTabsView.java",
+  "java/src/app/littlebrowser/lb/shell/ChoicePrompt.java",
+  "java/src/app/littlebrowser/lb/shell/HoldMenu.java",
+  "java/src/app/littlebrowser/lb/shell/ImportBookmarks.java",
+  "java/src/app/littlebrowser/lb/shell/LbPhoneShell.java",
+  "java/src/app/littlebrowser/lb/shell/LittleWindow.java",
+  "java/src/app/littlebrowser/lb/shell/NewSpaceDialog.java",
+  "java/src/app/littlebrowser/lb/shell/PasswordManagerScreen.java",
+  "java/src/app/littlebrowser/lb/shell/PinnedClose.java",
+  "java/src/app/littlebrowser/lb/shell/ProfileSpaces.java",
+  "java/src/app/littlebrowser/lb/shell/ProfileWindows.java",
+  "java/src/app/littlebrowser/lb/shell/SearchEngineScreen.java",
+  "java/src/app/littlebrowser/lb/shell/SearchTabs.java",
+  "java/src/app/littlebrowser/lb/shell/SidebarSpaces.java",
+  "java/src/app/littlebrowser/lb/shell/SpaceButton.java",
+  "java/src/app/littlebrowser/lb/shell/SpaceTabs.java",
+  "java/src/app/littlebrowser/lb/shell/SpacesSheet.java",
+  "java/src/app/littlebrowser/lb/shell/TabInfo.java",
+  "java/src/app/littlebrowser/lb/shell/TabPreviews.java",
+  "java/src/app/littlebrowser/lb/shell/TextPrompt.java",
+]
+
+android_resources("shell_java_resources") {
+  sources = [
+    "java/res/drawable/lb_copy_link.xml",
+    "java/res/values/ids.xml",
+    "java/res/values/strings.xml",
+  ]
+}
+
+android_library("shell_java") {
+  sources = _shell_sources
+  resources_package = "app.littlebrowser.lb.shell"
+  deps = [
+    ":java",
+    ":shell_java_resources",
+    "//base:base_java",
+    "//build/android:build_java",
+    "//chrome/browser/bookmarks/android:java",
+    "//chrome/browser/profiles/android:java",
+    "//chrome/browser/search_engines/android:java",
+    "//chrome/browser/tab:java",
+    "//chrome/browser/tab_ui/android:java",
+    "//chrome/browser/tabmodel:java",
+    "//components/browser_ui/bottomsheet/android:java",
+    "//components/prefs/android:java",
+    "//components/search_engines/android:java",
+    "//components/user_prefs/android:java",
+    "//content/public/android:content_java",
+    "//third_party/androidx:androidx_activity_activity_java",
+    "//third_party/androidx:androidx_annotation_annotation_java",
+    "//third_party/androidx:androidx_core_core_java",
+    "//third_party/androidx:androidx_recyclerview_recyclerview_java",
+    "//ui/android:ui_java",
+    "//url:gurl_java",
+  ]
+}
+
+# Robolectric tests on the build host, no emulator (android/scripts/build.sh builds and runs them).
+# The native methods are replaced with fakes: these test the Java side of each bridge, and the
+# rules behind it are tested in lb-core and lb_unittests. patches/ tests what our Java patches to
+# Chromium change.
+# Chromium's Java resources link only as a whole (the tab UI's name Chrome's app's, the shared
+# theme the web app header's), so the tests take them all, as Chrome's own tests do, through
+# chrome_junit_tests_helper.
+robolectric_binary("lb_junit_tests") {
+  sources = [
+    "junit/src/app/littlebrowser/lb/adblock/SiteAdsSwitchTest.java",
+    "junit/src/app/littlebrowser/lb/adblock/SiteAdsTest.java",
+    "junit/src/app/littlebrowser/lb/importer/BookmarksFileTest.java",
+    "junit/src/app/littlebrowser/lb/password/PasswordManagersTest.java",
+    "junit/src/app/littlebrowser/lb/profiles/ProfilesTest.java",
+    "junit/src/app/littlebrowser/lb/patches/ActivityProfileProviderTest.java",
+    "junit/src/app/littlebrowser/lb/patches/BarAtBottomTest.java",
+    "junit/src/app/littlebrowser/lb/patches/GCMDriverPerProfileTest.java",
+    "junit/src/app/littlebrowser/lb/patches/LittleWindowToolbarTest.java",
+    "junit/src/app/littlebrowser/lb/patches/NoPromosTest.java",
+    "junit/src/app/littlebrowser/lb/patches/SuggestionsGrowUpwardTest.java",
+    "junit/src/app/littlebrowser/lb/search/MatchingTest.java",
+    "junit/src/app/littlebrowser/lb/search/SearchEnginesTest.java",
+    "junit/src/app/littlebrowser/lb/search/TabSuggestionsTest.java",
+    "junit/src/app/littlebrowser/lb/shell/AllTabsPageTest.java",
+    "junit/src/app/littlebrowser/lb/shell/AllTabsViewTest.java",
+    "junit/src/app/littlebrowser/lb/shell/ChoicePromptTest.java",
+    "junit/src/app/littlebrowser/lb/shell/HoldMenuTest.java",
+    "junit/src/app/littlebrowser/lb/shell/ImportBookmarksTest.java",
+    "junit/src/app/littlebrowser/lb/shell/LbPhoneShellTest.java",
+    "junit/src/app/littlebrowser/lb/shell/LittleWindowTest.java",
+    "junit/src/app/littlebrowser/lb/shell/NewSpaceDialogTest.java",
+    "junit/src/app/littlebrowser/lb/shell/PasswordManagerScreenTest.java",
+    "junit/src/app/littlebrowser/lb/shell/PinnedCloseTest.java",
+    "junit/src/app/littlebrowser/lb/shell/ProfileSpacesTest.java",
+    "junit/src/app/littlebrowser/lb/shell/ProfileWindowsTest.java",
+    "junit/src/app/littlebrowser/lb/shell/SearchEngineScreenTest.java",
+    "junit/src/app/littlebrowser/lb/shell/SearchTabsTest.java",
+    "junit/src/app/littlebrowser/lb/shell/SidebarSpacesTest.java",
+    "junit/src/app/littlebrowser/lb/shell/SpaceButtonTest.java",
+    "junit/src/app/littlebrowser/lb/shell/SpaceTabsTest.java",
+    "junit/src/app/littlebrowser/lb/shell/SpacesSheetTest.java",
+    "junit/src/app/littlebrowser/lb/shell/TabInfoTest.java",
+    "junit/src/app/littlebrowser/lb/shell/TabPreviewsTest.java",
+    "junit/src/app/littlebrowser/lb/shell/TextPromptTest.java",
+    "junit/src/app/littlebrowser/lb/spaces/SpaceStoreTest.java",
+    "junit/src/app/littlebrowser/lb/tabs/PinnedGroupsTest.java",
+    "junit/src/app/littlebrowser/lb/tabs/TabNamesTest.java",
+    "junit/src/app/littlebrowser/lb/tabs/TabRulesTest.java",
+  ]
+  deps = [
+    ":java",
+    ":shell_java",
+    ":shell_java_resources",
+    "//base:base_java",
+    "//base:base_junit_test_support",
+    "//chrome/android:chrome_java",
+    "//chrome/android/junit:chrome_junit_tests_helper",
+    "//chrome/browser/android/browserservices/intents:java",
+    "//chrome/browser/android/lifecycle:java",
+    "//chrome/browser/flags:java",
+    "//chrome/browser/notifications:java",
+    "//chrome/browser/ntp_customization:java",
+    "//chrome/browser/preferences:java",
+    "//chrome/browser/prefs/android:java",
+    "//chrome/browser/profiles/android:java",
+    "//chrome/browser/search_engines/android:java",
+    "//chrome/browser/tab:java",
+    "//chrome/browser/tab_ui/android:java",
+    "//chrome/browser/tabmodel:java",
+    "//chrome/browser/ui/android/toolbar:core_java",
+    "//components/browser_ui/bottomsheet/android:java",
+    "//components/gcm_driver/android:gcm_driver_java",
+    "//components/prefs/android:java",
+    "//components/search_engines/android:java",
+    "//third_party/androidx:androidx_core_core_java",
+    "//third_party/androidx:androidx_test_core_java",
+    "//ui/android:ui_java",
+    "//ui/android:ui_java_test_support",
+    "//build/android:build_java",
+    "//content/public/android:content_java",
+    "//third_party/jni_zero:jni_zero_java",
+    "//third_party/junit",
+    "//third_party/mockito:mockito_java",
+  ]
+}

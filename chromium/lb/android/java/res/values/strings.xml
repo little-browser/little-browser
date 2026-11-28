@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!-- The phone shell's words (docs/ux.md §10), in the desktop's wording where it has one. -->
+<resources>
+    <string name="lb_first_space_name">Personal</string>
+    <string name="lb_spaces">Spaces</string>
+    <string name="lb_space_button">Space: %1$s</string>
+    <string name="lb_new_space">New Space</string>
+    <string name="lb_rename_space">Rename Space…</string>
+    <string name="lb_space_icon">Icon</string>
+    <string name="lb_space_colour">Colour</string>
+    <string name="lb_delete_space">Delete Space</string>
+    <string name="lb_create">Create</string>
+    <string name="lb_ok">OK</string>
+    <string name="lb_cancel">Cancel</string>
+    <string name="lb_done">Done</string>
+    <string name="lb_new_tab">New tab</string>
+    <string name="lb_incognito_tabs">Incognito tabs</string>
+    <string name="lb_close_all">Close all</string>
+    <string name="lb_pinned">Pinned</string>
+    <string name="lb_today">Today</string>
+    <string name="lb_unnamed_group">Group</string>
+    <string name="lb_pin">Pin</string>
+    <string name="lb_unpin">Unpin</string>
+    <string name="lb_rename_tab">Rename Tab…</string>
+    <string name="lb_edit_link">Edit Link…</string>
+    <string name="lb_use_page_as_link">Use Current Page as Link</string>
+    <string name="lb_move_to_space">Move to Space</string>
+    <string name="lb_add_to_new_group">Add to New Group</string>
+    <string name="lb_add_to_group">Add to Group</string>
+    <string name="lb_remove_from_group">Remove from Group</string>
+    <string name="lb_close">Close</string>
+    <string name="lb_search_engine_title">Choose a search engine</string>
+    <string name="lb_search_engine_intro">Little Browser doesn\'t pick one for you. Searches you type in the address bar go to the engine you choose. You can change it any time in Settings.</string>
+    <string name="lb_password_manager_title">Choose a password manager</string>
+    <string name="lb_password_manager_intro">Little Browser has no password manager of its own. Pick one to save and fill your passwords through Android\'s autofill.</string>
+    <string name="lb_not_now">Not now</string>
+    <string name="lb_copy_url">Copy URL</string>
+    <string name="lb_link_copied">Link copied</string>
+    <string name="lb_open_in_space">Open in %1$s</string>
+    <string name="lb_browser">Little Browser</string>
+    <string name="lb_profile">Profile</string>
+    <string name="lb_new_profile">New profile…</string>
+    <string name="lb_new_profile_name">Name of the new profile</string>
+    <string name="lb_import_bookmarks">Import bookmarks…</string>
+    <string name="lb_imported">Imported %1$s</string>
+    <string name="lb_imported_and">Imported %1$s and %2$s</string>
+    <plurals name="lb_bookmarks_count">
+        <item quantity="one">%d bookmark</item>
+        <item quantity="other">%d bookmarks</item>
+    </plurals>
+    <plurals name="lb_search_shortcuts_count">
+        <item quantity="one">%d search shortcut</item>
+        <item quantity="other">%d search shortcuts</item>
+    </plurals>
+    <string name="lb_import_not_bookmarks">That file isn\'t a bookmarks file</string>
+    <string name="lb_import_unreadable">Couldn\'t read that file</string>
+</resources>

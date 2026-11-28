@@ -1,0 +1,55 @@
+# Little Browser (Android): no account button on the bar. Chromium shows it on the new tab page to
+# sign in to Google, which this build doesn't allow (privacy-default-prefs.patch), so it only led
+# to a sign-in screen that can't sign in. The bar's sign-in button (SigninButtonCoordinator) and
+# the older identity disc both stay hidden.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/identity_disc/IdentityDiscController.java b/chrome/android/java/src/org/chromium/chrome/browser/identity_disc/IdentityDiscController.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/identity_disc/IdentityDiscController.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/identity_disc/IdentityDiscController.java
+@@ -115,6 +115,9 @@
+ 
+     private boolean mIsTabNtp;
+ 
++    // Little Browser: whether the bar has the account button (no-account-button.patch).
++    private static final boolean LB_ACCOUNT_BUTTON = false;
++
+     private @UserActionableError int mIdentityError = UserActionableError.NONE;
+ 
+     private @Nullable BottomSheetSigninAndHistorySyncCoordinator mSigninCoordinator;
+@@ -190,6 +193,11 @@
+ 
+     @Override
+     public ButtonData get(@Nullable Tab tab) {
++        // Little Browser: no Google accounts, so no account button.
++        if (!LB_ACCOUNT_BUTTON) {
++            mButtonData.setCanShow(false);
++            return mButtonData;
++        }
+         mIsTabNtp =
+                 tab != null
+                         && !tab.isOffTheRecord()
+diff --git a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/signin_button/SigninButtonCoordinator.java b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/signin_button/SigninButtonCoordinator.java
+--- a/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/signin_button/SigninButtonCoordinator.java
++++ b/chrome/browser/ui/android/toolbar/java/src/org/chromium/chrome/browser/toolbar/signin_button/SigninButtonCoordinator.java
+@@ -40,6 +40,9 @@
+ /** The coordinator for a signin button on the toolbar. Owns the SigninButton view. */
+ @NullMarked
+ public class SigninButtonCoordinator extends ToolbarChildButton implements UrlFocusChangeListener {
++    // Little Browser: whether the bar has the sign-in button.
++    private static final boolean LB_SIGNIN_BUTTON = false;
++
+     private final Context mContext;
+     private final SigninButtonMediator mMediator;
+     private final PropertyModel mModel;
+@@ -179,8 +182,10 @@
+         Tab tab = mTabSupplier.get();
+         boolean shouldHideButtonForUrlFocus =
+                 !DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext) && mUrlHasFocus;
++        // Little Browser: no Google accounts, so no sign-in button (no-account-button.patch).
+         boolean showSigninButton =
+-                tab != null
++                LB_SIGNIN_BUTTON
++                        && tab != null
+                         && !tab.isOffTheRecord()
+                         && !shouldHideButtonForUrlFocus
+                         && (mShowOnAllPages || isNtp(tab));

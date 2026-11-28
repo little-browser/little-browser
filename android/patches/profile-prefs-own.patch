@@ -1,0 +1,74 @@
+# Little Browser (Android): a profile created after startup loads its own prefs and makes its own
+# proto database provider (docs/ux.md §5; native half of profile-windows.patch). Android's startup
+# builds the initial profile's prefs and database provider early, in StartupData, and ProfileImpl
+# took the prefs for every profile: a second one got none and crashed as it was created. Only the
+# profile StartupData holds takes them now; any other loads its prefs as desktop does and makes its
+# provider as StartupData does, for its key at once and for its storage partition when that is
+# created. Its services need the provider before then (on Android the push-messaging service builds
+# the image fetcher, whose store uses it), and creating the partition that early would build its
+# IdentityManager before the check that it doesn't exist yet.
+
+diff --git a/chrome/browser/profiles/profile_impl.cc b/chrome/browser/profiles/profile_impl.cc
+--- a/chrome/browser/profiles/profile_impl.cc
++++ b/chrome/browser/profiles/profile_impl.cc
+@@ -145,6 +145,7 @@
+ #include "components/keyed_service/core/simple_keyed_service_factory.h"
+ #include "components/language/core/browser/pref_names.h"
+ #include "components/language/core/common/locale_util.h"
++#include "components/leveldb_proto/public/proto_database_provider.h"
+ #include "components/metrics/metrics_service.h"
+ #include "components/omnibox/browser/autocomplete_classifier.h"
+ #include "components/payments/core/payment_request_metrics.h"
+@@ -530,10 +531,22 @@
+   bool async_prefs = create_mode == CreateMode::kAsynchronous;
+ 
+ #if BUILDFLAG(IS_ANDROID)
++  // StartupData holds the prefs and proto database provider of the profile
++  // Android starts with, once. A profile created later (Little Browser's
++  // spaces) loads its own prefs and makes its own provider, which its storage
++  // partition takes when it is created (TakeDefaultProtoDatabaseProvider):
++  // its services need it before then.
+   auto* startup_data = g_browser_process->startup_data();
+-  DCHECK(startup_data && startup_data->GetProfileKey());
+-  TakePrefsFromStartupData();
+-  async_prefs = false;
++  if (startup_data && startup_data->GetProfileKey() &&
++      startup_data->GetProfileKey()->GetPath() == path_) {
++    TakePrefsFromStartupData();
++    async_prefs = false;
++  } else {
++    LoadPrefsForNormalStartup(async_prefs);
++    proto_db_provider_ = std::make_unique<leveldb_proto::ProtoDatabaseProvider>(
++        path_, /*is_in_memory=*/false);
++    key_->SetProtoDatabaseProvider(proto_db_provider_.get());
++  }
+ #else
+   LoadPrefsForNormalStartup(async_prefs);
+ #endif
+@@ -1519,6 +1532,10 @@
+ #if BUILDFLAG(IS_ANDROID)
+   // On Android StartupData creates proto database provider for the profile
+   // before profile is created, so move ownership to storage partition.
++  // Little Browser: a profile created later made its own.
++  if (proto_db_provider_) {
++    return std::move(proto_db_provider_);
++  }
+   return g_browser_process->startup_data()->TakeProtoDatabaseProvider();
+ #else
+   return nullptr;
+diff --git a/chrome/browser/profiles/profile_impl.h b/chrome/browser/profiles/profile_impl.h
+--- a/chrome/browser/profiles/profile_impl.h
++++ b/chrome/browser/profiles/profile_impl.h
+@@ -304,6 +304,12 @@
+   // The key to index KeyedService instances created by
+   // SimpleKeyedServiceFactory.
+   std::unique_ptr<ProfileKey> key_;
++
++#if BUILDFLAG(IS_ANDROID)
++  // Little Browser: the proto database provider of a profile created after
++  // startup, until its default storage partition takes it.
++  std::unique_ptr<leveldb_proto::ProtoDatabaseProvider> proto_db_provider_;
++#endif
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+   std::unique_ptr<ash::Preferences> chromeos_preferences_;

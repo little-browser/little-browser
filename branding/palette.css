@@ -4,7 +4,7 @@
 
 /* Little Browser brand palette. These tokens are the source of truth for brand colours. The
  * default space hue is 222 ("Little Blue"), the same as kFirstSpaceHue in
- * desktop/lb/browser/spaces/space_model.h; other spaces use their own hue. */
+ * chromium/lb/browser/spaces/space_model.h; other spaces use their own hue. */
 
 :root {
   /* Brand (fixed: the app icon never follows the space colour) */

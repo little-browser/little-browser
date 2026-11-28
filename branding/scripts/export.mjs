@@ -11,7 +11,8 @@
 //   macos/    LittleBrowser.icns, icon-1024.png, MenuBarTemplate(.png|@2x.png)
 //   windows/  little-browser.ico
 //   linux/    hicolor/<n>x<n>/apps/little-browser.png + scalable SVG
-//   android/  res/mipmap-*/ (adaptive layers + legacy), play-store-512.png, play-feature-graphic.png
+//   android/  res/mipmap-*/ (adaptive layers + legacy), res/drawable-*/ (the welcome screen's logo
+//             and the lockup, white in dark mode), play-store-512.png, play-feature-graphic.png
 //   ios/      AppIcon.appiconset/ (light, dark, tinted)
 //   web/      favicon.ico, favicon.svg, apple-touch-icon.png, icon-192/512.png, social-preview.png
 //
@@ -57,6 +58,12 @@ function rasterize(svg, size, height = size) {
   return img;
 }
 const png = (svg, size) => rasterize(svg, size).asPng();
+// A PNG <height> px tall, as wide as the drawing's proportions make it.
+function pngByHeight(svg, height) {
+  const img = new Resvg(svg, { fitTo: { mode: 'height', value: height }, font: { loadSystemFonts: false } }).render();
+  if (img.height !== height) throw new Error(`expected ${height}px tall, got ${img.height}`);
+  return img.asPng();
+}
 
 // RGB PNG without an alpha channel (App Store rejects icons that have one).
 function pngOpaque(svg, size, h = size) {
@@ -202,6 +209,11 @@ for (const [d, k] of Object.entries(densities)) {
   write(`android/res/mipmap-${d}/ic_launcher_monochrome.png`, png(masters.mono, layer));
   write(`android/res/mipmap-${d}/ic_launcher.png`, png(androidLegacy(false), legacy));
   write(`android/res/mipmap-${d}/ic_launcher_round.png`, png(androidLegacy(true), legacy));
+  // Chromium's own names and sizes (components/browser_ui/styles): the welcome screen's 130 dp
+  // logo, and the 21 dp tall lockup, in Ink on light and white in dark mode.
+  write(`android/res/drawable-${d}/fre_product_logo.png`, png(masters.icon, Math.round(130 * k)));
+  write(`android/res/drawable-${d}/product_logo_name.png`, pngByHeight(src('lockup.svg'), Math.round(21 * k)));
+  write(`android/res/drawable-night-${d}/product_logo_name.png`, pngByHeight(src('lockup-white.svg'), Math.round(21 * k)));
 }
 const adaptive = `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">

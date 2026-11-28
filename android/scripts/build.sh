@@ -5,27 +5,33 @@
 #
 # Configure and build the Android APK from the tree prepared by fetch.sh.
 #
-#   android/scripts/build.sh [arm64|x64]   (default arm64; x64 for x64 emulators)
+#   android/scripts/build.sh [arm64|x64]   (default arm64; x64 for Intel and AMD Chromebooks and
+#                                          x64 emulators)
 #
 # Output: android/build/src/out/<cpu>/apks/ChromePublic.apk, signed with Chromium's public debug
-# key. GN args: android/args/android.gn.
+# key. GN args: android/args/android.gn. Then runs our Java's tests (lb_junit_tests).
 # LB_NINJA_FLAGS and LB_CC_WRAPPER work as in desktop/scripts/build.sh.
 set -euo pipefail
 
 ANDROID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="$(dirname "$ANDROID_DIR")"
-# shellcheck source=../../desktop/scripts/lib.sh
-source "$REPO/desktop/scripts/lib.sh"
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$REPO/chromium/scripts/lib.sh"
 SRC="$ANDROID_DIR/build/src"
 
-[ -d "$SRC" ] || die "run android/scripts/fetch.sh first"
 CPU="${1:-arm64}"
 case "$CPU" in arm64|x64) ;; *) die "usage: build.sh [arm64|x64]" ;; esac
+[ -d "$SRC" ] || die "run android/scripts/fetch.sh first"
+check_tree_links "$SRC" "$REPO"
 OUT_REL="out/$CPU"
 OUT="$SRC/$OUT_REL"
 mkdir -p "$OUT"
 export PATH="$ANDROID_DIR/third_party/depot_tools:$PATH"
 
 write_gn_args "$OUT" "$CPU" "$ANDROID_DIR/args/android.gn"
-gn_build "$SRC" "$OUT_REL" gn third_party/ninja/ninja chrome_public_apk
+gn_build "$SRC" "$OUT_REL" gn third_party/ninja/ninja chrome_public_apk lb_junit_tests
 echo "Built: $OUT/apks/ChromePublic.apk"
+
+# Our Java's Robolectric tests, on this host (chromium/lb/android/BUILD.gn).
+log "lb_junit_tests"
+"$OUT/bin/run_lb_junit_tests"

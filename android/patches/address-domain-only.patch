@@ -1,0 +1,19 @@
+# Little Browser: the bar's address shows the domain only (docs/ux.md §10, "address pill (domain
+# only)"); typing in it shows the whole address, as before. Chromium's mini origin bar already
+# truncates the same way; this does it whenever the bar isn't being typed in.
+
+diff --git a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/UrlBarMediator.java b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/UrlBarMediator.java
+index 2f6cf6ac..9ab38476 100644
+--- a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/UrlBarMediator.java
++++ b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/UrlBarMediator.java
+@@ -288,7 +288,9 @@ class UrlBarMediator implements UrlBarTextContextMenuDelegate {
+ 
+     /* package */ void pushTextToModel(boolean originChanged) {
+         CharSequence text;
+-        if (mShowOriginOnly && mUrlBarData.originStartIndex != mUrlBarData.originEndIndex) {
++        // Little Browser: the address shows the domain only (docs/ux.md §10), except while typing.
++        if ((mShowOriginOnly || !isInInputSession())
++                && mUrlBarData.originStartIndex != mUrlBarData.originEndIndex) {
+             text =
+                     mUrlBarData.displayText.subSequence(
+                             mUrlBarData.originStartIndex, mUrlBarData.originEndIndex);

@@ -1,0 +1,201 @@
+# Little Browser: the phone shell's hooks (chromium/lb/android, app.littlebrowser.lb.shell;
+# docs/android-ui.md, docs/ux.md §10). The tabbed activity's UI coordinator makes the shell on its
+# tab model, sheets and tab thumbnails. Every way into Chromium's tab switcher (the Hub: the tab
+# count, swiping the bar up, the last tab closing) shows the all-tabs view instead. The home
+# button is the space button, which opens the spaces sheet. A user closing one pinned tab puts it
+# to sleep (docs/ux.md §6). The ⋯ menu gets the shell's own items, Pin and Move to Space. On
+# tablets the shell doesn't run and Chromium's own behaviour stays.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
+index 10fca9f8..6c542ce4 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
+@@ -430,6 +430,8 @@ import org.chromium.ui.xr.scenecore.XrSceneCoreSessionInitializer;
+ import org.chromium.ui.xr.scenecore.XrSceneCoreSessionManager;
+ import org.chromium.url.GURL;
+ 
++import app.littlebrowser.lb.shell.LbPhoneShell;
++
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ import java.util.ArrayList;
+@@ -4425,6 +4427,8 @@ public class ChromeTabbedActivity extends ChromeActivity implements PreAttachInt
+             boolean fromMenu,
+             @Nullable Bundle menuItemData,
+             @Nullable MotionEventInfo triggeringMotion) {
++        // Little Browser: the ⋯ menu's own items (pin, move to space).
++        if (LbPhoneShell.onMenuItem(this, id)) return true;
+         final Tab currentTab = getActivityTab();
+         boolean currentTabIsNtp = isTabNtp(currentTab);
+         if (id == R.id.new_tab_menu_id) {
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerChrome.java b/chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerChrome.java
+index 90bff556..b911c361 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerChrome.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/compositor/layouts/LayoutManagerChrome.java
+@@ -51,6 +51,8 @@ import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
+ import org.chromium.ui.util.AccessibilityUtil;
+ import org.chromium.ui.util.MotionEventUtils;
+ 
++import app.littlebrowser.lb.shell.LbPhoneShell;
++
+ import java.util.List;
+ import java.util.function.Supplier;
+ 
+@@ -236,6 +238,12 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
+     public void showLayout(int layoutType, boolean animate) {
+         if (mDestroyChecker.isDestroyed()) return;
+ 
++        // Little Browser: on phones the all-tabs view replaces Chromium's tab switcher.
++        if (layoutType == LayoutType.HUB
++                && LbPhoneShell.showAllTabs(
++                        ContextUtils.activityFromContext(mHost.getContext()))) {
++            return;
++        }
+         if (layoutType == LayoutType.HUB) {
+             if (TabSwitcherUtils.isGridTabSwitcherDisabled()) {
+                 throw new IllegalStateException(
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedAppMenuPropertiesDelegate.java b/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedAppMenuPropertiesDelegate.java
+index 6d2f9de7..09de591c 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedAppMenuPropertiesDelegate.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedAppMenuPropertiesDelegate.java
+@@ -97,6 +97,8 @@ import org.chromium.ui.modelutil.ModelListAdapter;
+ import org.chromium.ui.modelutil.PropertyModel;
+ import org.chromium.url.GURL;
+ 
++import app.littlebrowser.lb.shell.LbPhoneShell;
++
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ import java.util.ArrayList;
+@@ -370,6 +372,20 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
+             modelList.add(buildNewIncognitoTabItem());
+         }
+ 
++        // Little Browser: the ⋯ menu's own items on phones (docs/ux.md §10): pin, move to space.
++        for (LbPhoneShell.MenuItem item : LbPhoneShell.menuItems(mContext, currentTab)) {
++            modelList.add(
++                    new ListItem(
++                            AppMenuHandler.AppMenuItemType.STANDARD,
++                            AppMenuItemUtils.buildModelForStandardMenuItem(
++                                    mContext,
++                                    getAppMenuItemTheme(),
++                                    item.id,
++                                    item.title,
++                                    Resources.ID_NULL,
++                                    isMenuIconAtStart())));
++        }
++
+         // Add to Group
+         boolean shouldShowIconBeforeItem = shouldShowIconBeforeItem();
+         if (mTabGroupItemBuilder.shouldShowAddToGroup(currentTab)) {
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedRootUiCoordinator.java b/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedRootUiCoordinator.java
+index 38c14fc4..7633e31d 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedRootUiCoordinator.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/tabbed_mode/TabbedRootUiCoordinator.java
+@@ -325,6 +325,8 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
+ import org.chromium.ui.widget.ViewRectProvider;
+ import org.chromium.url.GURL;
+ 
++import app.littlebrowser.lb.shell.LbPhoneShell;
++
+ import java.util.Collections;
+ import java.util.function.BooleanSupplier;
+ import java.util.function.Function;
+@@ -336,6 +338,9 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
+     // The tag length is restricted to be at most 20 characters.
+     private static final String TAG = "TabbedRootUiCoord";
+     private static boolean sDisableTopControlsAnimationForTesting;
++
++    // Little Browser: the phone shell (app.littlebrowser.lb.shell); null in an incognito window.
++    private @Nullable LbPhoneShell mLbShell;
+     private final RootUiTabObserver mRootUiTabObserver;
+     private final SettableNonNullObservableSupplier<Boolean> mIsVerticalTabsActiveSupplier =
+             ObservableSuppliers.createNonNull(false);
+@@ -889,6 +894,10 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
+     @Override
+     @SuppressWarnings({"NullAway", "UseSharedPreferencesManagerFromChromeCheck"})
+     public void onDestroy() {
++        if (mLbShell != null) {
++            mLbShell.destroy();
++            mLbShell = null;
++        }
+         if (mVerticalTabsPreferenceListener != null) {
+             ContextUtils.getAppSharedPreferences()
+                     .unregisterOnSharedPreferenceChangeListener(mVerticalTabsPreferenceListener);
+@@ -1319,6 +1328,29 @@ public class TabbedRootUiCoordinator extends RootUiCoordinator {
+         super.onFinishNativeInitialization();
+         assert mLayoutManager != null;
+ 
++        // Little Browser: the phone shell, on this window's tab model and sheets. Not in an
++        // incognito window (tablets open one for incognito), whose tabs belong to no space.
++        TabModelSelector lbTabModelSelector = mTabModelSelectorSupplier.get();
++        var lbSheets = getBottomSheetController();
++        org.chromium.chrome.browser.ChromeTabbedActivity lbTabbed =
++                mActivity instanceof org.chromium.chrome.browser.ChromeTabbedActivity lbActivity
++                        ? lbActivity
++                        : null;
++        boolean lbIncognitoWindow = lbTabbed != null && lbTabbed.isIncognitoWindow();
++        // Android made the window again from its saved state.
++        boolean lbRecreated = lbTabbed != null && lbTabbed.getSavedInstanceState() != null;
++        if (lbTabModelSelector != null && lbSheets != null && !lbIncognitoWindow) {
++            mLbShell =
++                    LbPhoneShell.create(
++                            mActivity,
++                            lbTabModelSelector,
++                            lbSheets,
++                            mModalDialogManagerSupplier.get(),
++                            mActivity.findViewById(R.id.home_button),
++                            mTabContentManagerSupplier,
++                            lbRecreated);
++        }
++
+         mAdvancedProtectionCoordinator =
+                 new AdvancedProtectionCoordinator(mWindowAndroid, PrivacySettings.class);
+ 
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabRemoverImpl.java b/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabRemoverImpl.java
+index 3b2bbd05..981d5ea2 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabRemoverImpl.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabRemoverImpl.java
+@@ -25,6 +25,8 @@ import org.chromium.components.browser_ui.widget.ActionConfirmationResult;
+ import org.chromium.components.data_sharing.member_role.MemberRole;
+ import org.chromium.ui.modaldialog.ModalDialogManager;
+ 
++import app.littlebrowser.lb.shell.LbPhoneShell;
++
+ import java.util.Collections;
+ import java.util.List;
+ import java.util.function.Supplier;
+@@ -63,6 +65,11 @@ public class TabRemoverImpl implements TabRemover {
+             TabClosureParams tabClosureParams,
+             boolean allowDialog,
+             @Nullable TabModelActionListener listener) {
++        // Little Browser: a pinned tab the user closes sleeps instead (docs/ux.md §6).
++        if (LbPhoneShell.interceptClose(
++                mTabModelRemover.getTabModelInternal(), tabClosureParams, allowDialog)) {
++            return;
++        }
+         prepareCloseTabs(tabClosureParams, allowDialog, listener, this::forceCloseTabs);
+     }
+ 
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java b/chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java
+index a6e265da..e34180c2 100644
+--- a/chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/toolbar/ToolbarManager.java
+@@ -299,6 +299,8 @@ import org.chromium.ui.widget.ChromeImageButton;
+ import org.chromium.ui.widget.ViewRectProvider;
+ import org.chromium.url.GURL;
+ 
++import app.littlebrowser.lb.shell.LbPhoneShell;
++
+ import java.util.List;
+ import java.util.Set;
+ import java.util.function.Supplier;
+@@ -1141,6 +1143,8 @@ public class ToolbarManager
+                                             /* foregroundNewTab= */ false);
+                                 } else if (hasShift) {
+                                     mToolbarTabController.openHomepageInNewWindow();
++                                } else if (LbPhoneShell.onSpaceButton(mActivity)) {
++                                    // Little Browser: the space button opens the spaces sheet.
+                                 } else {
+                                     // TODO(crbug.com/518852349): Revisit this approach to handle
+                                     // the case form GLIC.

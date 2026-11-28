@@ -1,0 +1,33 @@
+# Little Browser (Android): a profile created after startup gets only the per-profile part of
+# PostProfileInit (docs/ux.md §5; multi-profile, profile-windows.patch). Android's assumed it ran
+# once, for the initial profile, and registered caBLE's GCM handlers there again for a space's new
+# profile, which fails a CHECK and crashed the app. The backup watcher and those handlers stay with
+# the initial profile.
+
+diff --git a/chrome/browser/chrome_browser_main_android.cc b/chrome/browser/chrome_browser_main_android.cc
+--- a/chrome/browser/chrome_browser_main_android.cc
++++ b/chrome/browser/chrome_browser_main_android.cc
+@@ -62,9 +62,6 @@
+ 
+ void ChromeBrowserMainPartsAndroid::PostProfileInit(Profile* profile,
+                                                     bool is_initial_profile) {
+-  DCHECK(is_initial_profile);  // No multiprofile on Android, only the initial
+-                               // call should happen.
+-
+   // Get the OS Data Saver setting. This will be needed later on, so we want to
+   // fetch this setting as soon as possible to avoid blocking on it.
+   data_saver::FetchDataSaverOSSettingAsynchronously();
+@@ -77,6 +74,13 @@
+   // anything.
+   android::InitClipboardAndroidFromLocalState(g_browser_process->local_state());
+ 
++  // Little Browser: a profile created after startup (a space's) gets only the
++  // per-profile part above. The backup watcher and the GCM handlers below are
++  // once per app, and registering the handlers again fails a CHECK.
++  if (!is_initial_profile) {
++    return;
++  }
++
+   // Start watching the preferences that need to be backed up backup using
+   // Android backup, so that we create a new backup if they change.
+   base::android::ScopedJavaGlobalRef<jobject> watcher;

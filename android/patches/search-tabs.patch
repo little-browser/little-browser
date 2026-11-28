@@ -1,0 +1,151 @@
+# Little Browser: the search screen's tabs (docs/ux.md §10): with nothing typed, the recent tabs;
+# with text, the tabs it finds by name, page title or address, as the desktop's command bar
+# ranks them (lb-core). The phone shell provides them (app.littlebrowser.lb.search.TabSuggestions)
+# and the omnibox shows them first, nearest the input, as basic rows. The native half (the
+# omnibox's build) is search-tabs-deps.patch.
+
+diff --git a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java
+--- a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java
++++ b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteMediator.java
+@@ -111,6 +111,7 @@ import org.chromium.ui.modelutil.PropertyModel;
+ import org.chromium.ui.mojom.WindowOpenDisposition;
+ import org.chromium.url.GURL;
+ 
++import java.util.ArrayList;
+ import java.util.List;
+ import java.util.function.Supplier;
+ 
+@@ -171,6 +172,8 @@ class AutocompleteMediator
+             mDeferredIMEWindowInsetApplicationCallback;
+     private final OmniboxSuggestionsDropdownEmbedder mEmbedder;
+     private @Nullable AutocompleteInput mAutocompleteInput;
++    // Little Browser: the search screen's tab rows.
++    private @Nullable LbTabRowsProcessor mLbTabRows;
+     private @Nullable FuseboxSessionState mSessionState;
+     private @Nullable FuseboxAttachmentModelList mFuseboxAttachmentModelList;
+     private final LocationBarEmbedderUiOverrides mUiOverrides;
+@@ -1321,7 +1324,20 @@ class AutocompleteMediator
+         var viewInfoList =
+                 mDropdownViewInfoListBuilder.buildDropdownViewInfoList(
+                         mAutocompleteInput, autocompleteResult);
+-        mDropdownViewInfoListManager.setSourceViewInfoList(viewInfoList);
++        // Little Browser: the tabs first, nearest the input (docs/ux.md §10); none while
++        // Chromium hides the suggestions.
++        if (shouldHideSuggestions) {
++            mDropdownViewInfoListManager.setSourceViewInfoList(viewInfoList);
++            return;
++        }
++        if (mLbTabRows == null) {
++            mLbTabRows =
++                    new LbTabRowsProcessor(mContext, mResourceProvider, this::finishInteraction);
++        }
++        List<DropdownItemViewInfo> withTabs =
++                new ArrayList<>(mLbTabRows.rows(mAutocompleteInput.getUserText()));
++        withTabs.addAll(viewInfoList);
++        mDropdownViewInfoListManager.setSourceViewInfoList(withTabs);
+     }
+ 
+     private void onUrlTextWrappingChanged() {
+diff --git a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/LbTabRowsProcessor.java b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/LbTabRowsProcessor.java
+new file mode 100644
+index 00000000..27aca628
+--- /dev/null
++++ b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/LbTabRowsProcessor.java
+@@ -0,0 +1,97 @@
++// This Source Code Form is subject to the terms of the Mozilla Public
++// License, v. 2.0. If a copy of the MPL was not distributed with this
++// file, You can obtain one at https://mozilla.org/MPL/2.0/.
++
++package org.chromium.chrome.browser.omnibox.suggestions;
++
++import android.content.Context;
++
++import androidx.core.content.ContextCompat;
++
++import org.chromium.build.annotations.NullMarked;
++import org.chromium.chrome.browser.omnibox.R;
++import org.chromium.chrome.browser.omnibox.styles.OmniboxDrawableState;
++import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
++import org.chromium.chrome.browser.omnibox.styles.SuggestionSpannable;
++import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewProperties;
++import org.chromium.chrome.browser.omnibox.suggestions.basic.SuggestionViewProperties;
++import org.chromium.components.omnibox.GroupsProto.GroupConfig;
++import org.chromium.components.omnibox.suggestions.OmniboxSuggestionUiType;
++import org.chromium.ui.modelutil.PropertyModel;
++
++import app.littlebrowser.lb.search.TabSuggestions;
++
++import java.util.ArrayList;
++import java.util.List;
++
++/**
++ * Little Browser: the search screen's tab rows (app.littlebrowser.lb.search.TabSuggestions, which
++ * the phone shell provides): recent tabs with nothing typed, tabs found by name, title or address
++ * with text. Drawn as basic suggestion rows; tapping one shows its tab and ends the search.
++ */
++@NullMarked
++final class LbTabRowsProcessor implements DropdownItemProcessor {
++    private final Context mContext;
++    private final OmniboxResourceProvider mResources;
++    private final Runnable mFinish;
++
++    LbTabRowsProcessor(Context context, OmniboxResourceProvider resources, Runnable finish) {
++        mContext = context;
++        mResources = resources;
++        mFinish = finish;
++    }
++
++    @Override
++    public int getViewTypeId() {
++        return OmniboxSuggestionUiType.DEFAULT;
++    }
++
++    @Override
++    public int getMinimumViewHeight() {
++        return mContext.getResources()
++                .getDimensionPixelSize(R.dimen.omnibox_suggestion_content_height);
++    }
++
++    @Override
++    public PropertyModel createModel() {
++        // The suggestion views read their sizes from it, as every processor's rows have it.
++        return new PropertyModel.Builder(SuggestionViewProperties.ALL_KEYS)
++                .with(SuggestionCommonProperties.RESOURCE_PROVIDER, mResources)
++                .build();
++    }
++
++    /** The rows for what is typed, ready to go first in the list. */
++    List<DropdownItemViewInfo> rows(String query) {
++        List<DropdownItemViewInfo> rows = new ArrayList<>();
++        for (TabSuggestions.Row row : TabSuggestions.rows(mContext, query)) {
++            PropertyModel model = createModel();
++            model.set(
++                    SuggestionViewProperties.TEXT_LINE_1_TEXT, new SuggestionSpannable(row.title));
++            model.set(
++                    SuggestionViewProperties.TEXT_LINE_2_TEXT,
++                    new SuggestionSpannable(row.subtitle));
++            model.set(SuggestionViewProperties.CONTENT_DESCRIPTION, row.title);
++            var icon = ContextCompat.getDrawable(mContext, R.drawable.ic_globe_24dp);
++            if (icon != null) {
++                model.set(
++                        BaseSuggestionViewProperties.ICON,
++                        new OmniboxDrawableState(
++                                icon,
++                                /* useRoundedCorners= */ false,
++                                /* isLarge= */ false,
++                                /* allowTint= */ true));
++            }
++            model.set(
++                    BaseSuggestionViewProperties.ON_ACTIVATE,
++                    modifiers -> {
++                        mFinish.run();
++                        row.open.run();
++                    });
++            model.set(BaseSuggestionViewProperties.SHOW_DECORATION, true);
++            model.set(BaseSuggestionViewProperties.USE_LARGE_DECORATION, false);
++            model.set(BaseSuggestionViewProperties.TOP_PADDING, 0);
++            rows.add(new DropdownItemViewInfo(this, model, GroupConfig.getDefaultInstance()));
++        }
++        return rows;
++    }
++}

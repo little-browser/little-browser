@@ -1,0 +1,86 @@
+# Little Browser: with the bar at the bottom, the search screen's results grow upward from it, the
+# best match nearest the thumb (docs/ux.md §10, search). The list lays itself out in reverse
+# while the bar is at the bottom, and what follows its direction follows it too: scrolling back to
+# the best match (down) brings the keyboard back, and the arrow keys go up the list from the bar.
+
+diff --git a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteCoordinator.java b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteCoordinator.java
+index 3b577d7f..c1c8c6ca 100644
+--- a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteCoordinator.java
++++ b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/AutocompleteCoordinator.java
+@@ -197,6 +197,8 @@ public class AutocompleteCoordinator implements OmniboxSuggestionsVisualState {
+                 (holder) -> {
+                     mContainer = holder.container;
+                     mDropdown = holder.dropdown;
++                    // Little Browser: results grow upward from a bar at the bottom.
++                    mDropdown.setBottomAnchoredSupplier(delegate::isToolbarBottomAnchored);
+                 });
+         LazyConstructionPropertyMcp.create(
+                 listModel,
+diff --git a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdown.java b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdown.java
+--- a/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdown.java
++++ b/chrome/browser/ui/android/omnibox/java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsDropdown.java
+@@ -40,6 +40,8 @@ import org.chromium.ui.base.KeyNavigationUtil;
+ import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
+ import org.chromium.ui.util.MotionEventUtils;
+ 
++import java.util.function.BooleanSupplier;
++
+ /** A widget for showing a list of omnibox suggestions. */
+ @NullMarked
+ public class OmniboxSuggestionsDropdown extends RecyclerView {
+@@ -66,6 +68,8 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
+     private static final long LIST_COMPOSITION_ACCESSIBILITY_ANNOUNCEMENT_DELAY_MS = 1500;
+ 
+     private final SuggestionLayoutScrollListener mLayoutScrollListener;
++    // Little Browser: whether the bar is at the bottom, so results grow upward from it.
++    private @Nullable BooleanSupplier mBottomAnchored;
+     private final RecyclerViewSelectionController mSelectionController;
+     private final Handler mHandler;
+     private final OmniboxViewHolderFactory mViewHolderFactory;
+@@ -220,6 +224,9 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
+             // - requestedDeltaY <= 0
+             // - Math.abs(resultingDeltaY) < Math.abs(requestedDeltaY)
+             boolean newIsScrolledToTop = resultingDeltaY > requestedDeltaY;
++            // Little Browser: laid out in reverse, the best match is at the bottom, so the list
++            // is back at its start when a scroll down is clamped.
++            if (getReverseLayout()) newIsScrolledToTop = resultingDeltaY < requestedDeltaY;
+ 
+             if (mIsScrolledToTop == newIsScrolledToTop) return resultingDeltaY;
+             mIsScrolledToTop = newIsScrolledToTop;
+@@ -542,6 +549,23 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
+         super.setAdapter(mAdapter);
+     }
+ 
++    /**
++     * Little Browser: with the bar at the bottom, results grow upward with the best match nearest
++     * the thumb (docs/ux.md §10, search).
++     */
++    public void setBottomAnchoredSupplier(BooleanSupplier bottomAnchored) {
++        mBottomAnchored = bottomAnchored;
++    }
++
++    @Override
++    protected void onMeasure(int widthSpec, int heightSpec) {
++        boolean reverse = mBottomAnchored != null && mBottomAnchored.getAsBoolean();
++        if (mLayoutScrollListener.getReverseLayout() != reverse) {
++            mLayoutScrollListener.setReverseLayout(reverse);
++        }
++        super.onMeasure(widthSpec, heightSpec);
++    }
++
+     @Override
+     protected void onLayout(boolean changed, int l, int t, int r, int b) {
+         try (TraceEvent tracing = TraceEvent.scoped("OmniboxSuggestionsList.Layout");
+@@ -580,6 +604,12 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
+ 
+         boolean isGoDownKey = KeyNavigationUtil.isGoDown(event);
+         boolean isGoUpKey = KeyNavigationUtil.isGoUp(event);
++        // Little Browser: laid out in reverse, the next result is the one above.
++        if (mLayoutScrollListener.getReverseLayout()) {
++            boolean wasGoDownKey = isGoDownKey;
++            isGoDownKey = isGoUpKey;
++            isGoUpKey = wasGoDownKey;
++        }
+ 
+         if (isGoDownKey) {
+             mSelectionController.selectNextItem();

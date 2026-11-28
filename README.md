@@ -27,7 +27,8 @@ Peek link previews and a command bar, and it imports your Arc spaces and tabs. S
 | Path | What |
 |---|---|
 | `docs/` | Design, UX and legal documents |
-| `desktop/` | Chromium fork: version pins, build args, patch series, branding, scripts, our source tree (`lb/`) |
+| `chromium/` | Shared by every Chromium platform: our source tree (`lb/`), linked into Chromium as `src/lb`, the engine patches they all apply and the Chromium version pins |
+| `desktop/` | Desktop Chromium fork: build args, the desktop patch series, branding, scripts |
 | `core/` | `lb-core`, the shared Rust library (data model, sync transport trait) |
 | `branding/` | Logo masters and the icon export |
 | `site/` | The static website |

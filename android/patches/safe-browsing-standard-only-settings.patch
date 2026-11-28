@@ -1,0 +1,48 @@
+# Little Browser: Android's half of safe-browsing-standard-only.patch (chromium/patches), which says
+# why. The engine is standard protection only; these settings stop offering what it ignores: the
+# Enhanced protection option in Settings → Privacy and security → Safe Browsing and in Privacy
+# Guide's Safe Browsing step, and the extended-reporting switch (as with
+# SafeBrowsingExtendedReportingRemovePrefDependency on).
+
+diff --git a/chrome/browser/privacy_guide/android/java/src/org/chromium/chrome/browser/privacy_guide/SafeBrowsingFragment.java b/chrome/browser/privacy_guide/android/java/src/org/chromium/chrome/browser/privacy_guide/SafeBrowsingFragment.java
+index e00ea801..684448ff 100644
+--- a/chrome/browser/privacy_guide/android/java/src/org/chromium/chrome/browser/privacy_guide/SafeBrowsingFragment.java
++++ b/chrome/browser/privacy_guide/android/java/src/org/chromium/chrome/browser/privacy_guide/SafeBrowsingFragment.java
+@@ -47,6 +47,8 @@ public class SafeBrowsingFragment extends PrivacyGuideBasePage
+         mEnhancedProtection =
+                 (RadioButtonWithDescriptionAndAuxButton) view.findViewById(R.id.enhanced_option);
+         mStandardProtection = (RadioButtonWithDescription) view.findViewById(R.id.standard_option);
++        // Little Browser: standard protection only (safe-browsing-standard-only.patch).
++        mEnhancedProtection.setVisibility(View.GONE);
+ 
+         if (SafeBrowsingBridge.isHashRealTimeLookupEligibleInSession()) {
+             mStandardProtection.setDescriptionText(
+diff --git a/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/RadioButtonGroupSafeBrowsingPreference.java b/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/RadioButtonGroupSafeBrowsingPreference.java
+index 172f9a69..dd56339e 100644
+--- a/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/RadioButtonGroupSafeBrowsingPreference.java
++++ b/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/RadioButtonGroupSafeBrowsingPreference.java
+@@ -125,7 +125,8 @@ public class RadioButtonGroupSafeBrowsingPreference extends ContainedRadioButton
+                             },
+                             HIGHLIGHT_ANIMATION_DELAY_MS);
+         }
+-        mEnhancedProtection.setVisibility(View.VISIBLE);
++        // Little Browser: standard protection only (safe-browsing-standard-only.patch).
++        mEnhancedProtection.setVisibility(View.GONE);
+         mEnhancedProtection.setAuxButtonClickedListener(this);
+         mStandardProtection =
+                 (RadioButtonWithDescriptionAndAuxButton)
+diff --git a/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/StandardProtectionSettingsFragment.java b/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/StandardProtectionSettingsFragment.java
+index cc24b7ba..31d454d8 100644
+--- a/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/StandardProtectionSettingsFragment.java
++++ b/chrome/browser/safe_browsing/android/java/src/org/chromium/chrome/browser/safe_browsing/settings/StandardProtectionSettingsFragment.java
+@@ -36,8 +36,8 @@ public class StandardProtectionSettingsFragment extends SafeBrowsingSettingsFrag
+         mManagedPreferenceDelegate = createManagedPreferenceDelegate();
+ 
+         mExtendedReportingPreference = findPreference(PREF_EXTENDED_REPORTING);
+-        if (ChromeFeatureList.isEnabled(
+-                ChromeFeatureList.SAFE_BROWSING_EXTENDED_REPORTING_REMOVE_PREF_DEPENDENCY)) {
++        // Little Browser: no extended reporting (safe-browsing-standard-only.patch).
++        if (true) {
+             getPreferenceScreen().removePreference(mExtendedReportingPreference);
+             return;
+         }

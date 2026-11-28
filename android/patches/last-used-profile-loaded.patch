@@ -1,0 +1,28 @@
+# Little Browser (Android): "the last used profile" never loads a profile synchronously (docs/ux.md
+# §5; native half of profile-windows.patch). The last used profile is the window in front's, and
+# Android's startup loads only the initial profile, so after a session that ended in another
+# profile's window, or while a new profile is still being created, ProfileManager's
+# GetLastUsedProfile() (Java's getLastUsedRegularProfile() and native callers such as background
+# sync) created that profile synchronously, which crashed while it was loading. It now gives the
+# last used profile only once it is loaded, and the initial profile until then.
+
+diff --git a/chrome/browser/profiles/profile_manager.cc b/chrome/browser/profiles/profile_manager.cc
+--- a/chrome/browser/profiles/profile_manager.cc
++++ b/chrome/browser/profiles/profile_manager.cc
+@@ -555,6 +555,16 @@ Profile* ProfileManager::GetLastUsedProfile() {
+   return profile->IsGuestSession()
+              ? profile->GetPrimaryOTRProfile(/*create_if_needed=*/true)
+              : profile;
++#elif BUILDFLAG(IS_ANDROID)
++  // Little Browser: the last used profile is the profile of the window in
++  // front (profile-windows.patch), and Android's startup loads only the
++  // initial one. One that isn't loaded (being created, or not loaded since the
++  // start) isn't loaded here, synchronously: the initial profile stands in.
++  if (Profile* last_used = GetLastUsedProfileIfLoaded()) {
++    return last_used;
++  }
++  return profile_manager->GetProfile(
++      profile_manager->user_data_dir().Append(chrome::kInitialProfile));
+ #else
+   return profile_manager->GetProfile(profile_manager->GetLastUsedProfileDir());
+ #endif  // BUILDFLAG(IS_CHROMEOS)

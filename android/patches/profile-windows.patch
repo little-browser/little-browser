@@ -1,0 +1,166 @@
+# Little Browser (Android): a window per profile (docs/ux.md §5; docs/android-ui.md,
+# Multi-profile). A browser window's profile is the one its intent names
+# (app.littlebrowser.lb.profiles.Profiles), the default one unless it says, and its profile
+# provider gives that profile, loading it first if need be, instead of "the last used regular
+# profile"; a window destroyed while its profile loads gets none. Other activities (settings,
+# history, downloads, ...) keep the last used profile, and what else Chromium asks of it follows
+# the window in front, which records itself as such (Profiles.setLastUsed). A new window that
+# Chromium opens from a browser window (New window, Open in new window, moving tabs to a new
+# window) is of that window's profile. The shell opens another profile's window through
+# Chromium's multi-window launch, reopening the profile's own Chromium window (and its tabs) if
+# it had one, into that window while it is open; Recents lists only the window last in front.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/init/ActivityProfileProvider.java b/chrome/android/java/src/org/chromium/chrome/browser/init/ActivityProfileProvider.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/init/ActivityProfileProvider.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/init/ActivityProfileProvider.java
+@@ -14,12 +14,18 @@ import org.chromium.chrome.browser.profiles.Profile;
+ import org.chromium.chrome.browser.profiles.ProfileManager;
+ import org.chromium.chrome.browser.profiles.ProfileProvider;
+ 
++import app.littlebrowser.lb.profiles.Profiles;
++
+ /** Handles initializing an Activity appropriate ProfileProvider. */
+ @NullMarked
+ public class ActivityProfileProvider extends OneshotSupplierImpl<ProfileProvider>
+         implements ProfileManager.Observer, DestroyObserver {
+     private @Nullable OtrProfileId mOtrProfileId;
+     private boolean mHasCreatedOtrProfileId;
++    // Little Browser: the window's profile directory (Profiles); null for whichever profile was
++    // used last, as before.
++    private final @Nullable String mProfileDir;
++    private boolean mDestroyed;
+ 
+     /**
+      * Handles initialization of a ProfileProvider for a given Activity.
+@@ -27,6 +33,16 @@ public class ActivityProfileProvider extends OneshotSupplierImpl<ProfileProvider
+      * @param lifecycleDispatcher Provides lifecycle events for the host activity.
+      */
+     public ActivityProfileProvider(ActivityLifecycleDispatcher lifecycleDispatcher) {
++        this(lifecycleDispatcher, null);
++    }
++
++    /**
++     * Little Browser: a window of the profile in directory {@code profileDir} (Profiles), or, if
++     * null, of whichever profile was used last.
++     */
++    public ActivityProfileProvider(
++            ActivityLifecycleDispatcher lifecycleDispatcher, @Nullable String profileDir) {
++        mProfileDir = profileDir;
+         lifecycleDispatcher.register(this);
+ 
+         if (ProfileManager.isInitialized()) {
+@@ -47,12 +63,32 @@ public class ActivityProfileProvider extends OneshotSupplierImpl<ProfileProvider
+     public void onProfileDestroyed(Profile profile) {}
+ 
+     private void onProfileManagerReady() {
++        if (mProfileDir == null) {
++            setProfile(null);
++            return;
++        }
++        // Little Browser: the window's own profile, not whichever was used last.
++        Profiles.load(
++                mProfileDir,
++                profile ->
++                        setProfile(
++                                profile != null
++                                        ? profile
++                                        : ProfileManager.getLastUsedRegularProfile()));
++    }
++
++    // Little Browser: {@code windowProfile} for good, or the last used profile each time if null.
++    private void setProfile(@Nullable Profile windowProfile) {
++        // A window destroyed while its profile loaded gets none.
++        if (mDestroyed || get() != null) return;
+         set(
+                 new ProfileProvider() {
+ 
+                     @Override
+                     public Profile getOriginalProfile() {
+-                        return ProfileManager.getLastUsedRegularProfile();
++                        return windowProfile != null
++                                ? windowProfile
++                                : ProfileManager.getLastUsedRegularProfile();
+                     }
+ 
+                     @Override
+@@ -85,6 +121,7 @@ public class ActivityProfileProvider extends OneshotSupplierImpl<ProfileProvider
+ 
+     @Override
+     public void onDestroy() {
++        mDestroyed = true;
+         ProfileManager.removeObserver(this);
+     }
+ }
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/ChromeTabbedActivity.java
+@@ -1624,7 +1624,35 @@ public class ChromeTabbedActivity extends ChromeActivity implements PreAttachInt
+ 
+     @Override
+     protected OneshotSupplier<ProfileProvider> createProfileProvider() {
+-        return new ActivityProfileProvider(getLifecycleDispatcher());
++        // Little Browser: a profile's window is Chromium's window; Recents lists one of them.
++        LbPhoneShell.setWindowIdLookup(
++                activity -> TabWindowManagerSingleton.getInstance().getIdForWindow(activity));
++        // Little Browser: another profile's window opens through Chromium's multi-window launch.
++        LbPhoneShell.setProfileWindowOpener(
++                (from, dir, spaceId) -> {
++                    Intent intent = new Intent(from, ChromeTabbedActivity.class);
++                    intent.putExtra(Browser.EXTRA_APPLICATION_ID, from.getPackageName());
++                    intent.putExtra(app.littlebrowser.lb.profiles.Profiles.WINDOW_EXTRA, dir);
++                    intent.putExtra(LbPhoneShell.SPACE_EXTRA, spaceId);
++                    IntentUtils.addTrustedIntentExtras(intent);
++                    // The profile's own window again, with its tabs, if it had one: into it
++                    // while it is open, else in a task of its own (as Chromium relaunches a
++                    // window).
++                    int windowId = LbPhoneShell.rememberedWindow(dir);
++                    if (windowId != TabWindowManager.INVALID_WINDOW_ID
++                            && MultiWindowUtils.isMultiInstanceApi31Enabled()) {
++                        MultiWindowUtils.launchIntentInMaybeClosedWindow(from, intent, windowId);
++                        return;
++                    }
++                    intent.addFlags(
++                            Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
++                    intent.putExtra(IntentHandler.EXTRA_PREFER_NEW, true);
++                    from.startActivity(intent);
++                });
++        // Little Browser: the window's profile is the one its intent names.
++        String profileDir = app.littlebrowser.lb.profiles.Profiles.windowProfile(getIntent());
++        app.littlebrowser.lb.profiles.Profiles.setWindowProfile(this, profileDir);
++        return new ActivityProfileProvider(getLifecycleDispatcher(), profileDir);
+     }
+ 
+     @Override
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiInstanceOrchestratorImpl.java b/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiInstanceOrchestratorImpl.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiInstanceOrchestratorImpl.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiInstanceOrchestratorImpl.java
+@@ -629,8 +629,13 @@ import java.util.function.Supplier;
+         }
+ 
+         addOpenUrlInNewWindowIntentExtras(sourceActivity, intent, isIncognitoWindow);
+-        if (preferNew) intent.putExtra(IntentHandler.EXTRA_PREFER_NEW, true);
+-        else intent.putExtra(IntentHandler.EXTRA_WINDOW_ID, windowId);
++        if (preferNew) {
++            intent.putExtra(IntentHandler.EXTRA_PREFER_NEW, true);
++            // Little Browser: a new window is of the profile of the window it is opened from.
++            app.littlebrowser.lb.profiles.Profiles.carryWindowProfile(sourceActivity, intent);
++        } else {
++            intent.putExtra(IntentHandler.EXTRA_WINDOW_ID, windowId);
++        }
+         MultiInstanceManager.onMultiInstanceModeStarted();
+         sourceActivity.startActivity(intent);
+     }
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiWindowUtils.java b/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiWindowUtils.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiWindowUtils.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/multiwindow/MultiWindowUtils.java
+@@ -528,6 +528,10 @@ public class MultiWindowUtils implements ActivityStateListener {
+             intent.putExtra(IntentHandler.EXTRA_WINDOW_ID, windowId);
+         }
+         if (preferNew) intent.putExtra(IntentHandler.EXTRA_PREFER_NEW, true);
++        // Little Browser: a new window is of the profile of the window it is opened from.
++        if (windowId == INVALID_WINDOW_ID) {
++            app.littlebrowser.lb.profiles.Profiles.carryWindowProfile(context, intent);
++        }
+         if (openAdjacently) intent.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT);
+         intent.putExtra(Browser.EXTRA_APPLICATION_ID, context.getPackageName());
+         intent.putExtra(Browser.EXTRA_CREATE_NEW_TAB, true);

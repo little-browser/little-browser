@@ -40,6 +40,8 @@ writes:
 - `linux/hicolor/<n>x<n>/apps/little-browser.png` (16–512), plus the scalable and symbolic SVGs.
 - `android/res/mipmap-*/`: adaptive foreground, background and monochrome layers;
   `mipmap-anydpi-v26/ic_launcher(_round).xml`; legacy square and round icons;
+  `res/drawable-*/`: the welcome screen's logo (`fre_product_logo`, 130 dp) and the lockup
+  (`product_logo_name`, 21 dp tall), white in `drawable-night-*/`, under Chromium's names;
   `android/play-store-512.png`; `android/play-feature-graphic.png` (1024×500, no alpha).
 - `ios/AppIcon.appiconset/`: a single 1024 px icon (RGB, no alpha) with dark and tinted appearances.
 - `web/`: `favicon.ico`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`,
@@ -47,8 +49,9 @@ writes:
 
 Edit the SVG masters, never the exports, and commit both. The Chromium build picks up its icons
 from its own branding directory; when the desktop build is ready, copy `exports/macos/`,
-`exports/windows/` and `exports/linux/` there. The product-name strings live in
-`desktop/branding/BRANDING`.
+`exports/windows/` and `exports/linux/` there. Android's fetch copies `exports/android/` in
+(`android/scripts/brand_assets.sh`). The product-name strings live in
+`chromium/branding/BRANDING`.
 
 Not covered yet: a macOS 26 Icon Composer `.icon` (Liquid Glass layers). Until there is one, macOS
 26 shows the `.icns` as it is.
@@ -82,7 +85,7 @@ Before publishing:
 ## Colours
 
 The app icon always uses **Little Blue**, whatever the space colour. `palette.css` holds the tokens and is
-the source of truth; the default space hue is 222, as in `desktop/lb/browser/spaces/space_model.h`.
+the source of truth; the default space hue is 222, as in `chromium/lb/browser/spaces/space_model.h`.
 The desktop sidebar tints itself with HSV (space hue, 0.55, 0.85), not with the tokens below.
 
 | Token | Light | Dark | Use |

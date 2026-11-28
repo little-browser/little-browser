@@ -1,0 +1,42 @@
+# Little Browser (Android): Peek's "open as tab" keeps the page (docs/ux.md §7, §10). Chromium's
+# link-preview sheet opened its address again in a new tab; it now hands its WebContents to the new
+# tab, as Custom Tabs' reparenting does, so the page isn't loaded again and keeps its state. A
+# sheet given a different full-page address (as some callers do) still opens that address.
+
+diff --git a/chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabCoordinator.java b/chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabCoordinator.java
+--- a/chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabCoordinator.java
++++ b/chrome/browser/ui/android/ephemeraltab/java/src/org/chromium/chrome/browser/ephemeraltab/EphemeralTabCoordinator.java
+@@ -48,6 +48,7 @@
+ import org.chromium.url.GURL;
+ import org.chromium.url.Origin;
+ 
++import java.util.concurrent.CompletableFuture;
+ import java.util.function.Supplier;
+ 
+ /**
+@@ -321,6 +322,25 @@
+     }
+ 
+     private void openInNewTab() {
++        // Little Browser: the page itself becomes the tab, without loading again.
++        if (mCanPromoteToNewTab && mUrl != null && mFullPageUrl == null && mWebContents != null) {
++            assumeNonNull(mSheetContent);
++            WebContents webContents = mWebContents;
++            // Hiding the sheet tears it down: it must not destroy the page the tab takes.
++            mWebContents = null;
++            mContentView = null;
++            mBottomSheetController.hideContent(
++                    mSheetContent, /* animate= */ true, StateChangeReason.PROMOTE_TAB);
++            mTabCreator
++                    .get()
++                    .createTabWithWebContents(
++                            mTabProvider.get(),
++                            /* shouldPin= */ false,
++                            webContents,
++                            TabLaunchType.FROM_LINK,
++                            CompletableFuture.completedFuture(true));
++            return;
++        }
+         if (mCanPromoteToNewTab && mUrl != null) {
+             assumeNonNull(mSheetContent);
+             mBottomSheetController.hideContent(

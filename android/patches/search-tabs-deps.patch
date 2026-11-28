@@ -1,0 +1,23 @@
+# Little Browser: the omnibox's build has search-tabs.patch's new file, and depends on our Java
+# (chromium/lb/android :java, TabSuggestions) for the tab rows. The native half of that patch.
+
+diff --git a/chrome/browser/ui/android/omnibox/BUILD.gn b/chrome/browser/ui/android/omnibox/BUILD.gn
+index e3cde2dc..123e0c8d 100644
+--- a/chrome/browser/ui/android/omnibox/BUILD.gn
++++ b/chrome/browser/ui/android/omnibox/BUILD.gn
+@@ -145,6 +145,7 @@ android_library("java") {
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/DropdownItemViewInfoListManager.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/GroupSeparatorDecoration.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/HeaderDecoration.java",
++    "java/src/org/chromium/chrome/browser/omnibox/suggestions/LbTabRowsProcessor.java",  # Little Browser
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxAnimator.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxLoadUrlParams.java",
+     "java/src/org/chromium/chrome/browser/omnibox/suggestions/OmniboxSuggestionsContainer.java",
+@@ -226,6 +227,7 @@ android_library("java") {
+   ]
+ 
+   deps = [
++    "//lb/android:java",  # Little Browser: the search screen's tab rows (TabSuggestions)
+     ":java_resources",
+     "$google_play_services_package:google_play_services_location_java",
+     "$google_play_services_package:google_play_services_tasks_java",

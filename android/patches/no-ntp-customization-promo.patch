@@ -1,0 +1,44 @@
+# Little Browser (Android): no promo for customising the new tab page: no "Now you can customize
+# your homepage" sheet, no in-product help bubble and no theme promo card (docs/ux.md §1, Calm).
+# The customisation itself is still in the menu.
+
+diff --git a/chrome/browser/ntp_customization/java/src/org/chromium/chrome/browser/ntp_customization/theme/NtpCustomizationPromoManager.java b/chrome/browser/ntp_customization/java/src/org/chromium/chrome/browser/ntp_customization/theme/NtpCustomizationPromoManager.java
+--- a/chrome/browser/ntp_customization/java/src/org/chromium/chrome/browser/ntp_customization/theme/NtpCustomizationPromoManager.java
++++ b/chrome/browser/ntp_customization/java/src/org/chromium/chrome/browser/ntp_customization/theme/NtpCustomizationPromoManager.java
+@@ -48,6 +48,9 @@
+         int NUM_ENTRIES = 4;
+     }
+ 
++    // Little Browser: whether the customisation promos show (no-ntp-customization-promo.patch).
++    private static final boolean LB_PROMOS = false;
++
+     private static final long COOL_DOWN_PERIOD_MS = Duration.ofDays(7).toMillis();
+     private static final int DURATION_MS = 5000;
+     private static @SnackBarState int sState = SnackBarState.NOT_SET;
+@@ -73,6 +76,8 @@
+      */
+     public static boolean canTriggerCustomizationBottomSheet(
+             WindowAndroid windowAndroid, boolean isLff, int ntpOpenedCount) {
++        // Little Browser: no customisation promos.
++        if (!LB_PROMOS) return false;
+         if (CommandLine.getInstance()
+                 .hasSwitch(ChromeSwitches.DISABLE_NTP_THEME_PROMO_BOTTOM_SHEET_FOR_TESTING)) {
+             return false;
+@@ -121,6 +126,8 @@
+      */
+     public static boolean canShowCustomizationIph(
+             Tab tab, WindowAndroid windowAndroid, boolean isLff) {
++        // Little Browser: no customisation promos.
++        if (!LB_PROMOS) return false;
+         if (!NtpCustomizationUtils.isNtpThemeCustomizationEnabled(windowAndroid, isLff)) {
+             return false;
+         }
+@@ -153,6 +160,8 @@
+      * @param isLff Whether the current device is a large form factor (LFF) device.
+      */
+     public static boolean canTriggerCustomizationPromo(WindowAndroid windowAndroid, boolean isLff) {
++        // Little Browser: no customisation promos.
++        if (!LB_PROMOS) return false;
+         return NtpCustomizationUtils.isNtpThemeCustomizationEnabled(windowAndroid, isLff);
+     }
+ 

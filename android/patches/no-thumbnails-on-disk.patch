@@ -1,0 +1,68 @@
+# Little Browser (Android): tab previews are kept in memory only (docs/ux.md §10). Chromium's
+# thumbnail cache writes each tab's preview to disk, as ETC1 for the compositor and as a JPEG for
+# the tab switcher; neither is written, and the JPEG isn't made at all. The compositor keeps its
+# in-memory copies, and the all-tabs view keeps its own (app.littlebrowser.lb.shell.TabPreviews).
+
+diff --git a/chrome/browser/thumbnail/cc/thumbnail_cache.cc b/chrome/browser/thumbnail/cc/thumbnail_cache.cc
+--- a/chrome/browser/thumbnail/cc/thumbnail_cache.cc
++++ b/chrome/browser/thumbnail/cc/thumbnail_cache.cc
+@@ -346,17 +346,7 @@ void ThumbnailCache::WriteEtc1ThumbnailIfNecessary(
+     float scale,
+     const gfx::Size& content_size) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-
+-  if (!compressed_data || write_tasks_count_ >= write_queue_max_size_) {
+-    return;
+-  }
+-
+-  write_tasks_count_++;
+-
+-  base::OnceClosure post_write_task = base::BindOnce(
+-      &ThumbnailCache::PostWriteEtc1Task, weak_factory_.GetWeakPtr());
+-  etc1_helper_.Write(tab_id, compressed_data, scale, content_size,
+-                     std::move(post_write_task));
++  // Little Browser: previews stay in memory, never on disk (docs/ux.md §10).
+ }
+ 
+ void ThumbnailCache::WriteJpegThumbnailIfNecessary(
+@@ -364,32 +354,21 @@ void ThumbnailCache::WriteJpegThumbnailIfNecessary(
+     std::unique_ptr<ThumbnailCaptureTracker, base::OnTaskRunnerDeleter> tracker,
+     std::vector<uint8_t> compressed_data) {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-
+-  if (compressed_data.empty() || write_tasks_count_ >= write_queue_max_size_) {
+-    if (tracker) {
+-      tracker->MarkJpegFailed();
+-    }
+-    return;
++  // Little Browser: previews stay in memory, never on disk (docs/ux.md §10).
++  if (tracker) {
++    tracker->MarkJpegFailed();
+   }
+-
+-  write_tasks_count_++;
+-
+-  auto post_write_task =
+-      base::BindOnce(&ThumbnailCache::PostWriteJpegTask,
+-                     weak_factory_.GetWeakPtr(), std::move(tracker));
+-  jpeg_helper_.Write(tab_id, std::move(compressed_data),
+-                     std::move(post_write_task));
+ }
+ 
+ void ThumbnailCache::SaveAsJpeg(
+     TabId tab_id,
+     std::unique_ptr<ThumbnailCaptureTracker, base::OnTaskRunnerDeleter> tracker,
+     const SkBitmap& bitmap) {
+-  base::OnceCallback<void(std::vector<uint8_t>)> post_jpeg_compression_task =
+-      base::BindOnce(&ThumbnailCache::WriteJpegThumbnailIfNecessary,
+-                     weak_factory_.GetWeakPtr(), tab_id, std::move(tracker));
+-
+-  jpeg_helper_.Compress(bitmap, std::move(post_jpeg_compression_task));
++  // Little Browser: no JPEG is written (WriteJpegThumbnailIfNecessary), so
++  // none is made.
++  if (tracker) {
++    tracker->MarkJpegFailed();
++  }
+ }
+ 
+ void ThumbnailCache::CompressThumbnailIfNecessary(

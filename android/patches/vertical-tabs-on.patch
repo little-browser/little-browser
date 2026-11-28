@@ -1,0 +1,17 @@
+# Little Browser (Android): tablets get the desktop's sidebar layout (docs/ux.md §10, Tablets),
+# on Chromium's vertical tabs: the feature is on (the Java half, vertical-tabs-sidebar.patch,
+# turns it on by default and adds the spaces).
+
+diff --git a/chrome/browser/flags/android/chrome_feature_list.cc b/chrome/browser/flags/android/chrome_feature_list.cc
+--- a/chrome/browser/flags/android/chrome_feature_list.cc
++++ b/chrome/browser/flags/android/chrome_feature_list.cc
+@@ -731,7 +731,8 @@
+ BASE_FEATURE(kAndroidToolbarCaptureOnDesktop, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kAndroidToolbarScrollAblation, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kAndroidUserEducationFramework, base::FEATURE_DISABLED_BY_DEFAULT);
+-BASE_FEATURE(kAndroidVerticalTabs, base::FEATURE_DISABLED_BY_DEFAULT);
++// Little Browser: tablets get the sidebar layout on vertical tabs.
++BASE_FEATURE(kAndroidVerticalTabs, base::FEATURE_ENABLED_BY_DEFAULT);
+ BASE_FEATURE(kAndroidXRUsesSurfaceControl, base::FEATURE_ENABLED_BY_DEFAULT);
+ BASE_FEATURE(kAndroidXrImmersivePlayer, base::FEATURE_DISABLED_BY_DEFAULT);
+ BASE_FEATURE(kAndroidZoomImmersive, base::FEATURE_DISABLED_BY_DEFAULT);

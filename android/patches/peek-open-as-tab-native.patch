@@ -1,0 +1,50 @@
+# Little Browser (Android): the tab Peek's page becomes keeps it (docs/ux.md §7, native half of
+# peek-open-as-tab.patch). The sheet's ThinWebView already told the performance manager the page is
+# a tab, and that can be said only once (PageNodeImpl::SetType CHECKs it), so the tab's features
+# say it only for a page that has no type yet. The ThinWebView also had the page's permission
+# request manager refuse every request, which the tab's features undo: a tab asks.
+
+diff --git a/chrome/browser/android/tab_features.cc b/chrome/browser/android/tab_features.cc
+--- a/chrome/browser/android/tab_features.cc
++++ b/chrome/browser/android/tab_features.cc
+@@ -161,6 +161,8 @@
+ #include "components/page_content_annotations/core/page_content_extraction_types.h"
+ #include "components/payments/core/features.h"
+ #include "components/performance_manager/embedder/performance_manager_registry.h"
++#include "components/performance_manager/public/graph/page_node.h"
++#include "components/performance_manager/public/performance_manager.h"
+ #include "components/permissions/permission_recovery_success_rate_tracker.h"
+ #include "components/permissions/permission_request_manager.h"
+ #include "components/search/ntp_features.h"
+@@ -479,6 +481,12 @@ TabFeatures::TabFeatures(content::WebContents* web_contents, Profile* profile) {
+           web_contents);
+ 
+   permissions::PermissionRequestManager::CreateForWebContents(web_contents);
++  // Little Browser: a page Peek hands to a tab keeps its sheet's manager, which
++  // its ThinWebView told to refuse every permission request; a tab asks.
++  auto* permission_requests =
++      permissions::PermissionRequestManager::FromWebContents(web_contents);
++  permission_requests->set_web_contents_supports_permission_requests(true);
++  permission_requests->set_allowlist_for_permission_requests(std::nullopt);
+ 
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+   safe_browsing::SafeBrowsingNavigationObserver::MaybeCreateForWebContents(
+@@ -788,8 +796,16 @@ TabFeatures::TabFeatures(content::WebContents* web_contents, Profile* profile) {
+   if (!blocked_content::PopupBlockerTabHelper::FromWebContents(web_contents)) {
+     if (auto* pm_registry =
+             performance_manager::PerformanceManagerRegistry::GetInstance()) {
+-      pm_registry->SetPageType(web_contents,
+-                               performance_manager::PageType::kTab);
++      // Little Browser: a page Peek hands to a tab is typed already (its
++      // sheet's ThinWebView set it), and the type can be set only once.
++      base::WeakPtr<performance_manager::PageNode> page =
++          performance_manager::PerformanceManager::
++              GetPrimaryPageNodeForWebContents(web_contents);
++      if (!page ||
++          page->GetType() == performance_manager::PageType::kUnknown) {
++        pm_registry->SetPageType(web_contents,
++                                 performance_manager::PageType::kTab);
++      }
+     }
+   }
+ 

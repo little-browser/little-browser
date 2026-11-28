@@ -6,10 +6,10 @@
 # infrastructure repository. Shared and group runners are disabled for this project.
 #   lb-linux                small Linux Spot: quick checks, patch-check, release bot
 #   lb-linux-protected      small Linux Spot, protected refs only; release role (downloads, the EC2 Mac)
-#   lb-linux-build          64 vCPU x64 Linux Spot, 300 GB: merge-request builds, Android    (later)
-#   lb-linux-release        same, protected refs only: release builds, signing secrets            (later)
-#   lb-linux-arm64-build    64 vCPU Graviton Linux Spot, 300 GB: arm64 builds for merge requests  (later)
-#   lb-linux-arm64-release  same, protected refs only                                             (later)
+#   lb-linux-build          64 vCPU x64 Linux Spot, 300 GB: merge-request builds, Android
+#   lb-linux-release        same, protected refs only: release builds, signing secrets
+#   lb-linux-arm64-build    64 vCPU Graviton Linux Spot, 300 GB: arm64 builds for merge requests
+#   lb-linux-arm64-release  same, protected refs only
 #   lb-windows-build        64 vCPU Windows Spot (instance executor): merge-request builds        (later)
 #   lb-windows-release      same, protected refs only                                             (later)
 #   lb-macos-arm64          an Apple silicon Mac of our own (shell executor), protected refs
@@ -28,7 +28,7 @@
 # token (LB_BOT_TOKEN, masked and protected), the upstream-watch schedule (LB_SCHEDULE) and
 # the protection on main and v* tags.
 #
-# The Chromium build jobs have not run yet — they need the runners above.
+# Of the Chromium build jobs, only the Android ones have run; the macOS ones haven't run yet.
 
 stages: [check, provision, build, package, publish]
 
@@ -73,14 +73,14 @@ core-coverage:
   script:
     - core/scripts/coverage.sh
 
-# Gate: every source of desktop/lb's view-free model has unit tests (they run with the Chromium
+# Gate: every source of chromium/lb's view-free model has unit tests (they run with the Chromium
 # builds below, which build and run lb_unittests).
 lb-tests:
   extends: .check
   tags: [lb-linux]
   image: python:3-slim
   script:
-    - python3 -I desktop/scripts/check_lb_tests.py
+    - python3 -I chromium/scripts/check_lb_tests.py
 
 # Unit tests of the release scripts (download counts, the update feed, release notes, publishing,
 # GitLab's release).
@@ -91,23 +91,25 @@ script-tests:
   before_script:
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends git jq   # release notes', publish-release.sh's tests
   script:
+    - python3 -I -m unittest discover -s chromium/scripts -p 'test_*.py'
     - python3 -I -m unittest discover -s desktop/scripts -p 'test_*.py'
+    - python3 -I -m unittest discover -s android/scripts -p 'test_*.py'
 
 scripts:
   extends: .check
   tags: [lb-linux]
   image: koalaman/shellcheck-alpine:stable
   script:
-    - shellcheck desktop/scripts/*.sh desktop/platforms/*.sh core/scripts/*.sh android/scripts/*.sh   # also reports syntax errors; the image has no bash
+    - shellcheck chromium/scripts/*.sh desktop/scripts/*.sh desktop/platforms/*.sh core/scripts/*.sh android/scripts/*.sh   # also reports syntax errors; the image has no bash
 
-# Gate: no patch for every platform mixes engine and view code, and platform-only patches are
-# tagged (desktop/patches/README.md).
+# Gate: no patch for every platform mixes engine and view code, shared patches hold engine code
+# only, and platform-only patches are tagged (desktop/patches/README.md).
 patch-layers:
   extends: .check
   tags: [lb-linux]
   image: python:3-slim
   script:
-    - python3 -I desktop/scripts/check_series.py
+    - python3 -I chromium/scripts/check_series.py
 
 # The website's download logic (site/downloads.js): which build of which release it offers.
 site-tests:
@@ -126,7 +128,7 @@ site-i18n:
   script:
     - python3 -I desktop/scripts/site_i18n.py check
 
-# Every patch still applies: ungoogled-chromium, platform and our series on a fresh
+# Every patch still applies: ungoogled-chromium, platform and our two series on a fresh
 # Chromium tarball, for each desktop platform. No compile, so it is cheap enough for every bump or
 # patch merge request.
 patch-check:
@@ -135,28 +137,31 @@ patch-check:
   image: python:3-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: [desktop/VERSIONS, desktop/patches/**/*, desktop/platforms/**/*]
+      changes: [chromium/VERSIONS, chromium/patches/**/*, desktop/patches/**/*, desktop/platforms/**/*,
+                chromium/scripts/lib.sh, chromium/scripts/check_patches.py, desktop/scripts/fetch.sh]
   before_script:
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends git patch xz-utils ca-certificates
   script:
     - |
       for entry in desktop/platforms/*.sh; do
         desktop/scripts/fetch.sh --patches-only --platform "$(basename "$entry" .sh)"
-        desktop/scripts/check_patches.py --platform "$(basename "$entry" .sh)"   # ours: no fuzz or offset
+        chromium/scripts/check_patches.py --platform "$(basename "$entry" .sh)"   # ours: no fuzz or offset
         rm -rf desktop/build/src
       done
   cache:
     key: chromium-download-cache
     paths: [desktop/build/download_cache]
 
-# The same for the Android patches, on a sparse checkout of just the files they touch: seconds.
+# The same for Android, the shared series and then its own, on a sparse checkout of just the files
+# they touch: seconds.
 android-patch-check:
   stage: check
   tags: [lb-linux]
   image: alpine:3
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: [desktop/VERSIONS, android/patches/**/*, android/scripts/fetch.sh]
+      changes: [chromium/VERSIONS, chromium/patches/**/*, android/patches/**/*, android/scripts/fetch.sh,
+                chromium/scripts/lib.sh]
   before_script:
     - apk add --no-cache bash git
   script:
@@ -179,15 +184,17 @@ upstream-watch:
   script:
     - desktop/scripts/release-bot.sh bump
 
-# A merge that changes VERSIONS tags the release; the tag pipeline builds and signs it.
-# A branch's first push (no previous commit) matches every `changes:` rule, so it never tags.
+# A merge that changes VERSIONS' pins tags the release; the tag pipeline builds and signs it.
+# release-bot.sh tag compares the pins with the previous commit's, so a comment edit or a move
+# tags nothing. A branch's first push (no previous commit) matches every `changes:` rule, so it
+# never tags.
 auto-tag:
   extends: .bot
   rules:
     - if: $CI_COMMIT_BEFORE_SHA == "0000000000000000000000000000000000000000"
       when: never
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      changes: [desktop/VERSIONS]
+      changes: [chromium/VERSIONS]
   variables:
     GIT_DEPTH: 1
   script:
@@ -292,9 +299,10 @@ macos-x64:
   tags: [lb-linux-arm64-release]
 
 # Android: Chromium's own app (ChromePublic.apk, app ID app.littlebrowser.browser) with our privacy
-# patches, on a Linux x64 build host, the only one Chromium builds Android on. Manual for now:
-# there is no lb-linux-build runner yet, and nothing ships the APK.
-android-arm64:
+# patches, on a Linux x64 build host, the only one Chromium builds Android on. One job per CPU:
+# arm64 for phones, tablets and Arm Chromebooks, x64 for Intel and AMD Chromebooks (docs/design.md
+# §7). Manual for now: nothing ships the APK yet.
+.android:
   extends: .linux-chromium
   rules:
     - when: manual
@@ -302,10 +310,32 @@ android-arm64:
   script:
     - android/scripts/fetch.sh
     - android/build/src/build/install-build-deps.sh --android --no-prompt --no-chromeos-fonts
-    - android/scripts/build.sh arm64
+    - android/scripts/build.sh "$LB_ANDROID_CPU"
+    # Chrome's Java classpath, for compiling our Java elsewhere (android/README.md): the same for
+    # every CPU, so from the arm64 job only; never fails the job.
+    - if [ "$LB_ANDROID_CPU" = arm64 ]; then python3 android/scripts/java_classpath.py android/build/src/out/arm64 java-classpath.tar.gz || true; fi
+    # For reading crash stacks: libchrome.so's function symbols (the APK's copy has none) and
+    # R8's map of the renamed Java classes; never fails the job.
+    - android/build/src/third_party/llvm-build/Release+Asserts/bin/llvm-nm --defined-only -n -C android/build/src/out/$LB_ANDROID_CPU/lib.unstripped/libchrome.so | grep -E '^[0-9a-f]+ [tTwW] ' | gzip > libchrome-symbols.txt.gz || true
   artifacts:
-    paths: [android/build/src/out/arm64/apks/ChromePublic.apk]
+    paths:
+      - android/build/src/out/$LB_ANDROID_CPU/apks/ChromePublic.apk
+      - android/build/src/out/$LB_ANDROID_CPU/apks/ChromePublic.apk.mapping
+      - libchrome-symbols.txt.gz
+      - java-classpath.tar.gz
+    # A failed build's too: its tests may fail, and the symbols read a crash.
+    when: always
     expire_in: 30 days
+
+android-arm64:
+  extends: .android
+  variables:
+    LB_ANDROID_CPU: arm64
+
+android-x64:
+  extends: .android
+  variables:
+    LB_ANDROID_CPU: x64
 
 # linux-x64, linux-arm64, windows-x64: added when their platform recipes are wired up
 # (desktop/README.md); they also get a merge_request_event rule.

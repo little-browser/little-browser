@@ -1,0 +1,28 @@
+# Little Browser (Android): the welcome screen's "Terms of Service" link opens our terms of use
+# (littlebrowser.app/terms, the address welcome-terms-url.patch adds), not Google's.
+
+diff --git a/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java b/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java
+--- a/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java
++++ b/chrome/browser/ui/android/signin/java/src/org/chromium/chrome/browser/ui/signin/fullscreen_signin/FullscreenSigninMediator.java
+@@ -69,7 +69,6 @@
+ import org.chromium.ui.modelutil.PropertyModel;
+ import org.chromium.ui.text.ChromeClickableSpan;
+ import org.chromium.ui.text.SpanApplier;
+-import org.chromium.ui.util.ColorUtils;
+ import org.chromium.ui.util.TokenHolder;
+ 
+ import java.lang.annotation.Retention;
+@@ -1009,11 +1008,8 @@
+         final ChromeClickableSpan clickableTermsOfServiceSpan =
+                 new ChromeClickableSpan(
+                         mContext,
+-                        view ->
+-                                mDelegate.showInfoPage(
+-                                        ColorUtils.inNightMode(mContext)
+-                                                ? R.string.google_terms_of_service_dark_mode_url
+-                                                : R.string.google_terms_of_service_url));
++                        // Little Browser: our terms of use, not Google's.
++                        view -> mDelegate.showInfoPage(R.string.lb_terms_url));
+         spans.add(
+                 new SpanApplier.SpanInfo("<TOS_LINK>", "</TOS_LINK>", clickableTermsOfServiceSpan));
+ 

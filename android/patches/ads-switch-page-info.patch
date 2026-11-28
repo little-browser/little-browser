@@ -1,0 +1,137 @@
+# Little Browser: an "Ads" switch in page info's "Cookies and site data", under the third-party
+# cookies switch, where people look when a site doesn't work, as on desktop. It is the built-in ad
+# blocker's per-site setting for the page page info is about (app.littlebrowser.lb.adblock.
+# SiteAdsSwitch, over the shared C++ in chromium/lb/browser/adblock). Like the cookie switch, the
+# change applies when page info closes, in one reload with the cookie switch's. The cookies
+# controller gets the tab for it.
+
+diff --git a/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoController.java b/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoController.java
+index 51feba6a..7174b8b7 100644
+--- a/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoController.java
++++ b/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoController.java
+@@ -312,7 +312,8 @@ public class PageInfoController
+                         pageInfoHighlight.getHighlightedPermission());
+         mSubpageControllers.add(mPermissionsController);
+         mCookiesController =
+-                new PageInfoCookiesController(this, mView.getCookiesRowView(), mDelegate);
++                new PageInfoCookiesController(
++                        this, mView.getCookiesRowView(), mDelegate, mWebContents);
+         mSubpageControllers.add(mCookiesController);
+         mContainer.showPage(mView, null, null);
+ 
+diff --git a/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesController.java b/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesController.java
+index 69ce3541..5baa3498 100644
+--- a/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesController.java
++++ b/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesController.java
+@@ -26,6 +26,9 @@ import org.chromium.components.content_settings.CookieControlsObserver;
+ import org.chromium.components.content_settings.CookieControlsState;
+ import org.chromium.components.embedder_support.util.Origin;
+ import org.chromium.components.user_prefs.UserPrefs;
++import org.chromium.content_public.browser.WebContents;
++
++import app.littlebrowser.lb.adblock.SiteAdsSwitch;
+ 
+ import java.util.Collection;
+ 
+@@ -46,14 +49,21 @@ public class PageInfoCookiesController extends PageInfoPreferenceSubpageControll
+     private final boolean mIsSiteSettingsAvailable;
+     private @Nullable Integer mDaysUntilExpirationForTesting;
+     private @Nullable Collection<Website> mRwsInfoForTesting;
++    // Little Browser: the tab whose page this is, for the Ads switch, and whether the cookie
++    // switch was turned (its controller then reloads the page as page info closes).
++    private final WebContents mTab;
++    private @Nullable SiteAdsSwitch mAdsSwitch;
++    private boolean mCookiesReload;
+ 
+     public PageInfoCookiesController(
+             PageInfoMainController mainController,
+             PageInfoRowView rowView,
+-            PageInfoControllerDelegate delegate) {
++            PageInfoControllerDelegate delegate,
++            WebContents tab) {
+         super(delegate);
+ 
+         mMainController = mainController;
++        mTab = tab;
+         mRowView = rowView;
+         mFullUrl = mainController.getURL().getSpec();
+         mIsSiteSettingsAvailable = delegate.isSiteSettingsAvailable();
+@@ -97,6 +107,8 @@ public class PageInfoCookiesController extends PageInfoPreferenceSubpageControll
+                         /* daysUntilExpirationForTesting= */ mDaysUntilExpirationForTesting);
+         mSubPage.setParams(params, delegate);
+         mSubPage.updateState(mControlsState, mEnforcement, mExpiration);
++        if (mAdsSwitch == null) mAdsSwitch = SiteAdsSwitch.forPage(mTab, mFullUrl);
++        if (mAdsSwitch != null) mSubPage.addAdsSwitch(mAdsSwitch);
+ 
+         SiteSettingsCategory storageCategory =
+                 SiteSettingsCategory.createFromType(
+@@ -137,6 +149,7 @@ public class PageInfoCookiesController extends PageInfoPreferenceSubpageControll
+                             ? PageInfoAction.PAGE_INFO_COOKIES_BLOCKED_FOR_SITE
+                             : PageInfoAction.PAGE_INFO_COOKIES_ALLOWED_FOR_SITE);
+             mBridge.setThirdPartyCookieBlockingEnabledForSite(block);
++            mCookiesReload = true;
+         }
+     }
+ 
+@@ -229,6 +242,10 @@ public class PageInfoCookiesController extends PageInfoPreferenceSubpageControll
+     }
+ 
+     void destroy() {
++        // Little Browser: the Ads switch's change applies now, in the cookie switch's reload if
++        // there is one.
++        if (mAdsSwitch != null) mAdsSwitch.onPanelClosed(mCookiesReload);
++        mAdsSwitch = null;
+         if (mBridge == null) return;
+         mBridge.onUiClosing();
+         mBridge.destroy();
+diff --git a/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesSettings.java b/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesSettings.java
+index 31b8b00f..1b5113a2 100644
+--- a/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesSettings.java
++++ b/components/page_info/android/java/src/org/chromium/components/page_info/PageInfoCookiesSettings.java
+@@ -17,6 +17,8 @@ import androidx.annotation.VisibleForTesting;
+ import androidx.appcompat.app.AlertDialog;
+ import androidx.preference.Preference;
+ 
++import app.littlebrowser.lb.adblock.SiteAdsSwitch;
++
+ import org.chromium.base.Callback;
+ import org.chromium.base.TimeUtils;
+ import org.chromium.build.annotations.Initializer;
+@@ -46,6 +48,7 @@ public class PageInfoCookiesSettings extends BaseSiteSettingsFragment {
+     private static final String RWS_IN_USE_PREFERENCE = "rws_in_use";
+     private static final String TPC_TITLE = "tpc_title";
+     private static final String TPC_SUMMARY = "tpc_summary";
++    private static final String ADS_SWITCH_PREFERENCE = "lb_ads_switch";
+ 
+     private ChromeSwitchPreference mCookieSwitch;
+     private ChromeImageViewPreference mCookieInUse;
+@@ -151,6 +154,29 @@ public class PageInfoCookiesSettings extends BaseSiteSettingsFragment {
+         updateCookieDeleteButton();
+     }
+ 
++    /**
++     * Little Browser: the built-in ad blocker's per-site switch, under the third-party cookies
++     * switch, where people look when a site doesn't work. SiteAdsSwitch decides what it shows and
++     * does; the switch keeps no value of its own (not persisted), and shows what is stored.
++     */
++    void addAdsSwitch(SiteAdsSwitch adsSwitch) {
++        if (findPreference(ADS_SWITCH_PREFERENCE) != null) return;
++        ChromeSwitchPreference ads = new ChromeSwitchPreference(getContext());
++        ads.setKey(ADS_SWITCH_PREFERENCE);
++        ads.setPersistent(false);
++        ads.setTitle(adsSwitch.title());
++        ads.setSummary(adsSwitch.state());
++        ads.setChecked(adsSwitch.isOn());
++        ads.setOnPreferenceChangeListener(
++                (preference, newValue) -> {
++                    adsSwitch.turn((Boolean) newValue);
++                    ads.setChecked(adsSwitch.isOn());
++                    ads.setSummary(adsSwitch.state());
++                    return false;
++                });
++        getPreferenceScreen().addPreference(ads);
++    }
++
+     private void setCookieSummary() {
+         mCookieSummary.setVisible(true);
+         mCookieSummary.setSummary(

@@ -1,0 +1,17 @@
+# Little Browser: Chrome's Java includes ours (chromium/lb/android): the classes whose native side
+# //lb:browser builds into libchrome (JNI registration requires both), and the phone shell, which
+# phone-shell.patch's hooks call.
+
+diff --git a/chrome/android/BUILD.gn b/chrome/android/BUILD.gn
+index 271801af..043e4824 100644
+--- a/chrome/android/BUILD.gn
++++ b/chrome/android/BUILD.gn
+@@ -312,6 +312,8 @@ if (_is_default_toolchain) {
+ 
+   android_library("chrome_java") {
+     deps = [
++      "//lb/android:java",  # Little Browser: our Java, and its native side in libchrome
++      "//lb/android:shell_java",  # Little Browser: the phone shell
+       ":base_module_java",
+       ":chrome_app_java_resources",
+       ":chrome_public_apk_template_resources",

@@ -1,0 +1,31 @@
+# Little Browser (Android): the lockup (product_logo_name) in dark mode. Our word mark is Ink on
+# light and white on dark (branding/README.md), where Chromium's grey one serves both, so it has a
+# drawable-night copy, which android/scripts/brand_assets.sh puts in and this lists.
+
+diff --git a/components/browser_ui/styles/android/BUILD.gn b/components/browser_ui/styles/android/BUILD.gn
+--- a/components/browser_ui/styles/android/BUILD.gn
++++ b/components/browser_ui/styles/android/BUILD.gn
+@@ -334,6 +334,11 @@
+     "java/res_chromium/drawable-xxhdpi/product_logo_name.png",
+     "java/res_chromium/drawable-xxxhdpi/fre_product_logo.png",
+     "java/res_chromium/drawable-xxxhdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-hdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-mdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-xhdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-xxhdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-xxxhdpi/product_logo_name.png",
+     "java/res_chromium/raw/signin_spin.json",
+   ]
+ 
+@@ -361,6 +366,11 @@
+     "java/res_chromium/drawable-xxhdpi/product_logo_name.png",
+     "java/res_chromium/drawable-xxxhdpi/fre_product_logo.png",
+     "java/res_chromium/drawable-xxxhdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-hdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-mdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-xhdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-xxhdpi/product_logo_name.png",
++    "java/res_chromium/drawable-night-xxxhdpi/product_logo_name.png",
+     "java/res_chromium/raw/signin_spin.json",
+   ]
+ }

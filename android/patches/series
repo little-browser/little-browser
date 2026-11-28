@@ -1,6 +1,9 @@
 # Little Browser Android patches, applied in this order to Chromium's own Android app.
 # One concern per patch. Format: <path relative to android/patches>   # one-line reason
 #
+# Our Java (chromium/lb/android):
+lb-java.patch                       # Chrome's Java includes ours, whose native side libchrome builds
+#
 # No automatic requests to Google (docs/design.md §5):
 no-first-run-variations-seed.patch  # no field-trial seed download during first run
 no-component-updates.patch          # no component updater checks (update.googleapis.com)
@@ -13,7 +16,48 @@ no-google-doodle.patch              # no doodle or logo downloads from www.googl
 no-google-favicon-server.patch      # no favicons from Google's favicon server
 translate-off-by-default.patch      # no translate offers, no ranker model download
 #
-# Privacy defaults, as on desktop:
-privacy-default-prefs.patch         # third-party cookies blocked, suggestions off, sign-in off, …
+# Privacy defaults (the shared ones are chromium/lb/browser/prefs/pref_defaults.*):
+privacy-default-prefs.patch         # Android only: Google sign-in not allowed, Touch to Search off
 first-run-usage-stats-off.patch     # first run doesn't opt in to usage stats and crash reports
-first-run-search-choice.patch       # no default search engine: first run asks for one
+password-manager-queries.patch      # the browser may see whether the offered password managers are installed
+no-account-button.patch             # the bar has no Google account button (sign-in isn't allowed)
+safe-browsing-standard-only-settings.patch  # Safe Browsing settings offer standard protection only
+#
+# The built-in ad blocker's per-site switch (the engine is chromium/patches/ad-blocking*.patch):
+ads-switch-page-info-deps.patch     # page info and Site settings Java depend on ours (native half of the next two)
+ads-switch-page-info.patch          # an Ads switch in page info's "Cookies and site data"
+ads-site-settings.patch             # Site settings shows each site's Ads setting, no intrusive-ads banner
+ads-settings-strings.patch          # Site settings calls it "Ads" and describes the ad blocker as it works
+#
+# The phone shell (chromium/lb/android, app.littlebrowser.lb.shell; docs/ux.md §10):
+phone-shell.patch                   # the shell's hooks: all tabs for the tab switcher, the space button, pinned close
+bar-at-bottom.patch                 # the bar is at the bottom by default and stays there while typing
+profile-prefs-own.patch             # a profile created after startup loads its own prefs and has its own database provider (native half of profile-windows.patch)
+gcm-driver-per-profile.patch        # a profile after the first gets a GCM driver of its own; messages still go to the first
+post-profile-init-once.patch        # a profile after the first gets only the per-profile part of PostProfileInit
+last-used-profile-loaded.patch      # the last used profile is never loaded synchronously: the initial one until it is (native half of the next)
+profile-windows.patch               # a window per profile: its profile from its intent; opening another profile's window
+no-reopen-closed.patch              # closing is final: no Undo bar, no Recently closed, no Ctrl+Shift+T
+no-thumbnails-on-disk.patch         # tab previews stay in memory: the thumbnail cache writes no files
+little-window.patch                 # links from other apps open in a little window (Custom Tab) with Copy URL and Open in ‹space›
+peek-open-as-tab-native.patch       # the tab doesn't type the page again, which Peek's sheet typed (native half of the next)
+peek-open-as-tab.patch              # Peek's open as tab keeps the page: the sheet hands its WebContents to the tab
+vertical-tabs-on.patch              # tablets: Chromium's vertical tabs are on (native half of the next)
+vertical-tabs-sidebar.patch         # tablets: vertical tabs by default, with the spaces in the sidebar's header and footer
+address-domain-only.patch           # the bar's address shows the domain only
+suggestions-grow-upward.patch       # with the bar at the bottom, results grow upward from it
+search-tabs-deps.patch              # the omnibox builds the tab rows and depends on ours (native half of the next)
+search-tabs.patch                   # the search screen shows recent and matching tabs nearest the input
+#
+# No promos (docs/ux.md §1, Calm):
+no-home-modules.patch               # the new tab page has no home modules (tips, Safety Hub, price tracking, ...)
+no-ntp-customization-promo.patch    # no "customize your homepage" sheet, bubble or card
+no-startup-notification-prompt.patch  # notifications are asked for in context only, not at startup
+#
+# What people see:
+welcome-terms-url.patch             # the address of our terms of use (native half of the next)
+welcome-terms.patch                 # the welcome screen links to our terms of use, not Google's
+app-name.patch                      # the app is called Little Browser (Chromium's strings: fetch.sh)
+app-icon.patch                      # our launcher icon, adaptive and themed (its PNGs: scripts/brand_assets.sh), and notifications' small icon
+no-chromium-logo-animation.patch    # the welcome screen shows our logo, not Chromium's animated one
+logo-dark.patch                     # our lockup has a dark-mode copy (brand_assets.sh puts in the logos)

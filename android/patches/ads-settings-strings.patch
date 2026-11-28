@@ -1,0 +1,44 @@
+# Little Browser: Android's Site settings describes the built-in ad blocker as it works, with the
+# desktop's wording (chromium/patches/ad-blocking-settings.patch): the setting is called "Ads".
+# Other languages fall back to English for these strings until they are translated.
+
+diff --git a/components/browser_ui/strings/android/site_settings.grdp b/components/browser_ui/strings/android/site_settings.grdp
+index fb8ddb2f..4d2105eb 100644
+--- a/components/browser_ui/strings/android/site_settings.grdp
++++ b/components/browser_ui/strings/android/site_settings.grdp
+@@ -421,23 +421,23 @@
+   <message name="IDS_INTRUSIVE_ADS_INFORMATION" desc="The extra information at the top of the Site Details page when the site tends to show intrusive ads">
+     This site shows intrusive or misleading ads
+   </message>
+-  <message name="IDS_WEBSITE_SETTINGS_CATEGORY_ADS_BLOCKED_LIST" desc="Summary text explaining that the Ads permission is set to block ads on some sites. To be shown in the list of permission categories.">
+-    Blocked on some sites
++  <message name="IDS_WEBSITE_SETTINGS_CATEGORY_ADS_BLOCKED_LIST" desc="Summary text explaining that the built-in ad blocker blocks ads and trackers on every site, except sites the user allowed. To be shown in the list of permission categories.">
++    Blocked on every site
+   </message>
+-  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_ADS_LABEL" desc="We're renaming the existing 'Ads' setting (visit chrome://settings/content and click 'Additional content settings'). We need to rename this setting because we're introducing 3 new ad settings on the new 'Ad privacy' page. This string is the name of a setting. Here, it serves as the label of a button that opens the 'Intrusive ads' page.">
+-    Intrusive ads
++  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_ADS_LABEL" desc="The name of the ads setting, the built-in ad blocker. Here, it serves as the label of a button that opens the 'Ads' page.">
++    Ads
+   </message>
+-  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_ALLOWED_SUB_LABEL" desc="1 of 2 states for the 'Intrusive ads' setting.">
+-    Any site you visit can show any ad to you
++  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_ALLOWED_SUB_LABEL" desc="1 of 2 states for the 'Ads' setting: the ad blocker is off.">
++    Sites can show ads (the ad blocker is off)
+   </message>
+-  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_BLOCKED_SUB_LABEL" desc="2 of 2 states for the 'intrusive ads' setting.">
+-    Ads are blocked on sites known to show intrusive or misleading ads
++  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_BLOCKED_SUB_LABEL" desc="2 of 2 states for the 'Ads' setting: the ad blocker is on.">
++    Block ads and trackers on every site
+   </message>
+-  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_ADS_A11Y" desc="The screen reader announcement describing a toggle with two states to either allow all ads or to block intrusive ads. It is important to keep this string as two full sentences terminated by a period.">
+-    When on, sites can show any ad to you. When off, sites can’t show intrusive or misleading ads.
++  <message name="IDS_SITE_SETTINGS_PAGE_INTRUSIVE_ADS_A11Y" desc="The screen reader announcement describing a toggle with two states: allow ads, or block ads and trackers with the built-in ad blocker. It is important to keep this string as two full sentences terminated by a period.">
++    When on, sites can show ads. When off, ad and tracker requests are blocked on every site.
+   </message>
+-  <message name="IDS_WEBSITE_SETTINGS_ADS_PAGE_DESCRIPTION" desc="Description of intrusive ads content setting.">
+-    Sites usually show ads so that they can provide content or services free of charge. But, some sites are known to show intrusive or misleading ads.
++  <message name="IDS_WEBSITE_SETTINGS_ADS_PAGE_DESCRIPTION" desc="Description of the ads content setting: the built-in ad blocker and its filter lists.">
++    Little Browser blocks ad and tracker requests on every site, using filter lists from their maintainers. Allow ads on a site you want to support, or where blocking breaks something.
+   </message>
+ 
+   <!-- Anti-abuse -->

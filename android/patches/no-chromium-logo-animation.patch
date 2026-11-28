@@ -1,0 +1,57 @@
+# Little Browser (Android): the welcome screen shows our logo (fre_product_logo, from
+# android/scripts/brand_assets.sh), not Chromium's. Chromium draws a Lottie animation over it whose
+# first frame is Chromium's logo and which turns into the Google account's picture when signing
+# in, which this build doesn't allow; without its animation file the view stays empty.
+
+diff --git a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_centered_view.xml b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_centered_view.xml
+--- a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_centered_view.xml
++++ b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_centered_view.xml
+@@ -51,8 +51,7 @@
+                 android:layout_height="@dimen/fullscreen_signin_logo_default_height"
+                 android:layout_gravity="center"
+                 android:scaleType="fitCenter"
+-                android:adjustViewBounds="true"
+-                app:lottie_rawRes="@raw/signin_spin" />
++                android:adjustViewBounds="true" />
+         </FrameLayout>
+ 
+         <ScrollView
+diff --git a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_view.xml b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_view.xml
+--- a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_view.xml
++++ b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_landscape_view.xml
+@@ -36,8 +36,7 @@
+             android:layout_height="@dimen/fullscreen_signin_logo_default_height"
+             android:layout_gravity="center"
+             android:scaleType="fitCenter"
+-            android:adjustViewBounds="true"
+-            app:lottie_rawRes="@raw/signin_spin" />
++            android:adjustViewBounds="true" />
+     </FrameLayout>
+ 
+     <ScrollView
+diff --git a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_centered_view.xml b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_centered_view.xml
+--- a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_centered_view.xml
++++ b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_centered_view.xml
+@@ -58,8 +58,7 @@
+                         android:layout_height="@dimen/fullscreen_signin_logo_default_height"
+                         android:layout_gravity="center"
+                         android:scaleType="fitCenter"
+-                        android:adjustViewBounds="true"
+-                        app:lottie_rawRes="@raw/signin_spin" />
++                        android:adjustViewBounds="true" />
+                 </FrameLayout>
+ 
+                 <TextView
+diff --git a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_view.xml b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_view.xml
+--- a/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_view.xml
++++ b/chrome/browser/ui/android/signin/java/res/layout/fullscreen_signin_portrait_view.xml
+@@ -59,8 +59,7 @@
+                     android:layout_height="@dimen/fullscreen_signin_logo_default_height"
+                     android:layout_gravity="center"
+                     android:scaleType="fitCenter"
+-                    android:adjustViewBounds="true"
+-                    app:lottie_rawRes="@raw/signin_spin" />
++                    android:adjustViewBounds="true" />
+             </FrameLayout>
+ 
+             <TextView

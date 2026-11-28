@@ -1,0 +1,161 @@
+# Little Browser (Android): the little window (docs/ux.md §8, §10). A web link from another app
+# opens in a Custom Tab of its own rather than as a tab (app.littlebrowser.lb.shell.LittleWindow
+# decides and marks it); the browser's own launches, a site's home-screen shortcut among them,
+# don't. That Custom Tab's toolbar has Copy URL and "Open in ‹space›", which moves the page into
+# the browser's window through Custom Tabs' "open in browser" reparenting, without reloading it,
+# whichever browser is the device's default, and into the window of the page's profile (the
+# default one, a Custom Tab's): that window while it is open, else that window again; not
+# whichever window was in front. The toolbar's buttons come from
+# CustomTabToolbarButtonsCoordinator's model, which gets a way to add one.
+
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/document/ChromeLauncherActivity.java b/chrome/android/java/src/org/chromium/chrome/browser/document/ChromeLauncherActivity.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/document/ChromeLauncherActivity.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/document/ChromeLauncherActivity.java
+@@ -44,6 +44,8 @@ import org.chromium.chrome.browser.tabwindow.TabWindowInfo;
+ import org.chromium.chrome.browser.webapps.WebappLauncherActivity;
+ import org.chromium.webapk.lib.common.WebApkConstants;
+ 
++import app.littlebrowser.lb.shell.LittleWindow;
++
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ 
+@@ -137,6 +139,22 @@ public class ChromeLauncherActivity extends Activity {
+         // Check if we should push the user through First Run.
+         if (FirstRunFlowSequencer.launch(this, intent)) return;
+ 
++        // Little Browser: a web link from another app opens in a little window. The browser's
++        // own launches don't: its windows' and "open in browser"'s, and a site's home-screen
++        // shortcut, which carries no sender token (ShortcutHelper, WebappLauncherActivity).
++        if (LittleWindow.opensInLittleWindow(
++                intent.getAction(),
++                IntentHandler.getUrlFromIntent(intent),
++                IntentHandler.wasIntentSenderChrome(intent)
++                        || intent.hasExtra(IntentHandler.EXTRA_FROM_OPEN_IN_BROWSER)
++                        || IntentUtils.safeHasExtra(
++                                intent,
++                                org.chromium.chrome.browser.browserservices.intents
++                                        .WebappConstants.REUSE_URL_MATCHING_TAB_ELSE_NEW_TAB),
++                LaunchIntentDispatcher.isCustomTabIntent(intent))) {
++            LittleWindow.markAsLittleWindow(intent);
++        }
++
+         // Check if we should launch a Custom Tab.
+         if (LaunchIntentDispatcher.isCustomTabIntent(intent)) {
+             LaunchIntentDispatcher.dispatchToCustomTabActivity(this, intent);
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarCoordinator.java b/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarCoordinator.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarCoordinator.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarCoordinator.java
+@@ -53,6 +53,8 @@
+ import org.chromium.ui.util.TokenHolder;
+ import org.chromium.url.GURL;
+ 
++import app.littlebrowser.lb.shell.LittleWindow;
++
+ /**
+  * Works with the toolbar in a Custom Tab. Encapsulates interactions with Chrome's toolbar-related
+  * classes such as {@link ToolbarManager} and {@link BrowserControlsVisibilityManager}.
+@@ -216,6 +218,26 @@
+                     params.getDescription(),
+                     onClickListener,
+                     params.getType());
++        }
++        // Little Browser: a little window's Copy URL and Open in ‹space›.
++        if (LittleWindow.isLittleWindow(mIntentDataProvider.getIntent())) {
++            for (LittleWindow.ToolbarButton button :
++                    LittleWindow.toolbarButtons(
++                            mActivity,
++                            LittleWindow.regularProfilePrefs(),
++                            mNavigationController::openCurrentUrlInBrowser,
++                            () -> {
++                                Tab tab = mTabProvider.getTab();
++                                return tab == null ? "" : tab.getUrl().getSpec();
++                            })) {
++                // The Custom Tab's toolbar takes its buttons from this model; its
++                // ToolbarManager.addCustomActionButton does nothing.
++                mToolbarButtonsCoordinator.addCustomActionButton(
++                        button.icon,
++                        button.description,
++                        button.onClick,
++                        CustomButtonParams.ButtonType.OTHER);
++            }
+         }
+     }
+ 
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarButtonsCoordinator.java b/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarButtonsCoordinator.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarButtonsCoordinator.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/customtabs/features/toolbar/CustomTabToolbarButtonsCoordinator.java
+@@ -198,6 +198,26 @@
+     }
+ 
+     /**
++     * Little Browser: adds a button after the ones the intent asked for (the little window's,
++     * little-window.patch).
++     */
++    public void addCustomActionButton(
++            Drawable drawable,
++            String description,
++            View.OnClickListener listener,
++            @CustomButtonParams.ButtonType int type) {
++        mModel.get(CustomTabToolbarButtonsProperties.CUSTOM_ACTION_BUTTONS)
++                .add(
++                        new PropertyModel.Builder(INDIVIDUAL_BUTTON_KEYS)
++                                .with(VISIBLE, true)
++                                .with(ICON, drawable)
++                                .with(TYPE, type)
++                                .with(CLICK_LISTENER, listener)
++                                .with(DESCRIPTION, description)
++                                .build());
++    }
++
++    /**
+      * Updates the visual appearance of a custom action button.
+      *
+      * @param index The index of the button.
+diff --git a/chrome/android/java/src/org/chromium/chrome/browser/customtabs/content/CustomTabActivityNavigationController.java b/chrome/android/java/src/org/chromium/chrome/browser/customtabs/content/CustomTabActivityNavigationController.java
+--- a/chrome/android/java/src/org/chromium/chrome/browser/customtabs/content/CustomTabActivityNavigationController.java
++++ b/chrome/android/java/src/org/chromium/chrome/browser/customtabs/content/CustomTabActivityNavigationController.java
+@@ -383,6 +383,29 @@ public class CustomTabActivityNavigationController
+                 intent.setPackage(null);
+             }
+         }
++        // Little Browser: a little window's page moves into this browser, not the default one,
++        // and into its profile's window, not whichever was in front.
++        boolean littleWindow =
++                app.littlebrowser.lb.shell.LittleWindow.isLittleWindow(
++                        mIntentDataProvider.getIntent());
++        // The profile's window while it is open: the page moves into it.
++        Activity profileWindow = null;
++        if (littleWindow) {
++            app.littlebrowser.lb.shell.LittleWindow.openInThisBrowser(
++                    mIntentDataProvider.getIntent(), intent, mActivity);
++            int windowId =
++                    app.littlebrowser.lb.shell.LbPhoneShell.rememberedWindow(
++                            app.littlebrowser.lb.profiles.Profiles.DEFAULT);
++            if (windowId
++                    != org.chromium.chrome.browser.tabwindow.TabWindowManager.INVALID_WINDOW_ID) {
++                profileWindow = MultiWindowUtils.getActivityById(windowId);
++                intent.putExtra(IntentHandler.EXTRA_WINDOW_ID, windowId);
++            } else {
++                intent.putExtra(IntentHandler.EXTRA_PREFER_NEW, true);
++            }
++            // Else a task of its own for the window, as Chromium relaunches one.
++            if (profileWindow == null) intent.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
++        }
+ 
+         boolean isOffTheRecord = mIntentDataProvider.isOffTheRecord();
+         boolean willChromeHandleIntent = mIntentDataProvider.isOpenedByChrome();
+@@ -422,8 +445,12 @@ public class CustomTabActivityNavigationController
+             finish(FinishReason.OPEN_IN_BROWSER);
+         } else if ((canFinishActivity || canReparentKeepingActivity) && willChromeHandleIntent) {
+             Activity adjacentActivity = MultiWindowUtils.getForegroundWindowActivity(mActivity);
+-            if (canFinishActivity && adjacentActivity != null) {
++            // Little Browser: not into the window beside it, which may be another profile's.
++            if (canFinishActivity && adjacentActivity != null && !littleWindow) {
+                 openInAdjacentActivity(tab, adjacentActivity);
++            } else if (canFinishActivity && profileWindow != null) {
++                // Little Browser: into the profile's open window.
++                openInAdjacentActivity(tab, profileWindow);
+             } else if (canFinishActivity) {
+                 // Remove observer to not trigger finishing in onAllTabsClosed() callback - we'll
+                 // use reparenting finish callback instead.

@@ -1,0 +1,55 @@
+# Little Browser: Site settings shows a site's Ads setting on every page that has one, the shared
+# rule's web pages (app.littlebrowser.lb.adblock.SiteAds), since the built-in ad blocker filters
+# every site (chromium/patches/ad-blocking.patch keeps no per-site record of where it ran), and
+# drops the "this site shows intrusive or misleading ads" banner.
+
+diff --git a/components/browser_ui/site_settings/android/java/src/org/chromium/components/browser_ui/site_settings/SingleWebsiteSettings.java b/components/browser_ui/site_settings/android/java/src/org/chromium/components/browser_ui/site_settings/SingleWebsiteSettings.java
+index dc7bf153..e49ed2cb 100644
+--- a/components/browser_ui/site_settings/android/java/src/org/chromium/components/browser_ui/site_settings/SingleWebsiteSettings.java
++++ b/components/browser_ui/site_settings/android/java/src/org/chromium/components/browser_ui/site_settings/SingleWebsiteSettings.java
+@@ -52,6 +52,8 @@ import org.chromium.components.permissions.PermissionsAndroidFeatureList;
+ import org.chromium.components.permissions.PermissionsAndroidFeatureMap;
+ import org.chromium.content_public.browser.BrowserContextHandle;
+ 
++import app.littlebrowser.lb.adblock.SiteAds;
++
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.HashMap;
+@@ -1260,19 +1262,10 @@ public class SingleWebsiteSettings extends BaseSiteSettingsFragment
+ 
+     @RequiresNonNull({"mSite"})
+     private void setUpAdsInformationalBanner() {
+-        // Add the informational banner which shows at the top of the UI if ad blocking is
+-        // activated on this site.
+-        boolean adBlockingActivated =
+-                SiteSettingsCategory.adsCategoryEnabled()
+-                        && WebsitePreferenceBridge.getAdBlockingActivated(
+-                                getBrowserContextHandle(), mSite.getAddress().getOrigin())
+-                        && findPreference(assumeNonNull(getPreferenceKey(ContentSettingsType.ADS)))
+-                                != null;
+-
+-        if (!adBlockingActivated) {
+-            removePreferenceSafely(PREF_INTRUSIVE_ADS_INFO);
+-            removePreferenceSafely(PREF_INTRUSIVE_ADS_INFO_DIVIDER);
+-        }
++        // Little Browser: no "this site shows intrusive or misleading ads" banner. The built-in ad
++        // blocker filters every site, not only the ones Chrome lists for showing such ads.
++        removePreferenceSafely(PREF_INTRUSIVE_ADS_INFO);
++        removePreferenceSafely(PREF_INTRUSIVE_ADS_INFO_DIVIDER);
+     }
+ 
+     @RequiresNonNull({"mSite"})
+@@ -1653,9 +1646,9 @@ public class SingleWebsiteSettings extends BaseSiteSettingsFragment
+         }
+         // If the ad blocker is activated, then this site will have ads blocked unless there is an
+         // explicit permission disallowing the blocking.
+-        boolean activated =
+-                WebsitePreferenceBridge.getAdBlockingActivated(
+-                        browserContextHandle, mSite.getAddress().getOrigin());
++        // Little Browser: the built-in ad blocker is activated on every page with an Ads setting
++        // (the shared rule, app.littlebrowser.lb.adblock.SiteAds).
++        boolean activated = SiteAds.hasSetting(mSite.getAddress().getOrigin());
+ 
+         // If |setting| is null, there is no explicit (non-default) permission set for this site.
+         // If the site is not considered a candidate for blocking, do the standard thing and remove
