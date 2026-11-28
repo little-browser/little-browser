@@ -121,8 +121,10 @@ nodejs.org and Crubit from Google's GitHub. For releases we should build LLVM ou
 Chromium's own published toolchain, so we don't ship binaries built with a compiler we can't vouch
 for.
 
-CI cannot use standard hosted runners (time and disk limits). Builds run on a per-release EC2 Mac
-host that `scripts/macos-host.sh` brings up, with an sccache compiler cache (see `AGENTS.md`).
+CI cannot use standard hosted runners (time and disk limits). Builds run on Macs of our own, one
+per architecture (`lb-macos-arm64`, `lb-macos-x64`), each building natively with a local sccache
+compiler cache; a per-release EC2 Mac host that `scripts/macos-host.sh` brings up can take the
+arm64 builds instead (`LB_MACOS_HOST`, see `AGENTS.md`).
 
 ## Things the base patch set changes that we must undo
 

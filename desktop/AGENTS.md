@@ -95,7 +95,8 @@ once. Machines that share a cache need the same checkout path, or the keys won't
   that touch `VERSIONS` or `patches/`.
 - `scripts/release-bot.sh bump|tag` is CI-only (it pushes as the bot); `LB_DRY_RUN=1` prints the
   push instead.
-- `scripts/macos-host.sh up` is CI-only: it allocates or reuses the per-release EC2 Mac
+- `scripts/macos-host.sh up` is CI-only, and runs only while macOS builds are on the EC2 Mac
+  (`LB_MACOS_HOST` `ec2`; normally they run on Macs of our own): it allocates or reuses the per-release EC2 Mac
   host, starts the builder and, if one is configured, attaches its persistent data volume. The infrastructure behind it lives in
   the infrastructure repository.
 - `scripts/package-macos.sh [--arch <arch>] [--release] [<version>]` signs out/Default's app

@@ -1,22 +1,28 @@
-# Little Browser CI/CD: GitLab hosting and CI, on the project's own AWS account, with a per-release
-# EC2 Mac host.
+# Little Browser CI/CD: GitLab hosting and CI, on the project's own AWS account, with macOS builds
+# on Macs of our own.
 # Release pipeline: docs/design.md §14.
 #
 # Runners: this project's own, in the Little Browser AWS account, managed by the
 # infrastructure repository. Shared and group runners are disabled for this project.
 #   lb-linux                small Linux Spot: quick checks, patch-check, release bot
-#   lb-linux-protected      small Linux Spot, protected refs only; its role controls the Mac host
+#   lb-linux-protected      small Linux Spot, protected refs only; release role (downloads, the EC2 Mac)
 #   lb-linux-build          64 vCPU x64 Linux Spot, 300 GB: merge-request builds, Android    (later)
 #   lb-linux-release        same, protected refs only: release builds, signing secrets            (later)
 #   lb-linux-arm64-build    64 vCPU Graviton Linux Spot, 300 GB: arm64 builds for merge requests  (later)
 #   lb-linux-arm64-release  same, protected refs only                                             (later)
 #   lb-windows-build        64 vCPU Windows Spot (instance executor): merge-request builds        (later)
 #   lb-windows-release      same, protected refs only                                             (later)
-#   lb-macos                EC2 Mac host allocated per release (macos-arm64-host job), protected refs
-# CI/CD variables LB_SCCACHE_BUCKET, LB_AWS_REGION and LB_MACOS_* come from the infrastructure repository too.
+#   lb-macos-arm64          an Apple silicon Mac of our own (shell executor), protected refs
+#   lb-macos-x64            an Intel Mac of our own (shell executor), protected refs
+#   lb-macos                EC2 Mac host allocated per release (macos-arm64-host job), protected refs;
+#                           paused while LB_MACOS_HOST is "local". It carries lb-macos-arm64 too, so the
+#                           arm64 jobs run on it instead when it is back.
+# CI/CD variables LB_SCCACHE_BUCKET, LB_AWS_REGION and LB_MACOS_* come from the infrastructure repository too:
+# LB_MACOS_HOST ("local" or "ec2") says where macOS builds run, LB_MACOS_SIGNING_ROLE_ARN is the role
+# our own Macs sign with (through a GitLab ID token; they have no AWS credentials of their own).
 #
 # Compiler cache: sccache via GN cc_wrapper, keyed by file content. S3 bucket shared by the
-# spot instances; local disk on the macOS runner.
+# spot instances; local disk on the macOS runners.
 #
 # Release automation: the infrastructure repository also creates the release-bot
 # token (LB_BOT_TOKEN, masked and protected), the upstream-watch schedule (LB_SCHEDULE) and
@@ -188,7 +194,7 @@ auto-tag:
     - desktop/scripts/release-bot.sh tag
 
 # ------------------------------------------------------------------ Chromium builds
-# macOS: release tags only, on a host allocated per release.
+# macOS: release tags only, one Mac per architecture, each building natively.
 # Linux/Windows (later): every merge request plus release tags, on spot instances.
 # A Chromium version bump is a near-full rebuild (hours on macOS); changes to our own code on the
 # same version mostly hit the compiler cache.
@@ -201,9 +207,9 @@ auto-tag:
     - when: manual
       allow_failure: true
 
-# Allocate (or reuse) the EC2 Mac host for this release, start the builder on it, attach
-# its data volume if one is configured. The build jobs below wait in `pending` until its lb-macos
-# runner is online.
+# Only with the EC2 Mac (LB_MACOS_HOST "ec2"): allocate (or reuse) its host for this release, start
+# the builder on it, attach its data volume if one is configured. The arm64 jobs below wait in
+# `pending` until its runner is online.
 macos-arm64-host:
   stage: provision
   tags: [lb-linux-protected]
@@ -211,26 +217,44 @@ macos-arm64-host:
     name: public.ecr.aws/aws-cli/aws-cli:2.27.50
     entrypoint: [""]
   rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
+    - if: $LB_MACOS_HOST == "ec2" && $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
   timeout: 4h                    # a recycled host can scrub for a while before it takes an instance
   script:
     - desktop/scripts/macos-host.sh up
 
-macos-arm64:
+# A macOS build, natively on its architecture's Mac (LB_ARCH), so out/Default is that
+# architecture's and its unit tests run there. The tree is fresh each release; the download cache
+# (desktop/build, which the checkout's clean leaves alone) and the compiler cache (SCCACHE_DIR, set
+# by the runner on the Mac's own disk) are kept.
+.macos-chromium:
   extends: .chromium
-  tags: [lb-macos]
-  needs: [macos-arm64-host]
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
   variables:
     GIT_DEPTH: 1
-    LB_CC_WRAPPER: sccache       # SCCACHE_DIR is set by the runner; the cache is only warm when
-                                 # the Mac keeps its persistent data volume
+    GIT_CLEAN_FLAGS: -ffdx -e desktop/build/
+    LB_CC_WRAPPER: sccache
   script:
-    - rm -rf desktop/build/src   # fresh tree each release; download cache is kept
-    - desktop/scripts/fetch.sh arm64
-    - desktop/scripts/build.sh arm64
+    - rm -rf desktop/build/src
+    - desktop/scripts/fetch.sh "$LB_ARCH"
+    - desktop/scripts/build.sh "$LB_ARCH"
     - (cd desktop/build/src && ninja -C out/Default lb_unittests lb_core_unittests && out/Default/lb_unittests && out/Default/lb_core_unittests)
+
+macos-arm64:
+  extends: .macos-chromium
+  tags: [lb-macos-arm64]
+  needs: [{job: macos-arm64-host, optional: true}]   # there only with the EC2 Mac
+  variables:
+    LB_ARCH: arm64
+
+# An Intel Mac builds far slower than Apple silicon: the timeout leaves room for a cold build.
+macos-x64:
+  extends: .macos-chromium
+  tags: [lb-macos-x64]
+  needs: []
+  timeout: 16h
+  variables:
+    LB_ARCH: x64
 
 # Chromium builds on the Linux build runners, for every Linux-hosted platform (Android now, Linux
 # desktop later): a fresh ubuntu:24.04 container per job on a 64 vCPU spot host, the tools and
@@ -283,9 +307,8 @@ android-arm64:
     paths: [android/build/src/out/arm64/apks/ChromePublic.apk]
     expire_in: 30 days
 
-# macos-x64: its own chain (build, package, publish-macos-x64, release-macos-x64) once an x64
-# builder exists. linux-x64, linux-arm64, windows-x64: added when their platform recipes are wired
-# up (desktop/README.md); they also get a merge_request_event rule.
+# linux-x64, linux-arm64, windows-x64: added when their platform recipes are wired up
+# (desktop/README.md); they also get a merge_request_event rule.
 
 # ------------------------------------------------------------------ package, sign, publish
 # A tag builds and signs; the signed files are the internal test build (pipeline artifacts).
@@ -300,24 +323,53 @@ android-arm64:
 # (the form for running a job takes one line). A later build's job joins the release as it is,
 # and stops if either is set.
 
-macos-arm64-package:
+# Signs and packages its architecture's build, on the same Mac (one runner per architecture, so
+# the same build directory). Developer ID signature, notarised and stapled, with the signing
+# material from Secrets Manager: on our own Macs through LB_MACOS_SIGNING_ROLE_ARN, which only
+# v* tag jobs can assume, with this job's GitLab ID token; on the EC2 Mac through its instance
+# role. While those secrets are empty, an ad-hoc signature, and macOS asks people to confirm the
+# first launch. The release version turns on the updater and goes into the app's bundle version.
+.macos-package:
   stage: package
-  tags: [lb-macos]
-  needs: [macos-arm64]
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+\.\d+-\d+$/
   variables:
-    GIT_STRATEGY: none           # keep macos-arm64's tree (one Mac runner, same build directory);
-                                 # a checkout would clean out the ignored build/ folder
+    GIT_STRATEGY: none           # keep the build job's tree; a checkout would clean out the
+                                 # ignored build/ folder
+  id_tokens:
+    LB_AWS_ID_TOKEN:
+      aud: sts.amazonaws.com
+  before_script:
+    - |
+      if [ "$LB_MACOS_HOST" = local ]; then
+        export AWS_ROLE_ARN="$LB_MACOS_SIGNING_ROLE_ARN" AWS_ROLE_SESSION_NAME="gitlab-$CI_JOB_ID"
+        export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_BUILDS_DIR/.aws-id-token-$CI_JOB_ID"
+        (umask 077 && printf '%s' "$LB_AWS_ID_TOKEN" > "$AWS_WEB_IDENTITY_TOKEN_FILE")
+      fi
   script:
-    # Developer ID signature, notarised and stapled, with the signing material from Secrets
-    # Manager (only this builder can read it). While those secrets are empty, an ad-hoc
-    # signature, and macOS asks people to confirm the first launch.
-    # The release version turns on the updater and goes into the app's bundle version.
-    - desktop/scripts/package-macos.sh --release "${CI_COMMIT_TAG#v}"
+    - desktop/scripts/package-macos.sh --arch "$LB_ARCH" --release "${CI_COMMIT_TAG#v}"
+  after_script:
+    - rm -f "$CI_BUILDS_DIR/.aws-id-token-$CI_JOB_ID"
   artifacts:
-    paths: ["desktop/build/*.dmg", "desktop/build/*.update.json"]   # .update.json: the update's signature
     expire_in: 30 days           # internal testing happens on these; publish promotes them as-is
+
+macos-arm64-package:
+  extends: .macos-package
+  tags: [lb-macos-arm64]
+  needs: [macos-arm64]
+  variables:
+    LB_ARCH: arm64
+  artifacts:                     # .update.json: the update's signature
+    paths: [desktop/build/LittleBrowser-macos-arm64.dmg, desktop/build/LittleBrowser-macos-arm64.update.json]
+
+macos-x64-package:
+  extends: .macos-package
+  tags: [lb-macos-x64]
+  needs: [macos-x64]
+  variables:
+    LB_ARCH: x64
+  artifacts:
+    paths: [desktop/build/LittleBrowser-macos-x64.dmg, desktop/build/LittleBrowser-macos-x64.update.json]
 
 .aws:
   tags: [lb-linux-protected]     # release role: site and downloads buckets
@@ -347,6 +399,12 @@ publish-macos-arm64:
   variables:
     LB_ARCH: arm64
 
+publish-macos-x64:
+  extends: .publish
+  needs: [macos-x64-package]
+  variables:
+    LB_ARCH: x64
+
 # GitLab's own record of the release, once a build is public: the first build's job creates it,
 # each later one updates it, with the notes and the builds out so far from the live
 # releases.json (desktop/scripts/gitlab_release.py), so whichever runs last lists them all.
@@ -368,6 +426,12 @@ release-macos-arm64:
   needs: [publish-macos-arm64]
   variables:
     LB_BUILD: macos-arm64
+
+release-macos-x64:
+  extends: .release
+  needs: [publish-macos-x64]
+  variables:
+    LB_BUILD: macos-x64
 
 # Scheduled, daily: downloads and updates of each release file, counted from the downloads
 # host's logs (no IP addresses or user agents in them), published as stats.json for the website.
