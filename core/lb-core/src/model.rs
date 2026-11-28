@@ -23,7 +23,7 @@ pub struct Tab {
     pub title: String,
     /// The user's name for the tab, shown instead of `title`; empty for none.
     pub name: String,
-    /// For pinned tabs: the URL the tab returns to ("back to pinned page").
+    /// For pinned tabs: the URL the tab returns to when it is closed (docs/ux.md §6).
     pub pinned_url: Option<String>,
     /// Milliseconds since the Unix epoch; drives auto-archive and sleeping.
     pub last_active_ms: u64,

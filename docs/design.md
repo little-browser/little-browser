@@ -11,11 +11,14 @@
 - **iOS:** **cannot be Chromium.** Apple requires WebKit worldwide; non-WebKit engines are only
   allowed in EU- and Japan-specific builds, and no major vendor has shipped Blink on iOS. So iOS is a
   native Swift app on `WKWebView`.
-- **Android:** a Chromium fork, built **after** desktop and iOS.
-- **Shared code:** a small **Rust core** (data model, sync, importers, settings) bound to C++
-  (desktop), Swift (iOS) and Kotlin (Android). This gives us one sync engine across three very
-  different shells. Content blocking uses each engine's own blocker with the same filter lists:
-  Chromium's subresource filter on desktop and Android, WebKit content rules on iOS.
+- **Android:** the same Chromium fork, sharing desktop's engine code and patches, with our own
+  Java shell on Chromium's Android app ([android-ui.md](android-ui.md)).
+- **Shared code:** a small **Rust core** (data model, rules, sync, importers, settings) bound to
+  C++ (desktop and Android, whose Java reaches it through JNI) and Swift (iOS). This gives us one
+  set of rules and one sync engine across three very different shells; the Chromium platforms also
+  share our C++ engine code (section 4). Content blocking uses each engine's own blocker with the
+  same filter lists: Chromium's subresource filter on desktop and Android, WebKit content rules on
+  iOS.
 - **Privacy:** block third-party cookies, a **built-in native ad/tracker blocker** (not an extension:
   Manifest V2 is now gone from Chrome, and extensions don't exist on mobile), tracking-parameter
   stripping, no telemetry, no Google services, HTTPS-First.
@@ -47,7 +50,7 @@
 | macOS | Chromium (Blink/V8) | Chromium Views (C++) | Chrome Web Store, MV3 | Sign + notarize; Sparkle-style updates |
 | Windows | Chromium | Chromium Views | Chrome Web Store, MV3 | Code signing; own updater |
 | Linux | Chromium | Chromium Views | Chrome Web Store, MV3 | x64 and arm64; Flatpak + .deb/.rpm repos |
-| Android | Chromium fork | Java/Kotlin | None | Play Store + F-Droid/APK |
+| Android | Chromium fork | Java, on Chromium's Android app | None | Play Store + F-Droid/APK |
 | ChromeOS | The Android build | The Android build's | None | The Android app from Google Play, in a window, with the sidebar layout when wide; Play serves its arm64 and x64 builds, for both kinds of Chromebook. The Linux build, with extensions, also runs in ChromeOS's Linux environment (Crostini) where the user turns it on |
 | iOS / iPadOS | **WebKit (WKWebView)** — required | Swift (UIKit/SwiftUI) | None (third-party browsers can't load Safari extensions) | App Store |
 
@@ -67,10 +70,15 @@ same UI concepts, the same Rust core and the same sync.
 ```
 ┌─────────────────────────── Little Browser ───────────────────────────┐
 │                                                                       │
-│  Desktop shell (C++)        Android shell (Java/Kotlin)   iOS (Swift) │
-│  Chromium fork + Views UI   Chromium fork (or WebView)    WKWebView   │
-│        │                            │                         │       │
-│        └──────────── FFI (cxx / UniFFI / JNI) ────────────────┘       │
+│  Desktop shell (C++ Views)  Android shell (Java)        iOS (Swift)   │
+│  macOS, Windows, Linux      on Chromium's Android app   WKWebView     │
+│        │                            │                    │            │
+│  ┌─────┴────────────────────────────┴──────┐             │            │
+│  │ Chromium layer (C++ in lb/, patches):   │             │            │
+│  │ ad blocker, element hiding, tracking    │             │            │
+│  │ params, prefs, saved tabs; JNI for Java │             │            │
+│  └───────────────────┬─────────────────────┘             │            │
+│                      └──────────┬─── FFI (cxx / UniFFI) ─┘            │
 │                                 │                                     │
 │                     ┌───────────┴───────────┐                         │
 │                     │    lb-core (Rust)      │                        │
@@ -91,6 +99,14 @@ same UI concepts, the same Rust core and the same sync.
 │                     └────────────────────────┘                        │
 └───────────────────────────────────────────────────────────────────────┘
 ```
+
+Every platform has three layers, and a rule goes in the lowest one whose types it needs:
+**lb-core** (Rust, all five platforms: rules and data on plain types), the **Chromium layer**
+(C++ in our `lb/` tree and engine patches, on every Chromium platform: the ad blocker, element
+hiding, tracking parameters, pref defaults, saved space tabs, the lb-core binding) and the
+**shell** (Views on desktop, Java on Android, Swift on iOS). A new platform adds a shell, not a
+second copy of the rules. What each layer holds and the shared repository layout are in
+[android-ui.md](android-ui.md) ("What is shared, and where").
 
 ### 4.1 Desktop: how we fork Chromium
 
@@ -126,21 +142,23 @@ NativeMessagingHosts folder move with it). Windows and Linux follow with their b
 
 ### 4.2 Android
 
-Android is a Chromium fork (the Brave/Cromite model), built after desktop and iOS. It shares the
-engine and patches with desktop, gives full cookie and network control, runs the native blocker in
-the network stack, and already has incognito, DevTools over USB, PiP and media notifications. The
-cost is a large build and a reskin of Chrome's Android UI, which is a lot of Java. There is no
-interim System WebView app: a WebView app can't keep the privacy promise (request blocking only
+Android is a Chromium fork (the Brave/Cromite model). It shares the engine, our C++ engine code
+and the engine patches with desktop, gives full cookie and network control, runs the native
+blocker in the network stack, and already has incognito, DevTools over USB, PiP and media
+notifications. The cost is a large build and our own Java shell, kept small by building on
+Chromium's own Android models and views (tab model, tab groups, pinned and vertical tabs, the
+link-preview sheet, Custom Tabs); how, and how each macOS feature maps to Android, is in
+[android-ui.md](android-ui.md). There is no interim System WebView app: a WebView app can't keep the privacy promise (request blocking only
 through `shouldInterceptRequest`, no cosmetic filtering at engine level, weaker incognito
 isolation).
 
 The Android build today is Chromium's own `chrome_public_apk` from a gclient checkout (the source
-tarball has no Android SDK or NDK), at the Chromium version pinned for desktop, with our app ID
-and our own Android privacy patches (`android/patches/`): no automatic requests to Google and the
-desktop's privacy defaults. It is not based on ungoogled-chromium, which has no maintained Android
-platform repo and tests its patches on desktop only. It builds on Linux x64 only. Where it
-falls short of section 5 (Safe Browsing) is listed in
-`android/README.md`.
+tarball has no Android SDK or NDK), at the Chromium version every platform pins
+(`chromium/VERSIONS`), with our app ID, the engine patches every Chromium platform shares and our
+C++ tree (`chromium/`), and our own Android privacy patches (`android/patches/`): no automatic
+requests to Google and the desktop's privacy defaults. It is not based on ungoogled-chromium,
+which has no maintained Android platform repo and tests its patches on desktop only. It builds on
+Linux x64 only. Where it falls short of section 5 is listed in `android/README.md`.
 
 ### 4.3 iOS
 
@@ -152,25 +170,30 @@ Safari Web Inspector.
 
 ### 4.4 Rust core
 
-- Exposed through **UniFFI** (Swift/Kotlin) and **cxx** (C++). This is the same pattern Mozilla uses
-  for Firefox's shared components.
+- Exposed through **cxx** (C++) to the Chromium platforms, desktop and Android, whose Java calls
+  the same C++ binding through Chromium's JNI generator (`jni_zero`), and through **UniFFI** to
+  Swift on iOS, Mozilla's pattern for Firefox's shared components. Inside Chromium the C++ route
+  needs no extra runtime or toolchain.
 - Content blocking: desktop (and Android) use Chromium's own **subresource filter**, fed the
   filter lists the browser downloads itself; it blocks network requests, not page elements. Which
   lists, when to download them, which lines apply and how uBlock Origin's syntax is read are the
   core's (`adblock.rs`); each shell turns the prepared rules into its engine's format
-  (desktop: `desktop/lb/browser/adblock`). Element hiding, which Chromium's filter doesn't do, is
+  (desktop: `chromium/lb/browser/adblock`). Element hiding, which Chromium's filter doesn't do, is
   the core's own (`element_hiding.rs`): it indexes the lists' CSS hiding rules, and the desktop
   renderer inserts them into each page. On iOS the core will convert the same lists into WebKit
   content-blocker JSON. Brave's adblock-rust isn't used: Chromium doesn't vendor it.
 - The rules every shell shares are the core's too: a new space's defaults and colours, which
   space a window opens on and how saved tabs are ordered (`spaces.rs`), the command bar's ranking
-  (`command_bar.rs`) and the search engine choice (`search_choice.rs`). Shells keep their saved
-  forms and their own types around them; desktop reaches them through
-  `desktop/lb/core_bridge/rules.rs`.
+  (`command_bar.rs`), the search engine choice (`search_choice.rs`), what closing a pinned tab
+  does, which tab to show, tab names and pinned links (`tabs.rs`), pinned groups
+  (`pinned_groups.rs`) and the password managers first run offers (`password_manager.rs`). Shells
+  keep their saved forms and their own types around them; the Chromium platforms reach them
+  through `chromium/lb/core_bridge/rules.rs` and `tabs.rs`, and Android's Java through JNI on top
+  (`chromium/lb/android`).
 - Storage: SQLite per profile.
 - **In the desktop build** the core is compiled by Chromium's own Rust toolchain as a GN
   `rust_static_library` (`fetch.sh` links `src/lb_core` to `core/lb-core`, as it links `src/lb`).
-  The C++ binding is a separate small crate in `desktop/lb` with a `cxx` bridge of plain structs,
+  The C++ binding is a separate small crate in `chromium/lb` with a `cxx` bridge of plain structs,
   so the core itself stays plain Rust and its cargo builds need no C++ compiler. The core's
   dependencies are limited to crates Chromium already vendors, at Chromium's versions and
   features, so no new third-party code enters the browser: `serde_json` reads other browsers'
@@ -187,7 +210,7 @@ Safari Web Inspector.
 | Area | Default | Notes |
 |---|---|---|
 | Third-party cookies | **Blocked** | Plus Chromium's storage partitioning. Google abandoned its own plan to deprecate them, so this is on us. |
-| Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters and Peter Lowe's list, downloaded from their maintainers over HTTPS every 4 days (they aren't signed). Desktop: Chromium's subresource filter blocks matching requests on every site, and element hiding hides what is left of an ad (an empty slot, an "Advertisement" label) with the lists' CSS rules: a site's own rules, and generic ones for the class and id names a page uses. Rules that need script (scriptlets, uBlock Origin's procedural operators) aren't applied, since a list could then run code in every page. Ads can be allowed per site, which turns off both: the site-info panel's "Cookies and site data" has an Ads switch, the command bar has "Allow ads on this site", and Settings → Site settings → Ads lists those sites. No per-site record of the blocking is kept. |
+| Ads & trackers | **Native blocker on** | EasyList, EasyPrivacy, uBlock filters and Peter Lowe's list, downloaded from their maintainers over HTTPS every 4 days (they aren't signed). Desktop and Android: Chromium's subresource filter blocks matching requests on every site, and element hiding hides what is left of an ad (an empty slot, an "Advertisement" label) with the lists' CSS rules: a site's own rules, and generic ones for the class and id names a page uses. Rules that need script (scriptlets, uBlock Origin's procedural operators) aren't applied, since a list could then run code in every page. Ads can be allowed per site, which turns off both: the site-info panel's "Cookies and site data" has an Ads switch, the command bar has "Allow ads on this site" (desktop), and Settings → Site settings → Ads lists those sites. No per-site record of the blocking is kept. |
 | Tracking parameters | Stripped | A page navigation, and each redirect along the way, loses `utm_*`, `fbclid`, `gclid`, `mc_eid` and other parameters that only track (lb-core's built-in list, updated with each release); the address bar and history show the clean address. Iframes, a page's own requests and forms sent with POST keep theirs. There is no per-site exception: the list holds only parameters that don't change what a page shows. Bounce-tracking mitigations on. |
 | Fingerprinting | Reduce | Reduced user-agent (upstream), block known fingerprinting scripts via lists. Brave-style randomisation ("farbling") is a later, separate project. |
 | HTTPS | HTTPS-First, Balanced mode | Chromium's own default, kept. Pages load over HTTPS, with a warning before a site opens over plain HTTP, except where HTTPS can't be expected (local network names). Strict mode, which warns for every HTTP site, is in Settings → Privacy and security → Security. |
@@ -239,7 +262,8 @@ Built so far, on macOS desktop: spaces and profiles, the command bar, the first-
 and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering),
 Peek, the little window, tab groups and split view (Chromium's own), Safe Browsing in standard mode,
 the quit warning, the updater, import from other browsers (§7.6), and everything Chromium already
-provides (incognito, DevTools, PiP). The rest of the table is specified but not built.
+provides (incognito, DevTools, PiP). The rest of the table is specified but not built. How Android gets each macOS feature is in
+[android-ui.md](android-ui.md) ("Features, macOS → Android").
 
 | Feature | Desktop | Android | iOS |
 |---|---|---|---|
@@ -347,7 +371,7 @@ provides (incognito, DevTools, PiP). The rest of the table is specified but not 
 - iOS: `WKWebsiteDataStore.nonPersistent()`; app switcher snapshot blurred; optional Face ID lock.
 
 ### 7.8 Form autofill
-- Desktop: Chromium address autofill, **off by default** (`desktop/lb/browser/prefs/pref_defaults.*`),
+- Desktop: Chromium address autofill, **off by default** (`chromium/lb/browser/prefs/pref_defaults.*`),
   so a form gives no "Save address?" prompt; Settings' "Save and fill addresses" turns it on. The
   import dialog brings addresses along only while it is on. **Payment cards disabled**, **password manager disabled and
   hidden** (pref off + UI removed, rather than deleting code — far cheaper to maintain). Passwords
@@ -405,7 +429,7 @@ Plus:
 
 ### 7.13 Update check and prompt
 The desktop browser checks for a new version and asks the user to update. On macOS that is
-Sparkle (`desktop/lb/browser/update/`), which `package-macos.sh` adds to a release: it reads the
+Sparkle (`chromium/lb/browser/update/`), which `package-macos.sh` adds to a release: it reads the
 update feed (§9, §14) every four hours while the browser runs. When a newer version is out it shows
 its small update window: **Install Update**, which downloads it, checks its EdDSA signature against
 the key built into the app (and its Apple signature) and offers to restart into it; **Remind Me
@@ -548,12 +572,14 @@ carrier networks.
 | macOS desktop | Builds and runs: sidebar, spaces and profiles, pinned tabs as a list, command bar, search-engine and password-manager choices, Chrome Web Store extensions (MV3), the ad blocker (network filtering), Peek, the little window, Safe Browsing (standard), branding, quit warning, the updater (Sparkle; in releases packaged with the update key), import from other browsers, tracking-parameter stripping, element hiding |
 | Windows, Linux (x64, arm64) desktop | Not built: the platform recipes aren't wired up; the Linux build hosts for both architectures exist |
 | Auto-PiP, on-demand Widevine | Specified, not built |
-| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers, and the rules every platform shares (spaces, the command bar, filter lists and element hiding, tracking parameters, the search engine choice); linked into the desktop build through `cxx` bridges |
-| Android | Chromium with our privacy patches and app ID: build scripts, a patch check and a manual build job in CI; not built yet (no Linux build runner), none of our UI |
+| `lb-core` | Data model, the sync `Transport` trait with an in-memory transport, the import readers, and the rules every platform shares (spaces, the command bar, filter lists and element hiding, tracking parameters, the search engine choice, pinned close and the tab to show, tab names and pinned links, pinned groups, the password-manager list); linked into the desktop and Android builds through `cxx` bridges, and reached from Android's Java through JNI |
+| Android | Chromium with our privacy patches and app ID: build scripts, a patch check and manual build jobs in CI for arm64 and x64 (Intel and AMD Chromebooks), on the `lb-linux-build` runner. It links our C++ tree, applies the engine patches every Chromium platform shares (`chromium/`), and has the engine's features: the ad blocker with element hiding and its per-site Ads switch, tracking parameters and the shared privacy defaults. `android-arm64` and `android-x64` build it and run its Robolectric tests, and the engine features work on a phone emulator. The shell has spaces, the bottom bar, search, the all-tabs view, Peek, the little window, first run's password-manager question, a window per profile (reopened with its tabs, one entry in Recents), the tablet sidebar on vertical tabs and bookmarks file import; what is left of parity with macOS is in [android-ui.md](android-ui.md), in the order it is built |
 | Sync, iOS | Not started |
 
-The order of work is desktop, then iOS and sync, then Android. iOS comes before Android because a
-WKWebView app is far less work than an Android Chromium fork.
+The order of work is desktop, then Android (android-ui.md, "Order of work"), then iOS and sync.
+Android comes first because it shares the engine and the Chromium layer with desktop, so each
+desktop feature costs it a shell, not a rewrite. From then on a feature is built for every
+platform supported at the time (AGENTS.md).
 
 ---
 
@@ -565,6 +591,7 @@ WKWebView app is far less work than an Android Chromium fork.
 | Sites break due to blocking | Users leave | Per-site toggle, fast list updates, compatibility matrix |
 | Widevine licence slow or refused | Netflix/Spotify don't work on desktop | Apply early; desktop can ship without it if needed |
 | Sync UX too hard without accounts | Low adoption of sync | QR pairing, clear recovery story, guided own-cloud-storage setup |
+| Multi-profile on Android | Chromium's Android Java mostly assumes one profile | Each window's profile provider gives its own profile, and the window in front is the last used profile, so what asks for "the" profile follows it, as on the desktop (android-ui.md, Multi-profile) |
 | iOS feature parity limits | Different behaviour across platforms | Document differences, same concepts not identical behaviour |
 
 ---
@@ -595,8 +622,8 @@ Little Browser is open source. What that means in practice:
 | Fast checks: Rust core, script lint, `patch-check` and `android-patch-check`, release bot | `lb-linux`: small AWS Linux spot | Every push and merge request |
 | Chromium build, macOS arm64 and x64 | Macs of our own, one per architecture, each building natively: `lb-macos-arm64` (Apple silicon) and `lb-macos-x64` (Intel), shell runners with a local compiler cache, signing through a GitLab ID token (`LB_MACOS_SIGNING_ROLE_ARN`). Or, with `LB_MACOS_HOST` `ec2`, arm64 on an EC2 Mac host (mac2-m2pro) allocated per release by the `macos-arm64-host` job | **Release tags only**: hours per version bump |
 | Chromium build, Linux x64 and arm64 / Windows | 64 vCPU AWS **spot** instances (300–400 GB disk), one job per host, each architecture built natively (arm64 on Graviton, so its unit tests run on the build host): `lb-linux-build` / `lb-linux-arm64-build` / `lb-windows-build` for merge requests, `lb-linux-release` / `lb-linux-arm64-release` / `lb-windows-release` for protected refs | **Every merge request** and release tags, once those platform recipes exist |
-| Chromium build, Android arm64 (`android-arm64`) | `lb-linux-build`, through the `.linux-chromium` CI template that Linux desktop builds will use as well: a fresh `ubuntu:24.04` per job, prepared by `desktop/scripts/linux-build-host.sh` (fetch tools, sccache) | **Manual**, until the runner is up and the APK ships |
-| Compiler cache | **sccache** via GN `cc_wrapper`, keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles (a job's container uses its host's role); on our own Macs, their own disk (on the EC2 Mac only when it keeps a persistent data volume). Same checkout path on every runner so keys match | Always |
+| Chromium build, Android arm64 and x64 (`android-arm64`, `android-x64`: x64 for Intel and AMD Chromebooks) | `lb-linux-build`, through the `.linux-chromium` CI template that Linux desktop builds will use as well: a fresh `ubuntu:24.04` per job, prepared by `desktop/scripts/linux-build-host.sh` (fetch tools, sccache) | **Manual**, until the APK ships |
+| Compiler cache | **sccache** via GN `cc_wrapper`, with Clang modules off (sccache caches no compile that uses them), keyed by file content, so it survives `fetch.sh` recreating the tree. S3 bucket for the spot instances, with separate `sccache/mr/` and `sccache/release/` prefixes and roles (a job's container uses its host's role); on our own Macs, their own disk (on the EC2 Mac only when it keeps a persistent data volume). Same checkout path on every runner so keys match | Always |
 
 **What a build costs.** A change to our own code on the same Chromium version mostly hits the
 cache: minutes. A Chromium version bump, about weekly, changes headers that nearly everything
@@ -605,14 +632,14 @@ on the macOS runner. A patch to a widely included header can cost almost as much
 
 **A release, step by step**
 1. **Watch.** A scheduled pipeline (`upstream-watch`, `desktop/scripts/release-bot.sh bump`) checks
-   for ungoogled-chromium (and platform repo) tags newer than `desktop/VERSIONS`
+   for ungoogled-chromium (and platform repo) tags newer than `chromium/VERSIONS`
    (`desktop/scripts/upstream.sh`). On a new one it pushes `bump/<version>` with `VERSIONS` updated
    and opens a merge request. Checks there: every patch applies (`patch-check`:
    `fetch.sh --patches-only`, no compile), then the Linux and Windows builds once they exist.
 2. **Merge.** A person reviews and merges the bump, fixing patches on the branch if needed.
-3. **Tag.** Merging a change to `VERSIONS` tags `v<CHROMIUM_VERSION>-1` (e.g. `v157.0.8103.78-1`)
-   automatically (`auto-tag`); a platform-only bump on the same Chromium version gets the next
-   free revision.
+3. **Tag.** Merging a change to `VERSIONS`' pins tags `v<CHROMIUM_VERSION>-1` (e.g.
+   `v157.0.8103.78-1`) automatically (`auto-tag`); a platform-only bump on the same Chromium
+   version gets the next free revision. A change to its comments tags nothing.
    Releases of our own changes on the same Chromium version are tagged by hand with the next
    revision (`-2`, `-3`, …).
 4. **Build.** On the tag, builders run `desktop/scripts/fetch.sh` + `build.sh` from scratch, with
@@ -675,7 +702,7 @@ person.
 
 **Prerequisites:** Apple Developer account (US$99/yr), a Windows signing identity, the update
 signing key (Sparkle's `generate_keys`, kept in Secrets Manager), the macOS runner, and replacing the community-built LLVM before the first public build (`desktop/README.md`).
-The pipeline lives in `.gitlab-ci.yml`; its Chromium jobs are untested until the runners exist.
+The pipeline lives in `.gitlab-ci.yml`. Of its Chromium builds, only Android's (`android-arm64`, `android-x64`) have run; the macOS jobs haven't run on the Mac host yet, and the Linux and Windows jobs don't exist until their platform recipes do.
 
 ---
 

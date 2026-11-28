@@ -1,12 +1,12 @@
 # Desktop UI — the sidebar on Chromium's Views
 
 How the desktop browser's sidebar is built. The behaviour it implements is in [ux.md](ux.md) §2–§6;
-the file map and developer switches are in [desktop/lb/README.md](../desktop/lb/README.md).
+the file map and developer switches are in [chromium/lb/README.md](../chromium/lb/README.md).
 
 ## Approach
 
 The sidebar is **native Views code on top of Chromium's own vertical tabs**. Our code lives in
-`desktop/lb/` and thin patches in `desktop/patches/lb/` hook it in. There is no WebUI sidebar and no
+`chromium/lb/` and thin patches in `desktop/patches/lb/` hook it in. There is no WebUI sidebar and no
 custom window frame, so the 4-weekly Chromium rebase touches as little as possible.
 
 | Piece | Where |
@@ -114,7 +114,7 @@ group; the app menu has no Tab groups submenu (`patches/lb/no-app-menu-tab-group
 close item is the one way a group ends that Chromium
 keeps as a closed saved group, so `SidebarController::OnTabGroupWillBeRemoved` deletes that group's
 saved copy; groups that end otherwise (last tab closed, ungrouped) are deleted by Chromium, and
-groups closed with their window stay with their space. `lb::RegisterProfilePrefs` turns off
+groups closed with their window stay with their space. `lb::RegisterDesktopProfilePrefs` turns off
 Chromium's "delete this saved group?" questions (the `kTabGroupsDeletionSkipDialogOn*` prefs).
 
 **No reopening.** Reopen Closed Tab (File menu and the window's right-click menu), Cmd+Shift+T, and
@@ -200,8 +200,9 @@ that is already shown no longer wakes at its link (`lb::RestoredTabCustom`). A t
 (`PageNode::HadUserEdits`, the check Chromium's memory saver makes before a discard) may hold
 unsaved input, so it is only hidden, not unloaded; a handler alone doesn't count, as many pages
 register one and never ask. The next close of such a page, or a close while it isn't shown, goes
-through Chromium's own close, which asks the page first. These rules are `lb::DecidePinnedClose`
-(`lb/browser/tabs/pinned_close.h`, unit tested). The patch also makes a discard clear the old page's media, capture and
+through Chromium's own close, which asks the page first. These rules are lb-core's
+(`decide_pinned_close` in `core/lb-core/src/tabs.rs`), which `lb::DecidePinnedClose`
+(`lb/browser/tabs/pinned_close.h`) calls. The patch also makes a discard clear the old page's media, capture and
 device alerts, which Chromium otherwise keeps, since its own policy never discards such tabs; a
 tab replaced in a split view closes with `CLOSE_NONE`, so it doesn't sleep.
 
@@ -315,15 +316,17 @@ sidebar switches space, once per gesture and without wrap-around.
 default, and again from the command bar. It offers Brave Search, DuckDuckGo, Ecosia, Google,
 Microsoft Bing, Qwant and Startpage, alphabetically, without suggestions; Google uses our own
 definition because ungoogled replaced the built-in one. The list and when to ask are lb-core's
-(`search_choice.rs`), so every platform offers the same engines; the dialog maps them to
-Chromium's built-in definitions. After "Not now", a search from the command
+(`search_choice.rs`), so every platform offers the same engines; `search/search_engine_choice.*`
+in `//lb:engine`, which Android's screen uses too, maps them to Chromium's built-in definitions
+and sets the user's pick. After "Not now", a search from the command
 bar brings the choice back and runs once an engine is picked.
 
 ## Password manager choice
 
 `password/password_manager_choice_dialog.*` runs once per profile, right after the search engine
 choice, unless one of the offered password managers is already installed. The list and that rule
-are in `//lb:model` (`browser/password/password_manager_choice.*`). Picking one runs Chromium's
+are lb-core's (`password_manager.rs`, with each manager's Android app too), which
+`//lb:model`'s `browser/password/password_manager_choice.*` calls. Picking one runs Chromium's
 `WebstoreInstallWithPrompt`: it fetches the extension's details from the store, shows the install
 prompt and installs from the Chrome Web Store.
 
@@ -439,7 +442,7 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
   "Not now" for Cancel; other windows' first-run questions wait until the dialog and its installs
   are over. The dialog's body is a `views::ScrollView` clipped to 480 high, so a long step
   scrolls under a fixed title and buttons.
-- **Address autofill** is off by default (`browser/prefs/pref_defaults.*`), and Chromium drops
+- **Address autofill** is off by default (`browser/prefs/pref_defaults.*`, on every platform), and Chromium drops
   addresses added while it is off, so the choices step greys out Addresses (`lb::CanTickImportItem`,
   with `lb::AddressesOffNote` under it) while the window's profile doesn't save addresses. An
   import into another profile that doesn't save them names it in its problem lines.
@@ -452,46 +455,47 @@ Behaviour is in [ux.md](ux.md) §13, and the split between lb-core and the shell
 ## Ad blocker
 
 Chromium's **subresource filter** does the blocking: the engine Chrome uses against abusive ads,
-which ungoogled-chromium keeps. `patches/lb/ad-blocking.patch` turns it on for every site (a preset
-that outranks Chrome's own, which only act on sites Safe Browsing lists), and stops it from keeping
-a per-site record of where it ran and from showing Chrome's "intrusive ads blocked" notice.
+which ungoogled-chromium keeps. `chromium/patches/ad-blocking.patch` turns it on for every site (a
+preset that outranks Chrome's own, which only act on sites Safe Browsing lists), and stops it from
+keeping a per-site record of where it ran and from showing Chrome's "intrusive ads blocked" notice.
 
 `lb/browser/adblock/ad_blocker.*` keeps the rules fresh. It starts with the browser (a line in
-`patches/lb/ad-blocking.patch`, next to Chromium's ruleset service), whatever windows open. Soon
-after startup and every six hours it checks when the filter lists were last downloaded (Local State
-`lb.filter_lists_updated`); after four days, or if the newest downloaded rules were never indexed
-(the browser quit or crashed while Chromium indexed them), it downloads them again, without
+`chromium/patches/ad-blocking.patch`, next to Chromium's ruleset service), whatever windows open.
+Soon after startup and every six hours it checks when the filter lists were last downloaded (Local
+State `lb.filter_lists_updated`); after four days, or if the newest downloaded rules were never
+indexed (the browser quit or crashed while Chromium indexed them), it downloads them again, without
 cookies, along with the files a list includes (`!#include`, as uBlock filters does for its yearly
-lists). `filter_lists.*` (in `//lb:model`) turns the text into the subresource filter's unindexed
+lists). `filter_lists.*` (in `//lb:engine`) turns the text into the subresource filter's unindexed
 format: it skips uBlock Origin's `!#if` blocks that don't apply to Chromium on the desktop, rewrites
 uBlock Origin's option names to the ones Chromium's filter-list parser knows (`xhr`, `frame`, `1p`,
-`3p`, `from=`, ...), honours `badfilter`, and keeps URL rules only. The file goes to
-`Filter Lists/<version>/` in the user data folder, and Chromium's ruleset service indexes it after
-startup and shares it with the page processes. A download that fails or takes more than five
-minutes keeps the current rules, and the lists are tried again an hour later; with no rules yet,
-the lists that did download are used meanwhile. Until the first download finishes after a new
-install, nothing is blocked; the lists and the rules are shared by all profiles.
+`3p`, `from=`, ...), honours `badfilter`, and keeps URL rules only. The file goes to `Filter
+Lists/<version>/` in the user data folder, and Chromium's ruleset service indexes it after startup
+and shares it with the page processes. A download that fails or takes more than five minutes keeps
+the current rules, and the lists are tried again an hour later; with no rules yet, the lists that
+did download are used meanwhile. Until the first download finishes after a new install, nothing is
+blocked; the lists and the rules are shared by all profiles.
 
 Ads are allowed per site with Chromium's "ads" content setting, which the subresource filter reads.
 The site-info panel's "Cookies and site data" view has an **Ads** switch under the third-party
 cookies one, on every web page (`adblock/site_ads_row.*`, placed by
-`patches/lb/ad-blocking-page-info.patch`); the command bar offers "Allow ads on this site" or "Block
-ads on this site" (`adblock/site_ads.*`). Both go through `SetAdsAllowedForTab`, which stores an
-exception only where it differs from what applies anyway (the Settings default, a wider site
-pattern, or, in a private window, the normal profile), and reload the page; that reload also
-applies a change to the cookie switch, so the panel doesn't ask for one. Chrome's third-party cookies "eye"
+`patches/lb/ad-blocking-page-info-ui.patch` on the accessors of
+`chromium/patches/ad-blocking-page-info.patch`); the command bar offers "Allow ads on this site" or
+"Block ads on this site" (`adblock/site_ads.*`). Both go through `SetAdsAllowedForTab`, which stores
+an exception only where it differs from what applies anyway (the Settings default, a wider site
+pattern, or, in a private window, the normal profile), and reload the page; that reload also applies
+a change to the cookie switch, so the panel doesn't ask for one. Chrome's third-party cookies "eye"
 icon, which repeats the cookie switch on most sites, is hidden
-(`patches/lb/no-cookie-controls-icon.patch`), so that panel is the one place for both. Settings → Privacy and security → Site settings → Additional
-content settings → **Ads** lists the sites and can turn the blocker off for all of them;
-`patches/lb/ad-blocking-settings.patch` gives that page our wording instead of Chrome's ("Intrusive
-ads", blocking only on sites known for misleading ads).
+(`patches/lb/no-cookie-controls-icon.patch`), so that panel is the one place for both. Settings →
+Privacy and security → Site settings → Additional content settings → **Ads** lists the sites and can
+turn the blocker off for all of them; `chromium/patches/ad-blocking-settings.patch` gives that page
+our wording instead of Chrome's ("Intrusive ads", blocking only on sites known for misleading ads).
 
 **Element hiding** hides what is left of a blocked ad. Each list update also saves the lists'
 hiding rules ("Hiding Rules", next to the ruleset; lines that aren't UTF-8 and exceptions a
 `badfilter` cancels are left out), which lb-core indexes in the browser process
 (`adblock/element_hiding_host.*`); they are read at startup without waiting for it to finish.
 Every frame gets an `ElementHidingAgent` (`lb/renderer/element_hiding_agent.*`, created by
-`patches/lb/element-hiding.patch`), which talks to the browser over
+`chromium/patches/element-hiding.patch`), which talks to the browser over
 `lb/common/element_hiding.mojom`; prerendered pages may ask too. When an http(s) document starts
 it asks for its site's rules plus the generic rules that name no class or id first, and inserts
 them as a user stylesheet, whose `display: none !important` wins over the page's styles. A
@@ -592,5 +596,5 @@ Restarts, logout and shutdown never ask.
 screen access. On macOS, pages render in their own compositor, which the tool doesn't capture: the
 page area is blank. `--lb-sidebar-demo=<mode>` drives states (new space, collapsed strip, tab
 group, restore after a crash, …). Modes and flags are listed in
-[desktop/lb/README.md](../desktop/lb/README.md); they don't cover keyboard shortcuts, right-click
+[chromium/lb/README.md](../chromium/lb/README.md); they don't cover keyboard shortcuts, right-click
 menus or animation, which need real input.

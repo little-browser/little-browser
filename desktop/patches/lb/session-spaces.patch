@@ -1,4 +1,4 @@
-# Little Browser: each window remembers its space across restarts (desktop/lb sidebar). The
+# Little Browser: each window remembers its space across restarts (chromium/lb sidebar). The
 # space id is saved as window extra data — like Chromium's own vertical-tab collapsed state — and
 # a restored window is put back on its space before its tabs come back.
 # Restoring into an existing window (the crash bubble's Restore) moves that window to the saved
@@ -29,7 +29,7 @@
              base::NumberToString(controller->GetUncollapsedWidth())));
    }
  
-+  // Little Browser: which space the window shows (desktop/lb sidebar).
++  // Little Browser: which space the window shows (chromium/lb sidebar).
 +  if (const std::string space_id = lb::GetWindowSpaceId(browser); !space_id.empty()) {
 +    command_storage_manager()->AppendRebuildCommand(
 +        sessions::CreateAddWindowExtraDataCommand(browser->GetSessionID(),

@@ -1,0 +1,10 @@
+# Pinned upstream versions for every Chromium platform: CHROMIUM_VERSION for all of them, the
+# ungoogled-chromium tags for desktop (Android builds Chromium itself). Bump together;
+# ungoogled-chromium tags are "<chromium version>-<revision>", platform repo tags add
+# ".<platform revision>".
+CHROMIUM_VERSION=157.0.8103.78
+UNGOOGLED_TAG=157.0.8103.78-1
+UNGOOGLED_MACOS_TAG=157.0.8103.78-1.1
+
+# Windows and Linux platform repos (ungoogled-chromium-windows, ungoogled-chromium-portablelinux)
+# are not used yet.

@@ -1,0 +1,473 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+import("//build/config/clang/clang.gni")
+import("//build/rust/rust_static_library.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+import("//testing/test.gni")
+
+# Unsafe buffer use (raw pointer arithmetic, indexing a C array) is an error in our code on every
+# platform. Android's build checks it with Chromium's unsafe-buffers plugin; builds without the
+# plugin (the desktop) check our targets' own code with clang's warning, limited to //lb by
+# unsafe_buffers_mappings.txt. Clang takes one mappings file, so ours is Chromium's
+# (clang_warning_suppression_file, //.gn) with our section added, written when GN runs.
+if (is_clang && !clang_use_unsafe_buffers_plugin) {
+  _lb_mappings = "$root_gen_dir/lb/warning_suppression.txt"
+  _chromium_mappings = ""
+  if (clang_warning_suppression_file != "") {
+    _chromium_mappings = read_file(clang_warning_suppression_file, "string")
+  }
+  # Chromium's file ends with a line break.
+  write_file(_lb_mappings, _chromium_mappings + read_file("unsafe_buffers_mappings.txt", "string"))
+}
+
+config("unsafe_buffers") {
+  if (is_clang && !clang_use_unsafe_buffers_plugin) {
+    cflags = [
+      "-Wunsafe-buffer-usage",
+      "-Werror=unsafe-buffer-usage",
+      "--warning-suppression-mappings=" + rebase_path(_lb_mappings, root_build_dir),
+    ]
+    inputs = [ "unsafe_buffers_mappings.txt" ]
+    if (clang_warning_suppression_file != "") {
+      inputs += [ clang_warning_suppression_file ]
+    }
+  }
+}
+
+# lb-core, the shared Rust core (core/lb-core; fetch.sh links it at //lb_core), built with
+# Chromium's toolchain and vendored crates (docs/design.md §4.4). Its tests run as
+# lb_core_unittests. Keep `sources` the crate's files (chromium/scripts/check_lb_tests.py checks
+# it).
+rust_static_library("lb_core") {
+  crate_name = "lb_core"
+  crate_root = "//lb_core/src/lib.rs"
+  edition = "2021"
+  sources = [
+    "//lb_core/src/adblock.rs",
+    "//lb_core/src/command_bar.rs",
+    "//lb_core/src/element_hiding.rs",
+    "//lb_core/src/import/addresses.rs",
+    "//lb_core/src/import/arc.rs",
+    "//lb_core/src/import/bookmarks.rs",
+    "//lb_core/src/import/bookmarks_html.rs",
+    "//lb_core/src/import/cookies.rs",
+    "//lb_core/src/import/extensions.rs",
+    "//lb_core/src/import/history.rs",
+    "//lb_core/src/import/mod.rs",
+    "//lb_core/src/import/plan.rs",
+    "//lb_core/src/import/profiles.rs",
+    "//lb_core/src/import/safari.rs",
+    "//lb_core/src/import/search.rs",
+    "//lb_core/src/import/sources.rs",
+    "//lb_core/src/import/tabs.rs",
+    "//lb_core/src/lib.rs",
+    "//lb_core/src/model.rs",
+    "//lb_core/src/password_manager.rs",
+    "//lb_core/src/pinned_groups.rs",
+    "//lb_core/src/search_choice.rs",
+    "//lb_core/src/spaces.rs",
+    "//lb_core/src/sync.rs",
+    "//lb_core/src/tabs.rs",
+    "//lb_core/src/tracking_params.rs",
+  ]
+  deps = [ "//third_party/rust/serde_json/v1:lib" ]
+  build_native_rust_unit_tests = true
+}
+
+# The C++ binding of lb-core (namespace lb::core): include "lb/core_bridge/lib.rs.h" for import,
+# "lb/core_bridge/rules.rs.h" for the browser rules (spaces, command bar, filter lists, search
+# choice), "lb/core_bridge/tabs.rs.h" for the tab rules (pinned close, tab names and links, pinned
+# groups) and the password manager list.
+rust_static_library("core_bridge") {
+  crate_name = "lb_core_bridge"
+  crate_root = "core_bridge/lib.rs"
+  edition = "2021"
+  allow_unsafe = true  # cxx's generated glue
+  sources = [
+    "core_bridge/lib.rs",
+    "core_bridge/rules.rs",
+    "core_bridge/tabs.rs",
+  ]
+  cxx_bindings = [
+    "core_bridge/lib.rs",
+    "core_bridge/rules.rs",
+    "core_bridge/tabs.rs",
+  ]
+  deps = [ ":lb_core" ]
+}
+
+# Element hiding between a page and the browser (common/element_hiding.mojom).
+mojom("mojom") {
+  sources = [ "common/element_hiding.mojom" ]
+  public_deps = [ "//url/mojom:url_mojom_gurl" ]
+}
+
+# The class and id names a page sends for element hiding's generic rules, and what the browser
+# accepts: used by //lb:renderer and the browser side (unit tested;
+# chromium/scripts/check_lb_tests.py checks it like //lb:model).
+source_set("page_names") {
+  configs += [ ":unsafe_buffers" ]
+  sources = [
+    "common/page_names.cc",
+    "common/page_names.h",
+  ]
+  deps = [ "//base" ]
+}
+
+# Our renderer-side code: element hiding in each frame. chrome/renderer depends on it and creates
+# the agent for each frame (chromium/patches/element-hiding.patch).
+source_set("renderer") {
+  configs += [ ":unsafe_buffers" ]
+  sources = [
+    "renderer/element_hiding_agent.cc",
+    "renderer/element_hiding_agent.h",
+  ]
+  deps = [
+    ":mojom",
+    ":page_names",
+    "//base",
+    "//content/public/renderer",
+    "//mojo/public/cpp/bindings",
+    "//third_party/blink/public:blink",
+    "//url",
+  ]
+}
+
+# Our prefs every Chromium platform keeps, with their registration, and our defaults for
+# Chromium's profile prefs (chromium/patches/sidebar-prefs.patch). Unit tested by lb_unittests.
+source_set("prefs") {
+  configs += [ ":unsafe_buffers" ]
+  sources = [
+    "browser/prefs/lb_prefs.cc",
+    "browser/prefs/lb_prefs.h",
+    "browser/prefs/pref_defaults.cc",
+    "browser/prefs/pref_defaults.h",
+  ]
+  deps = [
+    "//base",
+    "//build:buildflag_header_h",
+    "//chrome/common:constants",  # search suggestions, hyperlink auditing
+    "//components/autofill/core/common",  # addresses and cards
+    "//components/content_settings/core/browser:cookie_settings",  # third-party cookies
+    "//components/content_settings/core/common",
+    "//components/password_manager/core/common",  # password saving
+    "//components/payments/core",  # sites asking for saved payment methods
+    "//components/pref_registry",
+    "//components/prefs",
+  ]
+}
+
+# Engine logic every Chromium platform builds, with no views and no browser window: the ad
+# blocker's filter lists and per-site rule, tracking parameters, the text helpers element hiding
+# uses, spaces and their saved tabs (Local State lb.spaces, lb.space_tabs), tab names and pinned
+# links, command matching and the search engine choice on Chromium's engines. Unit tested by
+# lb_unittests.
+source_set("engine") {
+  configs += [ ":unsafe_buffers" ]
+  sources = [
+    "browser/adblock/filter_lists.cc",
+    "browser/adblock/filter_lists.h",
+    "browser/adblock/site_ads.cc",
+    "browser/adblock/site_ads.h",
+    "browser/command_bar/command_matching.cc",
+    "browser/command_bar/command_matching.h",
+    "browser/importer/import_text.cc",
+    "browser/importer/import_text.h",
+    "browser/privacy/tracking_params.cc",
+    "browser/privacy/tracking_params.h",
+    "browser/rust_strings.cc",
+    "browser/rust_strings.h",
+    "browser/search/search_engine_choice.cc",
+    "browser/search/search_engine_choice.h",
+    "browser/spaces/space_model.cc",
+    "browser/spaces/space_model.h",
+    "browser/spaces/space_store.cc",
+    "browser/spaces/space_store.h",
+    "browser/tabs/pinned_groups.cc",
+    "browser/tabs/pinned_groups.h",
+    "browser/tabs/tab_names.cc",
+    "browser/tabs/tab_names.h",
+  ]
+  public_deps = [
+    ":core_bridge",
+    ":prefs",  # spaces: where they are saved
+    "//components/prefs",
+    "//components/tab_groups",  # spaces: a group's colour
+    "//build/rust:cxx_cppdeps",  # rust_strings.h: cxx's types
+    "//services/network/public/cpp",  # tracking parameters: the navigation's request
+    "//third_party/blink/public/common",  # tracking parameters: the loader throttle
+  ]
+  deps = [
+    "//base",
+    "//components/search_engines",  # the search engine choice
+    "//components/subresource_filter/core/common",
+    "//components/subresource_filter/tools/rule_parser",
+    "//components/url_pattern_index",
+    "//net",
+    "//third_party/protobuf:protobuf_lite",
+    "//url",
+  ]
+}
+
+# Our browser-process code every Chromium platform runs: the ad blocker's list updates, the
+# browser side of element hiding, and merging imported bookmarks into the bookmark model. chrome/browser depends on it (chromium/patches/lb-browser.patch)
+# and the shared patches call into it. It depends on Chromium's small browser targets, not on
+# //chrome/browser itself, so there is no cycle.
+source_set("browser") {
+  configs += [ ":unsafe_buffers" ]
+  sources = [
+    "browser/adblock/ad_blocker.cc",
+    "browser/adblock/ad_blocker.h",
+    "browser/adblock/element_hiding_host.cc",
+    "browser/adblock/element_hiding_host.h",
+    "browser/bookmarks/bookmark_merge.cc",
+    "browser/bookmarks/bookmark_merge.h",
+  ]
+  public_deps = [
+    ":engine",
+    ":mojom",
+    ":prefs",
+  ]
+  deps = [
+    ":page_names",
+    "//base",
+    "//chrome/browser:browser_process",
+    "//chrome/browser/content_settings:content_settings_factory",
+    "//components/bookmarks/browser",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common:constants",
+    "//components/content_settings/core/browser",
+    "//components/content_settings/core/common",
+    "//components/prefs",
+    "//components/subresource_filter/content/browser",
+    "//components/subresource_filter/core/browser",
+    "//components/subresource_filter/core/common",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+    "//net",
+    "//services/network/public/cpp",
+    "//third_party/protobuf:protobuf_lite",
+    "//url",
+  ]
+  if (is_android) {
+    # The native side of the Android shell's Java (//lb/android).
+    sources += [
+      "android/adblock/site_ads_android.cc",
+      "android/importer/bookmarks_file_android.cc",
+      "android/password/password_managers_android.cc",
+      "android/profiles/profiles_android.cc",
+      "android/search/matching_android.cc",
+      "android/search/search_engines_android.cc",
+      "android/spaces/space_store_android.cc",
+      "android/tabs/pinned_groups_android.cc",
+      "android/tabs/tab_names_android.cc",
+      "android/tabs/tab_rules_android.cc",
+    ]
+    deps += [
+      "//chrome/browser/profiles:profile_manager",
+      "//chrome/browser/search_engines",  # the search engine choice
+      "//components/search_engines",
+      "//lb/android:jni_headers",
+    ]
+  }
+}
+
+if (!is_android) {
+  # Little Browser logic that doesn't need views or a browser window, for the desktop: unit tested
+  # by lb_unittests. The sidebar's views target depends on it
+  # (desktop/patches/lb/sidebar-hooks.patch). Android doesn't build it yet: what Android needs from
+  # it moves to lb-core or :engine first (docs/android-ui.md).
+  source_set("model") {
+    configs += [ ":unsafe_buffers" ]
+    sources = [
+      "browser/first_run/first_run_questions.cc",
+      "browser/first_run/first_run_questions.h",
+      "browser/importer/imported_tabs.cc",
+      "browser/importer/imported_tabs.h",
+      "browser/importer/chromium_profile_reader.cc",
+      "browser/importer/chromium_profile_reader.h",
+      "browser/importer/cookie_decryptor.cc",
+      "browser/importer/cookie_decryptor.h",
+      "browser/importer/import_choices.cc",
+      "browser/importer/import_choices.h",
+      "browser/importer/imported_bookmarks.cc",
+      "browser/importer/imported_bookmarks.h",
+      "browser/little_window/little_window_rules.cc",
+      "browser/little_window/little_window_rules.h",
+      "browser/password/password_manager_choice.cc",
+      "browser/password/password_manager_choice.h",
+      "browser/peek/peek_rules.cc",
+      "browser/peek/peek_rules.h",
+      "browser/spaces/swipe_tracker.cc",
+      "browser/spaces/swipe_tracker.h",
+      "browser/tabs/pinned_close.cc",
+      "browser/tabs/pinned_close.h",
+      "browser/tabs/restore_order.cc",
+      "browser/tabs/restore_order.h",
+      "browser/tabs/load_progress.cc",
+      "browser/tabs/load_progress.h",
+      "browser/tabs/sidebar_width.cc",
+      "browser/tabs/sidebar_width.h",
+      "browser/tabs/tab_to_show.cc",
+      "browser/tabs/tab_to_show.h",
+      "browser/ui/lb_command_ids.h",  # also in the sidebar's views target, which includes it
+      "browser/update/update_reminder.cc",
+      "browser/update/update_reminder.h",
+    ]
+    public_deps = [
+      ":core_bridge",  # import: lb-core's types in the readers' results
+      ":engine",
+      ":prefs",
+      "//components/security_state/core",  # Peek: the site label's warning
+      "//components/tab_groups",
+      "//components/user_data_importer/common",  # import: Chromium importers' bookmark entries
+      "//ui/base:types",
+      "//ui/gfx/geometry",
+    ]
+    deps = [
+      "//base",
+      "//chrome/app:command_ids",  # Peek: which browser commands act on the Peek's page
+      "//components/pref_registry",
+      "//components/subresource_filter/core/common",
+      "//components/subresource_filter/tools/rule_parser",
+      "//components/url_formatter",
+      "//components/url_pattern_index",
+      "//net",
+      "//sql",  # import: reading copies of other browsers' databases
+      "//base:i18n",  # import: numbers in the summary
+      "//components/sessions",  # import: open tabs from a session file
+      "//crypto",  # import: cookie decryption
+      "//third_party/boringssl",  # import: cookie key (PBKDF2)
+      "//third_party/protobuf:protobuf_lite",
+      "//url",
+    ]
+  }
+}
+
+if (is_mac) {
+  # Little Browser's own Safe Storage keychain item, and when an existing install keeps the
+  # password from Chromium's item (browser/keychain/keychain_key.h). Chromium's os_crypt and
+  # chrome/app depend on it (desktop/patches/lb/keychain-name.patch), so it depends on //base only.
+  source_set("keychain") {
+    configs += [ ":unsafe_buffers" ]
+    sources = [
+      "browser/keychain/keychain_key.cc",
+      "browser/keychain/keychain_key.h",
+    ]
+    deps = [ "//base" ]
+  }
+
+  # The updater: loads Sparkle when the app is packaged with it (browser/update/updater_mac.h).
+  # chrome/browser's macOS code depends on it (desktop/patches/lb/updater.patch).
+  source_set("updater") {
+    configs += [ ":unsafe_buffers" ]
+    sources = [
+      "browser/update/sparkle_api.h",
+      "browser/update/updater_mac.h",
+      "browser/update/updater_mac.mm",
+    ]
+    deps = [
+      ":model",
+      "//base",
+    ]
+    frameworks = [ "Foundation.framework" ]
+  }
+}
+
+if (!is_android) {
+  # chromium/lb/AGENTS.md says how to build and run these.
+  test("lb_unittests") {
+    configs += [ ":unsafe_buffers" ]
+    sources = [
+      "browser/adblock/ad_blocking_unittest.cc",
+      "browser/adblock/filter_lists_unittest.cc",
+      "browser/adblock/site_ads_unittest.cc",
+      "browser/command_bar/command_matching_unittest.cc",
+      "browser/extensions/update_check_unittest.cc",
+      "browser/extensions/web_store_unittest.cc",
+      "browser/first_run/first_run_questions_unittest.cc",
+      "browser/importer/imported_tabs_unittest.cc",
+      "browser/importer/chromium_profile_reader_unittest.cc",
+      "browser/importer/cookie_decryptor_unittest.cc",
+      "browser/importer/import_choices_unittest.cc",
+      "browser/importer/import_text_unittest.cc",
+      "browser/importer/imported_bookmarks_unittest.cc",
+      "browser/little_window/little_window_rules_unittest.cc",
+      "browser/password/password_manager_choice_unittest.cc",
+      "browser/peek/peek_rules_unittest.cc",
+      "browser/prefs/lb_prefs_unittest.cc",
+      "browser/prefs/pref_defaults_unittest.cc",
+      "browser/privacy/tracking_params_unittest.cc",
+      "browser/rust_strings_unittest.cc",
+      "browser/search/search_engine_choice_unittest.cc",
+      "browser/spaces/space_model_unittest.cc",
+      "browser/spaces/space_store_unittest.cc",
+      "browser/spaces/swipe_tracker_unittest.cc",
+      "browser/tabs/pinned_close_unittest.cc",
+      "browser/tabs/pinned_groups_unittest.cc",
+      "browser/tabs/restore_order_unittest.cc",
+      "browser/tabs/load_progress_unittest.cc",
+      "browser/tabs/sidebar_width_unittest.cc",
+      "browser/tabs/tab_names_unittest.cc",
+      "browser/tabs/tab_to_show_unittest.cc",
+      "core_bridge/core_bridge_unittest.cc",
+      "common/page_names_unittest.cc",
+      "browser/update/update_reminder_unittest.cc",
+    ]
+    deps = [
+      ":core_bridge",
+      ":model",
+      ":page_names",
+      "//base",
+      "//base/test:test_support",
+      "//chrome/app:command_ids",
+      "//chrome/common:chrome_features",  # HTTPS-First's default
+      "//chrome/common:constants",  # pref defaults
+      "//components/content_settings/core/browser:cookie_settings",  # pref defaults: cookies
+      "//components/content_settings/core/common",
+      "//components/password_manager/core/common",  # pref defaults: passwords
+      "//components/payments/core",  # pref defaults: payment methods
+      "//components/component_updater",
+      "//components/autofill/core/common",
+      "//components/prefs:test_support",
+      "//components/search_engines",
+      "//components/search_engines:test_support",  # the search engine choice
+      "//components/sync_preferences:test_support",
+      "//components/subresource_filter/core/browser",
+      "//components/subresource_filter/core/common",
+      "//components/subresource_filter/core/mojom",
+      "//components/url_pattern_index",
+      "//components/update_client",
+      "//components/update_client:test_support",
+      "//extensions/common",
+      "//extensions/common:core_api_provider",
+      "//extensions/common:mojom",
+      "//services/network/public/cpp",  # tracking parameters: requests and redirects
+      "//third_party/blink/public/common",  # tracking parameters: the loader throttle
+      "//mojo/core/test:run_all_unittests",  # the update check test needs Mojo (network requests)
+      "//net",
+      "//components/sessions",
+      "//components/user_data_importer/common",
+      "//crypto",
+      "//sql",
+      "//sql:test_support",
+      "//testing/gmock",
+      "//testing/gtest",
+      "//third_party/protobuf:protobuf_lite",
+      "//ui/gfx:test_support",  # gtest printers for gfx geometry
+      "//url",
+    ]
+    if (is_mac) {
+      sources += [
+        "browser/keychain/keychain_key_unittest.cc",
+        "browser/keychain/keychain_password_unittest.mm",
+      ]
+      deps += [
+        ":keychain",
+        "//components/os_crypt/common:keychain_password_mac",
+      ]
+    }
+  }
+}

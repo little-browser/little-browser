@@ -20,10 +20,11 @@ scripts/coverage.sh       # CI gate: line coverage of at least 95% (LB_MIN_LINE_
 - **Model.** `model.rs` mirrors `docs/ux.md` §5 and §6: profiles, browser-wide spaces,
   pinned and today tabs, and auto-archive. Change the spec and the model
   together.
-- **Rules.** `spaces.rs`, `command_bar.rs`, `adblock.rs` and `search_choice.rs` hold the rules
-  every shell needs (docs/ux.md §4, §5, §12; docs/design.md §5), as plain functions over plain
-  data: ids, flags, hues, text. A shell keeps its saved form and its own types around them (the
-  desktop's are in `desktop/lb`, through `core_bridge/rules.rs`). A rule that only one shell has
+- **Rules.** `spaces.rs`, `tabs.rs`, `pinned_groups.rs`, `command_bar.rs`, `adblock.rs`,
+  `search_choice.rs` and `password_manager.rs` hold the rules every shell needs (docs/ux.md §4–§6,
+  §12; docs/design.md §5), as plain functions over plain data: ids, flags, hues, text, URL specs.
+  A shell keeps its saved form and its own types around them (the Chromium builds' are in
+  `chromium/lb`, through `core_bridge/rules.rs` and `core_bridge/tabs.rs`). A rule that only one shell has
   stays in that shell.
 - **Sync.** `sync.rs` has the `Transport` trait plus an in-memory transport for tests. Real
   transports implement the trait; they don't change callers.
@@ -41,8 +42,9 @@ scripts/coverage.sh       # CI gate: line coverage of at least 95% (LB_MIN_LINE_
   because the desktop build compiles the core with Chromium's crates. Any other crate (uniffi,
   adblock-rust, rusqlite, a CRDT library, iroh) needs a justification in `docs/design.md` before
   it goes into `Cargo.toml`, and for desktop it must be one Chromium vendors.
-- **Bindings.** Desktop links lb-core through `desktop/lb/core_bridge` (`cxx` bridges: `lib.rs`
-  for import, `rules.rs` for the rules; built with Chromium's toolchain, which also runs these
-  tests as `lb_core_unittests`). A new `.rs` file
-  goes in the `lb_core` target's sources in `desktop/lb/BUILD.gn`. Keep the public API small and
+- **Bindings.** Desktop and Android link lb-core through `chromium/lb/core_bridge` (`cxx` bridges:
+  `lib.rs` for import, `rules.rs` and `tabs.rs` for the rules; built with Chromium's toolchain,
+  which also runs these tests as `lb_core_unittests`), Android's Java through Chromium's JNI on
+  top; iOS will use UniFFI (`docs/android-ui.md`). A new `.rs` file
+  goes in the `lb_core` target's sources in `chromium/lb/BUILD.gn`. Keep the public API small and
   easy to bind: plain data types, no lifetimes in public signatures.

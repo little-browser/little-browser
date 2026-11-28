@@ -101,7 +101,7 @@
  
  namespace {
 +
-+// Little Browser: every tab a drag carries, for desktop/lb's pinned groups.
++// Little Browser: every tab a drag carries, for chromium/lb's pinned groups.
 +std::vector<tabs::TabHandle> LbDraggedTabs(const DragSessionData& data) {
 +  std::vector<tabs::TabHandle> tabs;
 +  for (const TabDragData& tab_data : data.tab_drag_data_) {
@@ -134,7 +134,7 @@
    base::WeakPtr<TabDragController> ref(weak_factory_.GetWeakPtr());
    DragState previous_state = current_state_;
    current_state_ = DragState::kStopped;
-+  // Little Browser: a cancelled drag gives its tabs back their pinned groups (desktop/lb).
++  // Little Browser: a cancelled drag gives its tabs back their pinned groups (chromium/lb).
 +  lb::OnTabDragEnded(type != EndDragType::kNormal);
    attached_context_tabs_closed_tracker_.reset();
  
@@ -144,7 +144,7 @@
            }
          }
 +        // Little Browser: today groups dropped over the pinned area become pinned groups
-+        // (desktop/lb). Read first: completing the drag can destroy `this`.
++        // (chromium/lb). Read first: completing the drag can destroy `this`.
 +        const std::set<tab_groups::TabGroupId> lb_groups = drag_data_.dragging_groups;
 +        const std::vector<tabs::TabHandle> lb_tabs = LbDraggedTabs(drag_data_);
 +        TabStripModel* const lb_model = attached_context_->GetTabStripModel();
@@ -170,7 +170,7 @@
        simple_menu_items_.push_back(AddChildView(BuildAskGeminiButton()));
      }
      AddChildView(BuildSeparator());
-+    // Little Browser: a today group can become a pinned group (desktop/lb, docs/ux.md §6.1),
++    // Little Browser: a today group can become a pinned group (chromium/lb, docs/ux.md §6.1),
 +    // where pinned groups show.
 +    if (lb::PinnedGroupsShown(browser_)) {
 +      simple_menu_items_.push_back(AddChildView(CreateMenuItem(

@@ -15,8 +15,10 @@ in-memory transport; the rules every shell shares: spaces (`spaces.rs`: a new sp
 colours, which space a window opens on, saved tab order), the command bar's ranking
 (`command_bar.rs`), the ad blocker's filter lists (`adblock.rs`: which lists, when to download
 them, `!#if` blocks, uBlock Origin's rule syntax), their element-hiding rules matched to pages
-(`element_hiding.rs`), the built-in list of tracking parameters (`tracking_params.rs`) and the
-search engine choice (`search_choice.rs`); the import readers for Chrome-family browsers and Arc
+(`element_hiding.rs`), the built-in list of tracking parameters (`tracking_params.rs`), tabs (`tabs.rs`: what closing a
+pinned tab does, the tab to show, restore order, tab names and pinned links), pinned groups
+(`pinned_groups.rs`), and the search engine and password manager choices (`search_choice.rs`,
+`password_manager.rs`); the import readers for Chrome-family browsers and Arc
 ([docs/ux.md §13](../docs/ux.md)). One dependency, `serde_json`.
 
 Not built yet: the CRDT layer, a P2P transport, the conversion of filter lists to WebKit's

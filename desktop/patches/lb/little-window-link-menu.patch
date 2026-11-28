@@ -1,5 +1,5 @@
 # Little Browser: a link's context menu has "Open Link in Little Window", after "Open Link in New
-# Window" (desktop/lb/browser/ui/views/little_window).
+# Window" (chromium/lb/browser/ui/views/little_window).
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -3,6 +3,9 @@

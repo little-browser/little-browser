@@ -1,6 +1,6 @@
 # Little Browser: a thin line along the toolbar's bottom edge, at the top of the page card, shows
 # the shown page's load, in every window (lb::AddLoadProgressLine,
-# desktop/lb/browser/ui/views/frame/load_progress_line.h).
+# chromium/lb/browser/ui/views/frame/load_progress_line.h).
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -4,6 +4,7 @@

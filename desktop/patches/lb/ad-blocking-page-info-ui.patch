@@ -15,7 +15,7 @@
  
    AddThirdPartyCookiesContainer();
  
-+  // Little Browser: the built-in ad blocker's per-site switch (desktop/lb/browser/adblock).
++  // Little Browser: the built-in ad blocker's per-site switch (chromium/lb/browser/adblock).
 +  if (std::unique_ptr<views::View> ads = lb::MakeSiteAdsRow(presenter_)) {
 +    AddChildView(std::move(ads));
 +  }

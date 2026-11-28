@@ -1,5 +1,5 @@
 # Little Browser: tab groups among the pinned tabs (docs/ux.md §6.1). Chromium can't group pinned
-# tabs, so desktop/lb keeps pinned groups itself, over Chromium's pinned tabs
+# tabs, so chromium/lb keeps pinned groups itself, over Chromium's pinned tabs
 # (lb/browser/ui/tabs/pinned_group_tracker.h). This hooks them in:
 # - the vertical strip's pinned container lays out each group's header row, indents its tabs,
 #   hides a collapsed group's tabs and draws its colour line (lb::PinnedGroupLayout), and tells it
@@ -28,7 +28,7 @@
          sessions::CreatePinnedStateCommand(session_id, true));
    }
  
-+  // Little Browser: a pinned tab's pinned group (desktop/lb), as tab extra data.
++  // Little Browser: a pinned tab's pinned group (chromium/lb), as tab extra data.
 +  if (const std::string lb_group = lb::GetPinnedGroupSessionData(tab); !lb_group.empty()) {
 +    command_storage_manager()->AppendRebuildCommand(sessions::CreateAddTabExtraDataCommand(
 +        session_id, lb::kPinnedGroupSessionKey, lb_group));
@@ -51,7 +51,7 @@
  
    glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
                                &extra_data);
-+  // Little Browser: a pinned tab's pinned group (desktop/lb), so reopening it brings it back.
++  // Little Browser: a pinned tab's pinned group (chromium/lb), so reopening it brings it back.
 +  if (std::string lb_group =
 +          lb::GetPinnedGroupSessionData(tab_strip_model_->GetWebContentsAt(index));
 +      !lb_group.empty()) {
@@ -81,7 +81,7 @@
 +  WebContents* const added = AddRestoredTabImpl(
 +      std::move(web_contents), browser, tab_index, group, select, pin,
 +      from_session_restore, is_active_browser);
-+  // Little Browser: a pinned tab gets its pinned group back (desktop/lb).
++  // Little Browser: a pinned tab gets its pinned group back (chromium/lb).
 +  lb::OnTabRestored(browser, added, extra_data);
 +  return added;
  }
@@ -101,7 +101,7 @@
  }
  
  bool TabStripModel::IsTabCollapsed(int index) const {
-+  // Little Browser: a tab in a collapsed pinned group (desktop/lb) is collapsed too, so Ctrl+Tab
++  // Little Browser: a tab in a collapsed pinned group (chromium/lb) is collapsed too, so Ctrl+Tab
 +  // and the choice of the next tab skip it as they do a collapsed group's tabs.
 +  if (ContainsIndex(index) && lb::IsInCollapsedPinnedGroup(GetTabAtIndex(index))) {
 +    return true;
@@ -113,7 +113,7 @@
        }
  
        std::vector<int> indices = GetIndicesForCommand(context_index);
-+      // Little Browser: pinned tabs make or leave a pinned group instead (desktop/lb).
++      // Little Browser: pinned tabs make or leave a pinned group instead (chromium/lb).
 +      if (lb::TogglePinnedGroup(GetTabsAtIndices(indices))) {
 +        break;
 +      }

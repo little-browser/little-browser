@@ -1,9 +1,9 @@
 # Little Browser: a tab can be renamed, and a pinned tab keeps a link, the page it goes back to
-# (docs/ux.md §6). desktop/lb keeps both by the tab (lb/browser/ui/tabs/tab_custom_data.h); this
+# (docs/ux.md §6). chromium/lb keeps both by the tab (lb/browser/ui/tabs/tab_custom_data.h); this
 # hooks them in:
 # - a named tab's row shows its name instead of the page's title, also while loading;
 # - the tab menu has Rename Tab…, and for a pinned tab Edit Link… and Use Current Page as Link,
-#   after Pin/Unpin; desktop/lb enables and runs them. Their command ids start
+#   after Pin/Unpin; chromium/lb enables and runs them. Their command ids start
 #   at 900, so the tab menu's command enum gets a fixed underlying type that makes them valid;
 # - the name and the link are saved as tab extra data, also when Chromium rebuilds its session
 #   file and in tab restore's record of a closed tab or window (a restored tab gets them back
@@ -23,7 +23,7 @@
      command_storage_manager()->AppendRebuildCommand(sessions::CreateAddTabExtraDataCommand(
          session_id, lb::kPinnedGroupSessionKey, lb_group));
 +  }
-+  // Little Browser: a tab's name and pinned link (desktop/lb), as tab extra data.
++  // Little Browser: a tab's name and pinned link (chromium/lb), as tab extra data.
 +  if (const std::string lb_tab = lb::GetTabCustomSessionData(tab); !lb_tab.empty()) {
 +    command_storage_manager()->AppendRebuildCommand(sessions::CreateAddTabExtraDataCommand(
 +        session_id, lb::kTabCustomSessionKey, lb_tab));
@@ -44,7 +44,7 @@
        !lb_group.empty()) {
      extra_data[lb::kPinnedGroupSessionKey] = std::move(lb_group);
    }
-+  // Little Browser: its name and pinned link (desktop/lb), so reopening it brings them back.
++  // Little Browser: its name and pinned link (chromium/lb), so reopening it brings them back.
 +  if (std::string lb_tab =
 +          lb::GetTabCustomSessionData(tab_strip_model_->GetWebContentsAt(index));
 +      !lb_tab.empty()) {
@@ -90,7 +90,7 @@
                                                  : views::kUnpinOldIcon,
              ui::kColorMenuIcon, ui::SimpleMenuModel::kDefaultIconSize));
    }
-+  // Little Browser: Rename Tab…, and a pinned tab's link (desktop/lb).
++  // Little Browser: Rename Tab…, and a pinned tab's link (chromium/lb).
 +  lb::AddTabNameMenuItems(this, tab_strip_, index);
  
    // When the menu targets a single split, "Mute sites" opens a submenu that can
@@ -109,7 +109,7 @@
      return false;
    }
  
-+  // Little Browser: Rename Tab and the pinned link's items (desktop/lb).
++  // Little Browser: Rename Tab and the pinned link's items (chromium/lb).
 +  if (const std::optional<bool> lb_enabled = lb::IsTabNameCommandEnabled(
 +          const_cast<TabStripModel*>(this), context_index, command_id)) {
 +    return *lb_enabled;
@@ -122,7 +122,7 @@
    if (!ContainsIndex(context_index)) {
      return;
    }
-+  // Little Browser: Rename Tab and the pinned link's items (desktop/lb).
++  // Little Browser: Rename Tab and the pinned link's items (chromium/lb).
 +  if (lb::ExecuteTabNameCommand(this, context_index, command_id)) {
 +    return;
 +  }

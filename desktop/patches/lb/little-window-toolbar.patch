@@ -1,5 +1,5 @@
 # Little Browser: a little window (Chromium's popup window) has "Copy URL" and "Open in <space>"
-# at the end of its toolbar row (desktop/lb/browser/ui/views/little_window).
+# at the end of its toolbar row (chromium/lb/browser/ui/views/little_window).
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -3,6 +3,8 @@

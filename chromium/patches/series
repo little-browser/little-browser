@@ -1,0 +1,15 @@
+# Little Browser engine patches for every Chromium platform, applied in this order before the
+# platform's own series (desktop/patches/series, android/patches/series).
+# One concern per patch, engine code only: view code (Views, Cocoa, WebUI) goes in desktop/patches,
+# Java in android/patches. Format: <path relative to chromium/patches>   # one-line reason
+# A reason that starts with a platform tag, as in "# [android] …", is for that platform only, and
+# "# [desktop] …" for every desktop platform. desktop/patches/README.md has the rules, which
+# chromium/scripts/check_series.py checks.
+lb-browser.patch                   # chrome/browser links our browser-process code (//lb:browser)
+safe-browsing-standard-only.patch  # standard protection only, local hash-prefix DB, no reporting
+sidebar-prefs.patch                # register our prefs (spaces browser-wide, active space per profile)
+ad-blocking.patch                  # the built-in ad blocker: Chromium's subresource filter on every site, quietly
+ad-blocking-settings.patch         # Settings calls it "Ads" and describes the ad blocker as it works
+ad-blocking-page-info.patch        # an Ads switch in the site-info panel's "Cookies and site data", under third-party cookies
+tracking-params.patch              # a page navigation loses its tracking parameters (utm_*, fbclid, ...)
+element-hiding.patch               # element hiding: each frame gets the CSS that hides ads' leftovers

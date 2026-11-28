@@ -7,21 +7,15 @@ See [docs/design.md §4.1](../docs/design.md#41-desktop-how-we-fork-chromium).
 
 | Path | What |
 |---|---|
-| `VERSIONS` | Pinned Chromium version and ungoogled-chromium tags (core and each platform repo) |
+| `../chromium/` | Shared with Android: our code (`lb/`, linked as `src/lb`), the shared engine patches, `VERSIONS`, `lib.sh` and the check scripts (`../chromium/README.md`) |
 | `args/` | GN build args: `common.gn` + one per platform, applied after ungoogled's `flags.gn` |
 | `platforms/` | One entry per desktop platform (`mac.sh`): what differs in fetching and building; `platforms/README.md` |
-| `patches/series` | Our Chromium patches, in order, one concern and one layer each, some tagged for one platform; `patches/README.md` |
+| `patches/series` | Our desktop Chromium patches, in order, one concern and one layer each, some tagged for one platform, applied after the shared ones (`../chromium/patches/series`); `patches/README.md` |
 | `patches/ungoogled-exclude.txt` | ungoogled patches we skip (Safe Browsing and the Chrome Web Store are kept, MV2 is off) |
 | `patches/domsub-exclude.txt` | Paths kept out of domain substitution (Safe Browsing, Widevine, the Chrome Web Store) |
-| `branding/BRANDING` | Product name, company, copyright, bundle id |
-| `lb/` | Our own code, linked into the tree as `src/lb` |
 | `scripts/fetch.sh` | Download + prepare the source tree into `build/src` (`--platform <name>`; default: this machine's) |
-| `scripts/lib.sh` | Helpers shared with the Android scripts (clones, the series for a platform, GN args, gn + ninja, the CI build log) and the platform-entry loader; tested by `test_lib_sh.py` |
-| `scripts/rebrand_strings.py` | Rename the product in Chromium's branded strings and re-key all 81 translations |
 | `scripts/brand_assets.sh` | Install the shared product logos from the repo's `branding/exports`; each platform entry adds its own icons (macOS `app.icns` + `Assets.car` via `actool`) |
 | `scripts/build.sh` | Generate args and build with GN + Ninja (`--dev` for the fast dev build) |
-| `scripts/check_patches.py` | Check that our patch series applies to a clean tree (about a minute, no re-fetch); see `AGENTS.md` |
-| `scripts/check_series.py` | Check the patch series' layers and platform tags (desktop and Android) |
 | `scripts/linux-build-host.sh` | Prepare a CI container on the Linux build runners: fetch tools and sccache |
 | `scripts/run.sh` | Launch a build with a separate developer profile |
 | `scripts/upstream.sh`, `release-bot.sh`, `macos-host.sh` | Release automation (CI); see `AGENTS.md` |
@@ -89,7 +83,7 @@ the "Little Browser Safe Storage" keychain item each time ("Always Allow" is tie
 signature). `run.sh` passes `--use-mock-keychain`. The flag covers only that item: importing
 cookies still reads the other browser's real "‹browser› Safe Storage" key, and macOS asks.
 
-The item is Little Browser's own (`patches/lb/keychain-name.patch`, `lb/browser/keychain/`), not
+The item is Little Browser's own (`patches/lb/keychain-name.patch`, `../chromium/lb/browser/keychain/`), not
 Chromium's default "Chromium Safe Storage", which real Chromium shares. An install whose profile
 already existed copies its password from "Chromium Safe Storage" once; a new install never reads
 that item. A release's designated requirement pins our Team ID, because macOS lets whatever meets
@@ -111,7 +105,7 @@ existing tree (the next build rebuilds bindgen and Crubit). Run the
 scripts in a native shell: under Rosetta an Apple silicon Mac passes for an Intel one, and they stop.
 
 We follow ungoogled-chromium-macos's recipe (`third_party/ungoogled-chromium-macos`, pinned in
-`VERSIONS`), with two differences: the Chromium **source tarball** instead of a git clone (no
+`../chromium/VERSIONS`), with two differences: the Chromium **source tarball** instead of a git clone (no
 `depot_tools`, much smaller download), and PGO off (`chrome_pgo_phase = 0`: the tarball has no
 profiles).
 
@@ -145,9 +139,10 @@ ungoogled-chromium removes every Google endpoint. We keep three on purpose:
    half. At 157.0.8103.78 the other 124 ungoogled patches apply cleanly without these six and the
    two in item 3.
 
-   Then `patches/lb/safe-browsing-standard-only.patch` makes it *standard only*: enhanced protection
-   and extended reporting are hard-disabled (no pref, policy or sync can turn them on), real-time
-   hash-prefix lookups are off (local hash-prefix database only), and Settings hides both options.
+   Then `chromium/patches/safe-browsing-standard-only.patch` makes it *standard only*: enhanced
+   protection and extended reporting are hard-disabled (no pref, policy or sync can turn them on),
+   real-time hash-prefix lookups are off (local hash-prefix database only), and Settings hides both
+   options.
 
    Settings shows only Standard / No protection. Its only traffic is
    `safebrowsing.googleapis.com/v4/threatListUpdates:fetch` (no component updater, no real-time
@@ -190,7 +185,7 @@ ungoogled-chromium removes every Google endpoint. We keep three on purpose:
    keeps Safe Browsing's referrer chain from the store page.
 
    Checked in the built browser with `--lb-sidebar-demo=web-store`, `=extension-update`,
-   `=update-manifest`, `=mv2-off` and `=store-links` (`lb/README.md`). In `lb_unittests`,
+   `=update-manifest`, `=mv2-off` and `=store-links` (`../chromium/lb/README.md`). In `lb_unittests`,
    `WebStoreTest` fails if the store's addresses or update server get substituted, and
    `ExtensionUpdateCheckTest` runs an update check against a local server: it fails if a check
    carries a ping, an install id or hardware fields, or if a check that isn't an extension's
@@ -203,10 +198,10 @@ patches switch off). Narrow it once a network audit shows which hosts the built 
 
 Done by scripts at the end of `fetch.sh`, not by patches — they survive Chromium updates unchanged:
 
-- `branding/BRANDING` → product name, company, copyright, macOS bundle ID (`app.littlebrowser.LittleBrowser`).
-- `rebrand_strings.py` replaces "Chromium" (not "Chromium OS", "The Chromium Authors" or URLs) in
-  `chrome/app/chromium_strings.grd` and `components/components_chromium_strings.grd` plus their
-  `.grdp` parts. Translations are keyed by a fingerprint of the English text, so it recomputes the
+- `../chromium/branding/BRANDING` → product name, company, copyright, macOS bundle ID (`app.littlebrowser.LittleBrowser`).
+- `../chromium/scripts/rebrand_strings.py` replaces "Chromium" (not "Chromium OS", "The Chromium
+  Authors" or URLs; "Chromium browser" becomes the name alone) in `chrome/app/chromium_strings.grd`
+  and `components/components_chromium_strings.grd` plus their `.grdp` parts. Translations are keyed by a fingerprint of the English text, so it recomputes the
   fingerprints with Chromium's own grit and re-keys every translation — otherwise all locales would
   silently fall back to English. (157.0.8103.78: 967 replacements, 591 messages, ~44,000
   translations in 81 languages.)

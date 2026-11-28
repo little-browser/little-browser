@@ -397,8 +397,10 @@ tab count · ⋯ menu.
 
 **All tabs** — one page per space; drag sideways to move between spaces (the space names on top
 also jump). Each page: pinned tabs (rows), today's tabs as
-**cards with page previews** (rows in Settings). Hold a tab for pin / move / close.
-Footer: ＋ (new tab) · Done — only tab actions here; new spaces come from the spaces sheet. The mask button switches to incognito tabs (dark tint, "Close all").
+**cards with page previews** (rows in Settings), each with its title and, for a web page, its site
+without "www.". A space with no tabs (blank new tabs aren't kept) shows **＋ New tab**, which opens
+it with one. Hold a tab for pin / move / close.
+Footer: ＋ (new tab) · **Done**, the accent-filled primary button — only tab actions here; new spaces come from the spaces sheet. The mask button switches to incognito tabs (dark tint, "Close all").
 Previews are kept in memory only.
 
 **Pages** — back / forward with the system edge swipe. Only a few pages stay loaded (memory);
@@ -409,8 +411,22 @@ the rest sleep and keep their preview.
 sheet; drag up or tap Open = open as tab (no reload), drag down = close. Auto-peek from pinned
 tabs works as on desktop.
 
+**Tabs work as on desktop** (section 6): closing a pinned tab puts it to sleep and takes it back
+to its link, its row keeps its link's title, and a tab's hold menu has Rename Tab…, and for a
+pinned tab Edit Link… and Use Current Page as Link. Pinned groups are rows among the pinned tabs. Closed tabs can't be reopened: no Recently
+closed list and no Undo after a close.
+
+**Ads** — the blocker works as on desktop; page info (the icon left of the address) → Cookies and
+site data has the **Ads** switch next to third-party cookies.
+
+**Profiles** — a space's options choose its profile, as on desktop (section 5). Switching to a
+space in another profile shows that profile's own window of tabs; on a phone the switch looks the
+same as any space switch.
+
 **Tablets** — at ~700 pt width and above (iPad, Android tablets, open foldables) the **desktop
-sidebar layout** is used (section 2); narrower (Split View, Slide Over) uses the phone layout.
+sidebar layout** is used (section 2), on Android over Chromium's own vertical tabs; narrower
+(Split View, Slide Over) uses the phone layout. Split view on a tablet is the system's: two
+windows side by side.
 
 **Little window** — on Android, Custom Tabs for links from other apps (design.md §7.4); none on iOS.
 
@@ -463,6 +479,13 @@ very first run. A window that was waiting goes on with its own questions.
    added from the store later.
 
 Auto-archive's question comes after these (section 6).
+
+**On phones** the two questions are full screens, one after the other, before the first page. The
+search engine screen offers the same engines. Android's password-manager screen offers the same
+three as Android's autofill service: picking one opens its Play Store page if it isn't installed,
+then Android's autofill picker, and the browser fills forms through that service. There is no
+import offer at first run: other browsers' data can't be read on a phone (section 13's bookmarks
+file can be imported later).
 
 ## 13. Import from another browser
 

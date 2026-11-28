@@ -47,8 +47,9 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=../VERSIONS
-source "$DESKTOP/VERSIONS"
+CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
+# shellcheck source=../../chromium/VERSIONS
+source "$CHROMIUM/VERSIONS"
 
 die() { echo "error: $*" >&2; exit 1; }
 

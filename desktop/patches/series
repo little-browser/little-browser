@@ -1,18 +1,17 @@
-# Little Browser patches, applied after ungoogled-chromium's core and platform patches, in this order.
+# Little Browser desktop patches, applied after ungoogled-chromium's core and platform patches and
+# after the engine patches every Chromium platform shares (chromium/patches/series), in this order.
 # One concern per patch. Format: <path relative to desktop/patches>   # one-line reason
 # A reason that starts with a platform tag, as in "# [mac] …", is for that platform only (one of
 # desktop/platforms/). A patch never mixes engine and view code; desktop/patches/README.md has the
-# rules, which desktop/scripts/check_series.py checks.
+# rules, which chromium/scripts/check_series.py checks.
 lb/ungoogled-remove-uneeded-ui.patch # ungoogled's remove-uneeded-ui.patch, rebased onto our tree (we skip the patch it builds on)
 lb/ungoogled-remove-uneeded-ui-ui.patch # ungoogled's remove-uneeded-ui.patch, rebased onto our tree (we skip the patch it builds on) (UI)
-lb/safe-browsing-standard-only.patch  # standard protection only, local hash-prefix DB, no reporting
 lb/safe-browsing-standard-only-ui.patch # standard protection only, local hash-prefix DB, no reporting (UI)
 lb/macos-no-ai-sandbox-params.patch   # [mac] non-Safe-Browsing half of an ungoogled patch we skip
 lb/settings-product-icon.patch        # branding: Little Browser mark as the WebUI product icon
 lb/vertical-tabs-default.patch        # sidebar layout (vertical tabs) by default
-lb/sidebar-hooks.patch                # host desktop/lb's sidebar (header, footer, "+ New Tab") in the vertical tab strip
+lb/sidebar-hooks.patch                # host chromium/lb's sidebar (header, footer, "+ New Tab") in the vertical tab strip
 lb/new-tab-row.patch                  # a slot between pinned and today's tabs for "+ New Tab"
-lb/sidebar-prefs.patch                # register the sidebar's prefs (active space per profile, spaces browser-wide)
 lb/command-hooks.patch                # Cmd+T / Cmd+L → command bar
 lb/tab-metrics-detached-guard.patch   # don't crash on tabs of inactive spaces (detached)
 lb/session-spaces.patch               # restored windows return to their space
@@ -36,7 +35,7 @@ lb/no-reopen-closed.patch            # no Reopen Closed Tab/Group/Window, no Cmd
 lb/no-reopen-closed-ui.patch          # no Reopen Closed Tab/Group/Window, no Cmd+Shift+T, no Recently Closed (UI)
 lb/no-reopen-closed-mac.patch         # [mac] no Reopen Closed Tab/Group/Window, no Cmd+Shift+T, no Recently Closed (Cocoa)
 lb/no-app-menu-tab-groups.patch      # no Tab groups (saved tab groups) menu in the app menu
-lb/tab-click-hook.patch              # a click on a tab row reaches desktop/lb (New Tab Group placeholder)
+lb/tab-click-hook.patch              # a click on a tab row reaches chromium/lb (New Tab Group placeholder)
 lb/no-restore-background-load.patch  # a restored session loads only the shown tab; sleeping pinned tabs stay asleep
 lb/restore-selected-first.patch      # a restored window adds its selected tab first, so no other tab wakes
 lb/web-store-install.patch           # "Add to Chrome" on the Chrome Web Store downloads and installs the extension
@@ -44,9 +43,6 @@ lb/extension-updates.patch           # extensions update from the Chrome Web Sto
 lb/web-store-links.patch             # links to the Chrome Web Store in the app menu and on chrome://extensions
 lb/web-store-links-ui.patch           # links to the Chrome Web Store in the app menu and on chrome://extensions (UI)
 lb/web-store-no-referrer-chain.patch # the Chrome Web Store page gets no referrer chain (the pages that led to it)
-lb/ad-blocking.patch                 # the built-in ad blocker: Chromium's subresource filter on every site, quietly
-lb/ad-blocking-settings.patch        # Settings calls it "Ads" and describes the ad blocker as it works
-lb/ad-blocking-page-info.patch       # an Ads switch in the site-info panel's "Cookies and site data", under third-party cookies
 lb/ad-blocking-page-info-ui.patch     # an Ads switch in the site-info panel's "Cookies and site data", under third-party cookies (UI)
 lb/no-cookie-controls-icon.patch     # no third-party cookies eye icon; its switch is in the site-info panel
 lb/peek-hooks.patch                  # Shift+click opens a link in Peek, a card over the page
@@ -64,8 +60,6 @@ lb/tab-search-always.patch           # tab search can't be unpinned: no Pin/Unpi
 lb/tab-search-always-ui.patch         # tab search can't be unpinned: no Pin/Unpin in its menus or Settings (UI)
 lb/keychain-name.patch                # [mac] our own keychain item (Little Browser Safe Storage), keeping an existing install's password
 lb/space-avatar.patch                # the profile button and profile menu show the window's space emoji
-lb/tracking-params.patch             # a page navigation loses its tracking parameters (utm_*, fbclid, ...)
-lb/element-hiding.patch              # element hiding: each frame gets the CSS that hides ads' leftovers
 lb/no-lens-chip.patch                 # no Google Lens promo chip in the address bar (it crashed on parked tabs)
 lb/tab-names.patch                   # a tab can be renamed; a pinned tab keeps a link to go back to
 lb/tab-names-ui.patch                # a renamed tab is read by its name (accessible label)

@@ -1,5 +1,5 @@
 # Little Browser: a slot in Chromium's tab list between the pinned and the unpinned tabs, for
-# desktop/lb's "+ New Tab" row (docs/ux.md §2: divider, New tab, today's tabs). The row itself
+# chromium/lb's "+ New Tab" row (docs/ux.md §2: divider, New tab, today's tabs). The row itself
 # is ours (lb/browser/ui/views/sidebar/new_tab_row_view.*); sidebar-hooks.patch puts it in. The
 # divider above it is Chromium's own pinned/unpinned separator, shown whenever there are pinned
 # tabs (upstream shows it only in the collapsed strip).
@@ -10,7 +10,7 @@
    views::Separator* GetTabsSeparator() const { return tabs_separator_; }
  
 +  // Little Browser: a row between the pinned and the unpinned tabs ("+ New Tab", from
-+  // desktop/lb), laid out in the vertical orientation only. Replaces any earlier row.
++  // chromium/lb), laid out in the vertical orientation only. Replaces any earlier row.
 +  void SetLbNewTabRow(std::unique_ptr<views::View> row);
 +  views::View* lb_new_tab_row() const { return lb_new_tab_row_; }
 +

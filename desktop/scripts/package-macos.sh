@@ -38,6 +38,7 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
 ENT="$DESKTOP/third_party/ungoogled-chromium-macos/entitlements"
 REGION="${LB_AWS_REGION:-ap-southeast-2}"
 # Developer ID Certification Authority (G2), valid until 2031-09-17.
@@ -50,8 +51,8 @@ SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARK
 # Hours between update checks while the browser runs (docs/design.md §7.13).
 UPDATE_CHECK_SECONDS=14400
 
-# shellcheck source=lib.sh
-source "$DESKTOP/scripts/lib.sh"   # die, host_arch, out_dir, arch_from_machine
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$CHROMIUM/scripts/lib.sh"   # die, host_arch, out_dir, arch_from_machine
 warn() { echo "warning: $*" >&2; }
 usage() { die "usage: package-macos.sh [--arch <arch>] [--release] [<version>] (--release needs the version)"; }
 
@@ -77,8 +78,8 @@ HELPERS="$FW/Helpers"
 [ "$(arch_from_machine "$(lipo -archs "$APP/Contents/MacOS/Little Browser")")" = "$ARCH" ] ||
   die "$APP is built for $(lipo -archs "$APP/Contents/MacOS/Little Browser"), not $ARCH"
 UPDATE_FEED_URL="${LB_UPDATE_FEED_URL:-https://downloads.littlebrowser.app/updates/macos-$ARCH.xml}"
-# shellcheck source=../VERSIONS
-source "$DESKTOP/VERSIONS"
+# shellcheck source=../../chromium/VERSIONS
+source "$CHROMIUM/VERSIONS"
 if [ -n "$VERSION" ]; then
   [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){3}-([0-9]+)$ ]] || die "version $VERSION is not <chromium version>-<revision>"
   [ "${VERSION%-*}" = "$CHROMIUM_VERSION" ] ||
@@ -238,7 +239,7 @@ if [ -n "$UPDATE_KEY_JSON" ]; then
   ditto "$TMP/sparkle/Sparkle.framework" "$SPARKLE"
   # Its XPC services are only for sandboxed apps, which the browser isn't.
   rm -rf "$SPARKLE/XPCServices" "$SPARKLE/Versions/B/XPCServices"
-  # The browser loads Sparkle when these are set (desktop/lb/browser/update/). Checks run on a
+  # The browser loads Sparkle when these are set (chromium/lb/browser/update/). Checks run on a
   # schedule without asking first; an update is offered, never installed on its own; no release
   # notes, so the prompt stays small; the download's signature is checked before it is opened.
   plutil -replace SUFeedURL -string "$UPDATE_FEED_URL" "$PLIST"

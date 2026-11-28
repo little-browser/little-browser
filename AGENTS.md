@@ -84,7 +84,7 @@ Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
 - **Architectures are `arm64` and `x64`**, everywhere: script arguments, platform entries, build
   folders, file names, `releases.json`, docs. Where a tool says `x86_64` or `aarch64` (`uname -m`,
   `lipo`, upstream's scripts), translate at that boundary (`arch_from_machine` in
-  `desktop/scripts/lib.sh`); never pass its spelling on.
+  `chromium/scripts/lib.sh`); never pass its spelling on.
 - **Platforms are entries.** What a desktop platform does differently in fetching and building is
   its file in `desktop/platforms/`; the scripts around it stay platform-free. Linux-hosted
   Chromium builds (Android, later Linux desktop) share one CI template (`.linux-chromium`), with

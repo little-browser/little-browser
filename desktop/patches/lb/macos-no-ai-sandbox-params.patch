@@ -8,7 +8,7 @@
 
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -8657,31 +8657,12 @@
+@@ -8665,31 +8665,12 @@
                                     soda_language_pack_path.value()));
      return true;
    }

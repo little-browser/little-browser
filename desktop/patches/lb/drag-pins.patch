@@ -2,7 +2,7 @@
 # area, live, the way it moves into and out of a tab group. The pointer picks the area (above the
 # middle of the "+ New Tab" row is pinned), and entering the other area pins or unpins the dragged
 # tabs; split views move whole. A drag that includes a tab group stays among the unpinned tabs while
-# it lasts, since Chromium can't group pinned tabs; dropped above the row, desktop/lb makes it a
+# it lasts, since Chromium can't group pinned tabs; dropped above the row, chromium/lb makes it a
 # pinned group (pinned-groups.patch). Upstream rebuilds a tab's view when its pin state changes,
 # which would free the views the drag holds, so a dragged tab keeps its view instead. Cancelling the
 # drag restores the original pin state; tabs dragged on into another window keep the state they have

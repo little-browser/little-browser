@@ -157,6 +157,15 @@ pub enum Platform {
 }
 
 impl Platform {
+    /// Chromium's platform for a build: Android's is mobile, the desktop's isn't.
+    pub const fn chromium(android: bool) -> Platform {
+        if android {
+            Platform::ChromiumAndroid
+        } else {
+            Platform::ChromiumDesktop
+        }
+    }
+
     fn holds(self, token: &str) -> bool {
         match self {
             Platform::ChromiumDesktop => matches!(token, "env_chromium" | "cap_user_stylesheet"),
@@ -677,6 +686,11 @@ mod tests {
         assert!(!condition_holds("env_firefox", DESKTOP));
         assert!(!condition_holds("env_mobile", DESKTOP));
         assert!(condition_holds("env_mobile", Platform::ChromiumAndroid));
+        // Each Chromium build answers for its own platform.
+        assert!(condition_holds("env_mobile", Platform::chromium(true)));
+        assert!(!condition_holds("env_mobile", Platform::chromium(false)));
+        assert_eq!(Platform::chromium(true), Platform::ChromiumAndroid);
+        assert_eq!(Platform::chromium(false), Platform::ChromiumDesktop);
         assert!(condition_holds("!env_safari", DESKTOP));
         assert!(condition_holds("!!env_chromium", DESKTOP));
         assert!(condition_holds("env_firefox || env_chromium", DESKTOP));

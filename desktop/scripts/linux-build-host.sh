@@ -5,7 +5,8 @@
 #
 # Prepare a fresh ubuntu:24.04 CI container for a Chromium build on the Linux build runners
 # (x64: lb-linux-build, lb-linux-release; arm64 on Graviton: lb-linux-arm64-build,
-# lb-linux-arm64-release): the tools the fetch scripts need, and sccache. Every Linux-hosted
+# lb-linux-arm64-release): the tools the fetch scripts and Chromium's gclient hooks need (the
+# Android optimisation profile download unpacks with bzip2), and sccache. Every Linux-hosted
 # Chromium job (Android now, Linux desktop later) runs this first, as root.
 #
 #   desktop/scripts/linux-build-host.sh
@@ -31,7 +32,7 @@ esac
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends \
-  ca-certificates curl file git lsb-release patch python3 sudo xz-utils
+  bzip2 ca-certificates curl file git lsb-release patch python3 sudo xz-utils
 
 name="sccache-v$SCCACHE_VERSION-$arch-unknown-linux-musl"
 tmp="$(mktemp -d)"
@@ -42,3 +43,17 @@ tar -xzf "$tmp/sccache.tar.gz" -C "$tmp"
 install -m 0755 "$tmp/$name/sccache" /usr/local/bin/sccache
 rm -rf "${tmp:?}"
 sccache --version
+
+# Whether this container gets the host's instance role, which sccache's S3 cache signs its
+# requests with (IMDSv2; the build hosts allow a container's extra hop). Prints the role's name,
+# never its credentials. Never fails: without the role, the build runs without the cache
+# (chromium/scripts/lib.sh, write_gn_args).
+token="$(curl -fsS -m 3 -X PUT http://169.254.169.254/latest/api/token \
+  -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' 2>/dev/null || true)"
+if [ -n "$token" ]; then
+  role="$(curl -fsS -m 3 -H "X-aws-ec2-metadata-token: $token" \
+    http://169.254.169.254/latest/meta-data/iam/security-credentials/ 2>/dev/null || true)"
+  echo "Instance role: ${role:-none}"
+else
+  echo "Instance metadata: not reachable from this container"
+fi

@@ -85,6 +85,26 @@ pub fn next_space_name(count: usize) -> String {
     format!("Space {}", count + 1)
 }
 
+/// A space's tint, the colour its header, bar and pages take on: its hue at 55% saturation and
+/// 85% value, as opaque ARGB (0xAARRGGBB), the same on every platform.
+pub fn space_tint(hue: i32) -> u32 {
+    let (s, v) = (0.55_f64, 0.85_f64);
+    let h = f64::from(normalize_hue(hue)) / 60.0;
+    let c = v * s;
+    let x = c * (1.0 - (h % 2.0 - 1.0).abs());
+    let (r, g, b) = match h as i32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    let byte = |f: f64| ((f + m) * 255.0).round() as u32;
+    0xff00_0000 | (byte(r) << 16) | (byte(g) << 8) | byte(b)
+}
+
 /// Any number of degrees as a hue in [0, 360).
 pub fn normalize_hue(hue: i32) -> i32 {
     hue.rem_euclid(360)
@@ -201,6 +221,23 @@ pub fn split_runs(ids: &[String]) -> Vec<Vec<usize>> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn tints_keep_the_hue_at_55_percent_saturation_and_85_percent_value() {
+        // Red, green and blue at their own hue; v = 0.85 (217), v * (1 - s) = 97.
+        assert_eq!(space_tint(0), 0xffd9_6262);
+        assert_eq!(space_tint(120), 0xff62_d962);
+        assert_eq!(space_tint(240), 0xff62_62d9);
+        // Every sixth of the wheel, and hues outside [0, 360) wrap.
+        assert_eq!(space_tint(60), 0xffd9_d962);
+        assert_eq!(space_tint(180), 0xff62_d9d9);
+        assert_eq!(space_tint(300), 0xffd9_62d9);
+        assert_eq!(space_tint(360), space_tint(0));
+        assert_eq!(space_tint(-120), space_tint(240));
+        // Between corners the middle channel moves: the first space's blue.
+        assert_eq!(space_tint(FIRST_SPACE_HUE), 0xff62_85d9);
+    }
+
     use super::*;
 
     fn ids(list: &[&str]) -> Vec<String> {

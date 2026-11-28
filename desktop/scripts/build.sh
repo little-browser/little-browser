@@ -24,10 +24,11 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=../VERSIONS
-source "$DESKTOP/VERSIONS"
-# shellcheck source=lib.sh
-source "$DESKTOP/scripts/lib.sh"
+CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
+# shellcheck source=../../chromium/VERSIONS
+source "$CHROMIUM/VERSIONS"
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$CHROMIUM/scripts/lib.sh"
 UG="$DESKTOP/third_party/ungoogled-chromium"
 BUILD="$DESKTOP/build"
 SRC="$BUILD/src"
@@ -54,6 +55,7 @@ HOST="$(host_arch)"
 ARCH="${ARCH:-$HOST}"
 check_arch "$ARCH"
 [ -d "$SRC" ] || die "run desktop/scripts/fetch.sh first"
+check_tree_links "$SRC" "$DESKTOP/.."
 OUT_REL="$(out_dir Default "$ARCH" "$HOST")"
 ARG_FILES=("$UG/flags.gn" "$PU/$PLATFORM_FLAGS" "$DESKTOP/args/common.gn" "$DESKTOP/args/$PLATFORM.gn")
 if [ "$DEV" = 1 ]; then

@@ -1,8 +1,8 @@
 # Little Browser: Settings' importData route (its "Import bookmarks and settings" row, the app menu
 # when no window is open, and the address chrome://settings/importData) opens Little Browser's
-# import dialog (desktop/lb/browser/ui/views/importer) instead of Chromium's, which can't import
+# import dialog (chromium/lb/browser/ui/views/importer) instead of Chromium's, which can't import
 # Chrome-family browsers or Arc and puts bookmarks in an "Imported" folder. The page sends a
-# message; the handler runs the app menu's import command, which desktop/lb's command hook takes.
+# message; the handler runs the app menu's import command, which chromium/lb's command hook takes.
 --- a/chrome/browser/resources/settings/people_page/people_page.ts
 +++ b/chrome/browser/resources/settings/people_page/people_page.ts
 @@ -221,8 +221,14 @@
@@ -13,7 +13,7 @@
 -        Router.getInstance().getCurrentRoute() === routes.IMPORT_DATA;
 +    // Little Browser: the importData route (Settings' row, the app menu, the address
 +    // chrome://settings/importData) opens Little Browser's import dialog instead of Chromium's
-+    // (desktop/lb/browser/ui/views/importer).
++    // (chromium/lb/browser/ui/views/importer).
 +    this.showImportDataDialog_ = false;
 +    if (Router.getInstance().getCurrentRoute() === routes.IMPORT_DATA) {
 +      chrome.send('lbShowImportDialog');
@@ -43,7 +43,7 @@
        base::BindRepeating(&ImportDataHandler::HandleImportFromBookmarksFile,
                            base::Unretained(this)));
 +  // Little Browser: Settings' import row opens Little Browser's import dialog, through the app
-+  // menu's command (desktop/lb's command hook takes it).
++  // menu's command (chromium/lb's command hook takes it).
 +  web_ui()->RegisterMessageCallback(
 +      "lbShowImportDialog",
 +      base::BindRepeating(

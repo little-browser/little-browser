@@ -1,9 +1,22 @@
 # Desktop patches
 
-Our Chromium patches, applied by `scripts/fetch.sh` after ungoogled-chromium's core and platform
-patches, in the order `series` lists them. How to write one is in `../AGENTS.md` ("Changing
-Chromium code"); `ungoogled-exclude.txt`, `domsub-exclude.txt` and `prune-keep.txt` are explained
-in `../README.md`.
+Our Chromium patches for the desktop, applied by `scripts/fetch.sh` after ungoogled-chromium's core
+and platform patches and after the shared series, in the order `series` lists them. How to write
+one is in `../AGENTS.md` ("Changing Chromium code"); `ungoogled-exclude.txt`, `domsub-exclude.txt`
+and `prune-keep.txt` are explained in `../README.md`.
+
+## Shared and desktop patches
+
+The engine patches for a feature every Chromium platform has (the ad blocker, element hiding,
+tracking parameters, Safe Browsing's standard mode, our prefs) are in `../../chromium/patches`,
+with their own `series`, applied before this one. A shared patch holds engine code only: its view
+half (`<name>-ui.patch`) stays here, and its Java half goes in `android/patches`. Everything that
+only the desktop needs, engine code included (the tab strip, sessions, extensions, menus), is
+here. Desktop and Android both apply the shared series before their own. The two trees differ (desktop
+has ungoogled-chromium's patches, Android doesn't), so `check_patches.py` checks the shared series
+on the desktop tree, `android/scripts/fetch.sh --patches-only` on Android's. A shared patch that
+can't fit both is two entries in the shared series: the desktop's copy tagged `[desktop]` (every
+desktop platform) and its twin tagged `[android]`.
 
 ## Layers
 
@@ -18,7 +31,7 @@ Strings (`.grd`, `.grdp`) can go with either. A change that needs both layers is
 `<name>.patch` with the engine half and its reason, and `<name>-ui.patch` with the view half,
 listed right after it. Linux and Windows use the same Views code, but Android and any other shell
 don't: keeping the layers apart lets them take the engine half as it is. Our own UI lives in
-`../lb/`; view patches only hook it in.
+`../../chromium/lb/`; view patches only hook it in.
 
 ## Platform tags
 
@@ -32,10 +45,10 @@ platforms need too, the shared part is its own patch: `no-reopen-closed.patch` (
 
 ## Checks
 
-- `../scripts/check_series.py` (CI `patch-layers`, every push): every entry exists and every patch
+- `../../chromium/scripts/check_series.py` (CI `patch-layers`, every push): every entry exists and every patch
   is listed, tags name a platform in `../platforms/`, platform files are tagged, and no untagged
   patch mixes layers. It checks `android/patches` too, where Java and native code are the layers.
-- `../scripts/check_patches.py [--platform <name>]`: the platform's series applies to a clean
+- `../../chromium/scripts/check_patches.py [--platform <name>]`: the platform's series applies to a clean
   tree with no fuzz or offset. CI's `patch-check` runs `fetch.sh --patches-only` and then this,
   for every platform, on a Chromium bump or a patch change. It uses GNU `patch`, which is stricter
   than macOS's about uneven context: a hunk with more context lines on one side needs fuzz there.

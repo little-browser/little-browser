@@ -1,5 +1,8 @@
-# The view half of safe-browsing-standard-only.patch (Views and WebUI), which says why. One patch never mixes
-# engine and view code (desktop/patches/README.md).
+# The view half of safe-browsing-standard-only.patch (Views and WebUI), which says why: the Settings
+# page hides the Enhanced option and the extended-reporting toggle. security_page.ts also drops
+# passwordsLeakToggle from its element map: ungoogled-chromium removes the element, and the patch of
+# theirs that also removes this line is one we skip (desktop/patches/ungoogled-exclude.txt). One
+# patch never mixes engine and view code (desktop/patches/README.md).
 
 diff --git a/chrome/browser/resources/settings/privacy_page/security/security_page.html b/chrome/browser/resources/settings/privacy_page/security/security_page.html
 index e8bbd9e..d9240dc 100644

@@ -1,7 +1,7 @@
 # Little Browser: no third-party cookies "eye" icon in the address bar. With third-party cookies
 # blocked by default it shows on most sites, a standing badge (docs/ux.md section 1, "Calm"), and
 # its bubble repeats the switch in the site-info panel's "Cookies and site data", which also has
-# the ad blocker's Ads switch (patches/lb/ad-blocking-page-info.patch).
+# the ad blocker's Ads switch (lb/ad-blocking-page-info-ui.patch).
 --- a/chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_page_action_controller.cc
 +++ b/chrome/browser/ui/views/location_bar/cookie_controls/cookie_controls_page_action_controller.cc
 @@ -244,11 +244,9 @@

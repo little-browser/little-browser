@@ -1,5 +1,5 @@
 # Little Browser: a window's avatar, the toolbar's profile button and the profile menu's header,
-# is the emoji of the space the window shows (docs/ux.md §5; desktop/lb/browser/ui/views/profiles/
+# is the emoji of the space the window shows (docs/ux.md §5; chromium/lb/browser/ui/views/profiles/
 # space_avatar.h), so it matches the space highlighted in the sidebar's footer. Windows without a
 # space (private windows, pop-ups, apps) keep Chromium's avatar.
 --- a/chrome/browser/ui/views/profiles/avatar_toolbar_button.cc

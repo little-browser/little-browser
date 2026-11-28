@@ -14,8 +14,8 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=lib.sh
-source "$DESKTOP/scripts/lib.sh"
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$DESKTOP/../chromium/scripts/lib.sh"
 KIND=Default
 HOST="$(host_arch)"
 ARCH="$HOST"

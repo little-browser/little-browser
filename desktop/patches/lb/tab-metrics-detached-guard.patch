@@ -1,4 +1,4 @@
-# Little Browser: tabs of inactive spaces live detached from any window (desktop/lb sidebar);
+# Little Browser: tabs of inactive spaces live detached from any window (chromium/lb sidebar);
 # don't crash recording a metric for one.
 
 diff --git a/chrome/browser/ui/tabs/tab_creation_metrics_controller.cc b/chrome/browser/ui/tabs/tab_creation_metrics_controller.cc

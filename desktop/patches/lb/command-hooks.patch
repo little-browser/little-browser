@@ -1,6 +1,6 @@
 # Little Browser: Cmd+T / the new-tab button / Cmd+L open the command bar, and Cmd+W closes a
 # pinned tab without Chromium's "press again" toast —
-# in windows that show our sidebar (desktop/lb/browser/ui/views/sidebar/sidebar_controller.cc).
+# in windows that show our sidebar (chromium/lb/browser/ui/views/sidebar/sidebar_controller.cc).
 # Before Chromium looks a command up, our own commands (Cmd+Option+N, which its command table
 # doesn't list) and, while a Peek is open, the commands that would act on the page under it
 # (lb::HandleCommandFirst).

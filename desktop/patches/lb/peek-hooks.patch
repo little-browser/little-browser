@@ -1,5 +1,5 @@
 # Little Browser: Shift+click on a link opens it in Peek, a card over the page
-# (desktop/lb/browser/ui/views/peek), instead of a new window. Two hooks in the tabs' delegate:
+# (chromium/lb/browser/ui/views/peek), instead of a new window. Two hooks in the tabs' delegate:
 # links the page opens with OpenURLFromTab, and pages the renderer creates for target=_blank
 # links (AddNewContents). The context menu's "Open Link in New Window" still opens a window.
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc

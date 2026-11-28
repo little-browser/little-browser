@@ -7,7 +7,7 @@ symbol_level = 0
 blink_symbol_level = 0
 
 # Keep Safe Browsing. ungoogled sets 0 (disabled); 1 = full desktop mode. Standard protection
-# only — enforced by patches/lb/safe-browsing-standard-only.patch.
+# only — enforced by chromium/patches/safe-browsing-standard-only.patch.
 safe_browsing_mode = 1
 
 # Widevine support compiled in; the CDM itself is only downloaded on user consent (not built yet: see desktop/README.md).

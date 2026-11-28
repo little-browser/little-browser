@@ -9,7 +9,7 @@
 # widths and the resize area's rule are //lb:model's (lb/browser/tabs/sidebar_width.h).
 --- a/chrome/browser/ui/views/frame/BUILD.gn
 +++ b/chrome/browser/ui/views/frame/BUILD.gn
-@@ -3222,6 +3222,7 @@
+@@ -3216,6 +3216,7 @@
      "//base",
      "//build:buildflag_header_h",
      "//chrome/browser/ui:layout_constants",

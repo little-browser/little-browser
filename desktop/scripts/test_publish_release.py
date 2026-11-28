@@ -15,7 +15,7 @@ import unittest
 
 SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 PUBLISH = os.path.join(SCRIPTS, "publish-release.sh")
-with open(os.path.join(os.path.dirname(SCRIPTS), "VERSIONS")) as _f:
+with open(os.path.join(os.path.dirname(os.path.dirname(SCRIPTS)), "chromium", "VERSIONS")) as _f:
     CHROMIUM = re.search(r"^CHROMIUM_VERSION=(\S+)", _f.read(), re.M).group(1)
 HOST = "https://downloads.invalid"
 

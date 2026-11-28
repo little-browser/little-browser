@@ -3,10 +3,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# Look for an ungoogled-chromium release newer than desktop/VERSIONS.
+# Look for an ungoogled-chromium release newer than chromium/VERSIONS.
 #
 #   desktop/scripts/upstream.sh           print the newest usable release and whether it is newer
-#   desktop/scripts/upstream.sh --write   also rewrite desktop/VERSIONS to it
+#   desktop/scripts/upstream.sh --write   also rewrite chromium/VERSIONS to it
 #
 # Usable = an ungoogled-chromium tag "<chromium version>-<rev>" that also has a macOS platform tag
 # "<that tag>.<platform rev>". A newer platform revision alone also counts as an update.
@@ -14,8 +14,9 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSIONS="$DESKTOP/VERSIONS"
-# shellcheck source=../VERSIONS
+CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
+VERSIONS="$CHROMIUM/VERSIONS"
+# shellcheck source=../../chromium/VERSIONS
 source "$VERSIONS"
 
 UG_REPO=https://github.com/ungoogled-software/ungoogled-chromium

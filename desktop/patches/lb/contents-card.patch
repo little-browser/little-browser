@@ -1,5 +1,5 @@
 # Little Browser: with vertical tabs, the page is an inset card with rounded corners next to the
-# sidebar (desktop/lb/browser/ui/views/frame/contents_card.h).
+# sidebar (chromium/lb/browser/ui/views/frame/contents_card.h).
 
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc

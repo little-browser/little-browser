@@ -1,0 +1,9 @@
+# Where -Wunsafe-buffer-usage is reported in //lb's targets on builds without Chromium's
+# unsafe-buffers plugin (the desktop): in our code only, as the plugin does on Android with
+# //build/config/unsafe_buffers_paths.txt, and not in what the build generates from it (cxx's
+# headers). Clang's --warning-suppression-mappings format; the longest matching glob wins.
+[unsafe-buffer-usage]
+src:*
+src:*/lb/*=emit
+src:gen/lb/*
+src:*/gen/lb/*

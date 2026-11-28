@@ -1,5 +1,5 @@
 # Little Browser: Cmd+Option+N opens the command bar for a new little window
-# (IDC_NEW_LITTLE_WINDOW in desktop/lb/browser/ui/lb_command_ids.h, handled by
+# (IDC_NEW_LITTLE_WINDOW in chromium/lb/browser/ui/lb_command_ids.h, handled by
 # lb::HandleCommandFirst through command-hooks.patch). On macOS Chromium gives the shortcut to "New
 # Split Tab", which keeps its menu item without a shortcut.
 --- a/chrome/browser/global_keyboard_shortcuts_mac.mm

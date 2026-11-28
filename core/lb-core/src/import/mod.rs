@@ -22,6 +22,7 @@
 pub mod addresses;
 pub mod arc;
 pub mod bookmarks;
+pub mod bookmarks_html;
 pub mod cookies;
 pub mod extensions;
 pub mod history;

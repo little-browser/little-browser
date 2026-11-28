@@ -16,8 +16,8 @@
 #
 #   1. ungoogled-chromium and the platform's repo at the pinned tags
 #   2. Chromium source tarball for the pinned version (much smaller than a git checkout)
-#   3. prune binaries, apply ungoogled patches (minus ours to skip), platform patches, our patches
-#      (those tagged for another platform skipped)
+#   3. prune binaries, apply ungoogled patches (minus ours to skip), platform patches, our shared
+#      patches (chromium/patches), our desktop patches (those tagged for another platform skipped)
 #   4. domain substitution, EXCEPT paths that must keep real Google endpoints (Safe Browsing, Widevine)
 #   5. platform toolchains (this machine's, able to build every architecture the platform
 #      builds, whichever one <arch> names), branding, link our source tree
@@ -26,10 +26,11 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=../VERSIONS
-source "$DESKTOP/VERSIONS"
-# shellcheck source=lib.sh
-source "$DESKTOP/scripts/lib.sh"
+CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
+# shellcheck source=../../chromium/VERSIONS
+source "$CHROMIUM/VERSIONS"
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$CHROMIUM/scripts/lib.sh"
 UG="$DESKTOP/third_party/ungoogled-chromium"
 BUILD="$DESKTOP/build"
 SRC="$BUILD/src"
@@ -38,6 +39,7 @@ SRC="$BUILD/src"
 # via ungoogled's patches.py.
 apply_series() {
   local from="$1" name
+  [ -r "$from/series" ] || die "can't read the patch series $from/series"
   name="$(basename "$(dirname "$from")")-$(basename "$from")"
   rm -rf "$BUILD/patches-$name" && cp -R "$from" "$BUILD/patches-$name"
   series_for "$from/series" "$PLATFORM" |
@@ -94,9 +96,10 @@ log "Pruning (minus desktop/patches/prune-keep.txt)"
 grep -v -x -F -f <(clean_list "$DESKTOP/patches/prune-keep.txt") "$UG/pruning.list" > "$BUILD/pruning.list"
 python3 "$UG/utils/prune_binaries.py" "$SRC" "$BUILD/pruning.list"
 
-log "Patches: ungoogled-chromium core, $PLATFORM_LABEL platform, Little Browser"
+log "Patches: ungoogled-chromium core, $PLATFORM_LABEL platform, Little Browser shared and desktop"
 apply_series "$UG/patches"
 apply_series "$PU/patches"
+apply_series "$CHROMIUM/patches"
 apply_series "$DESKTOP/patches"
 if [ "$PATCHES_ONLY" = 1 ]; then log "Done: every patch applies ($PLATFORM_LABEL)."; exit 0; fi
 
@@ -125,14 +128,13 @@ log "$PLATFORM_LABEL toolchains"
 platform_toolchains
 
 log "Branding: product strings (translations re-keyed), icons, our source tree"
-cp "$DESKTOP/branding/BRANDING" "$SRC/chrome/app/theme/chromium/BRANDING"
-PRODUCT="$(sed -n 's/^PRODUCT_FULLNAME=//p' "$DESKTOP/branding/BRANDING")"
-COMPANY="$(sed -n 's/^COMPANY_FULLNAME=//p' "$DESKTOP/branding/BRANDING")"
-python3 "$DESKTOP/scripts/rebrand_strings.py" "$SRC" "$PRODUCT" "$COMPANY" \
+cp "$CHROMIUM/branding/BRANDING" "$SRC/chrome/app/theme/chromium/BRANDING"
+python3 "$CHROMIUM/scripts/rebrand_strings.py" "$SRC" \
+  "$(branding_value PRODUCT_FULLNAME)" "$(branding_value COMPANY_FULLNAME)" \
   chrome/app/chromium_strings.grd components/components_chromium_strings.grd
 "$DESKTOP/scripts/brand_assets.sh" "$SRC"
 platform_branding "$SRC"
-ln -sfn "$DESKTOP/lb" "$SRC/lb"
+ln -sfn "$CHROMIUM/lb" "$SRC/lb"
 ln -sfn "$DESKTOP/../core/lb-core" "$SRC/lb_core"
 
 log "Done. Source tree: $SRC ($(du -sh "$SRC" | cut -f1)). Next: desktop/scripts/build.sh"

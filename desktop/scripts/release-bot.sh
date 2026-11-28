@@ -6,7 +6,8 @@
 # CI release automation. Runs in GitLab CI as the project's bot.
 #
 #   desktop/scripts/release-bot.sh bump   new upstream release? push bump/<tag> and open a merge request
-#   desktop/scripts/release-bot.sh tag    tag the release for the Chromium version in VERSIONS
+#   desktop/scripts/release-bot.sh tag    tag the release for the Chromium version in VERSIONS, when
+#                                         its pins differ from the previous commit's
 #
 # Needs LB_BOT_TOKEN: a project access token (role Maintainer, scope write_repository). Pushes made
 # with CI_JOB_TOKEN can't be used: GitLab doesn't let it push, and its pushes start no pipelines.
@@ -14,6 +15,9 @@
 set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHROMIUM="$(cd "$DESKTOP/../chromium" && pwd)"
+# shellcheck source=../../chromium/scripts/lib.sh
+source "$CHROMIUM/scripts/lib.sh"
 
 : "${CI_SERVER_HOST:?run in GitLab CI}" "${CI_PROJECT_PATH:?}" "${CI_DEFAULT_BRANCH:?}"
 [ "${LB_DRY_RUN:-0}" = 1 ] || : "${LB_BOT_TOKEN:?set the LB_BOT_TOKEN CI/CD variable}"
@@ -28,9 +32,9 @@ push() {
 
 bump() {
   "$DESKTOP/scripts/upstream.sh" --write
-  if git diff --quiet -- "$DESKTOP/VERSIONS"; then return 0; fi
-  # shellcheck source=../VERSIONS
-  source "$DESKTOP/VERSIONS"
+  if git diff --quiet -- "$CHROMIUM/VERSIONS"; then return 0; fi
+  # shellcheck source=../../chromium/VERSIONS
+  source "$CHROMIUM/VERSIONS"
   local branch="bump/$UNGOOGLED_MACOS_TAG"
   # The branch exists while its merge request is open; once merged, VERSIONS on main is current.
   if git ls-remote --exit-code --heads "$REMOTE" "refs/heads/$branch" >/dev/null 2>&1; then
@@ -38,7 +42,7 @@ bump() {
     return 0
   fi
   git commit -s -q -m "desktop: Chromium $CHROMIUM_VERSION (ungoogled-chromium $UNGOOGLED_MACOS_TAG)" \
-    -m "Opened by the upstream-watch job. Merging it tags the release." -- "$DESKTOP/VERSIONS"
+    -m "Opened by the upstream-watch job. Merging it tags the release." -- "$CHROMIUM/VERSIONS"
   push "HEAD:refs/heads/$branch" \
     -o merge_request.create \
     -o "merge_request.target=$CI_DEFAULT_BRANCH" \
@@ -47,10 +51,26 @@ bump() {
     -o merge_request.remove_source_branch
 }
 
+# pins_changed <commit>: whether VERSIONS' pins differ from those at <commit> (fetched; the job
+# clones one commit deep). A comment, or the file moving, changes no pins. A commit without the
+# file counts as changed.
+pins_changed() {
+  local before="$1" old
+  git fetch -q --depth=1 origin "$before" || die "can't fetch the previous commit $before"
+  old="$(git show "$before:chromium/VERSIONS" 2>/dev/null ||
+    git show "$before:desktop/VERSIONS" 2>/dev/null || true)"
+  [ -n "$old" ] || return 0
+  [ "$(version_pins <(printf '%s\n' "$old"))" != "$(version_pins "$CHROMIUM/VERSIONS")" ]
+}
+
 # v<CHROMIUM_VERSION>-<revision>: -1 for a new Chromium version, else the next free revision.
 tag() {
-  # shellcheck source=../VERSIONS
-  source "$DESKTOP/VERSIONS"
+  # shellcheck source=../../chromium/VERSIONS
+  source "$CHROMIUM/VERSIONS"
+  if [ -n "${CI_COMMIT_BEFORE_SHA:-}" ] && ! pins_changed "$CI_COMMIT_BEFORE_SHA"; then
+    echo "VERSIONS' pins are as at $CI_COMMIT_BEFORE_SHA; no release"
+    return 0
+  fi
   local last next
   last="$(git ls-remote --tags --refs "$REMOTE" 2>/dev/null | sed 's#.*refs/tags/##' |
     grep -E "^v${CHROMIUM_VERSION//./\\.}-[0-9]+$" | sed 's/.*-//' | sort -n | tail -1 || true)"

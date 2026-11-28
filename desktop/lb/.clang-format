@@ -1,3 +1,0 @@
-# Chromium style, 100 columns (desktop/lb/AGENTS.md).
-BasedOnStyle: Chromium
-ColumnLimit: 100

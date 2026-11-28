@@ -65,9 +65,10 @@ Every line we change in Chromium must be rebased every 4 weeks, forever. In orde
 2. Turn it off with a **default pref / feature flag**.
 3. **Hide** it in the UI.
 4. Only then **patch** Chromium code — keep patches small, one concern per patch, listed in
-   `desktop/patches/series` with a one-line reason.
+   `desktop/patches/series` (or, for engine code every Chromium platform needs,
+   `chromium/patches/series`) with a one-line reason.
 
-Our own features live in `desktop/lb/` and hook into Chromium through thin patches.
+Our own features live in `chromium/lb/` and hook into Chromium through thin patches.
 
 ## Scope
 
