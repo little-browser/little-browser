@@ -28,6 +28,14 @@ def release(version, build, security=False, update=True, platform="macos", arch=
             "security": security, "files": [f]}
 
 
+def both(version, build, security=False, archs=("arm64", "x64")):
+    """A release with a file for each architecture in archs."""
+    r = release(version, build, security=security, arch=archs[0])
+    for arch in archs[1:]:
+        r["files"] += release(version, build, arch=arch)["files"]
+    return r
+
+
 def items(releases, platform="macos", arch="arm64"):
     root = ET.fromstring(update_feed.appcast({"releases": releases}, platform, arch))
     return root.findall("./channel/item")
@@ -85,6 +93,64 @@ class AppcastTest(unittest.TestCase):
         self.assertEqual(enclosure.get(SP + "edSignature"), 'a"<&')
 
 
+class ArchitecturesTest(unittest.TestCase):
+    # -5 is out for Apple silicon only; Intel is still on -4.
+    STAGGERED = [both("157.0.8103.78-5", "8103.78.5", archs=("arm64",)),
+                 both("157.0.8103.78-4", "8103.78.4")]
+
+    def test_each_architecture_gets_its_own_newest_release(self):
+        arm = items(self.STAGGERED, arch="arm64")[0]
+        intel = items(self.STAGGERED, arch="x64")[0]
+        self.assertEqual(arm.findtext(SP + "version"), "8103.78.5")
+        self.assertEqual(intel.findtext(SP + "version"), "8103.78.4")
+        self.assertEqual(intel.find("enclosure").get("url"), HOST + "updates/157.0.8103.78-4/"
+                         "LittleBrowser-157.0.8103.78-4-macos-x64.dmg")
+
+    def test_only_the_apple_silicon_feed_requires_arm64(self):
+        self.assertEqual(items(self.STAGGERED, arch="arm64")[0].findtext(SP + "hardwareRequirements"),
+                         "arm64")
+        self.assertIsNone(items(self.STAGGERED, arch="x64")[0].find(SP + "hardwareRequirements"))
+
+    def test_security_release_published_for_another_architecture_only_still_counts(self):
+        # Intel skipped -3, a security release; -4 has its fixes, so Intel's update is critical
+        # for every version before -3.
+        item = items([both("157.0.8103.90-4", "8103.90.4"),
+                      both("157.0.8103.90-3", "8103.90.3", security=True, archs=("arm64",)),
+                      both("157.0.8103.78-1", "8103.78.1")], arch="x64")[0]
+        self.assertEqual(item.findtext(SP + "version"), "8103.90.4")
+        self.assertEqual(item.find(SP + "criticalUpdate").get(SP + "version"), "8103.90.3")
+
+    def test_security_release_newer_than_the_offered_one_does_not_count(self):
+        # Intel's -6 isn't out yet: its feed still offers -5, which isn't a security release.
+        item = items([both("158.0.8200.1-6", "8200.1.6", security=True, archs=("arm64",)),
+                      both("157.0.8103.78-5", "8103.78.5")], arch="x64")[0]
+        self.assertEqual(item.findtext(SP + "version"), "8103.78.5")
+        self.assertIsNone(item.find(SP + "criticalUpdate"))
+
+
+class OrderTest(unittest.TestCase):
+    def test_releases_are_taken_in_version_order_whatever_the_list_order(self):
+        # Intel's -5 published after Apple silicon's -6 (a security release) was listed above it.
+        listed = [both("157.0.8103.78-5", "8103.78.5", archs=("x64",)),
+                  both("157.0.8103.78-6", "8103.78.6", security=True),
+                  both("157.0.8103.78-4", "8103.78.4")]
+        intel = items(listed, arch="x64")[0]
+        self.assertEqual(intel.findtext(SP + "version"), "8103.78.6")
+        arm = items(listed, arch="arm64")[0]
+        self.assertEqual(arm.findtext(SP + "version"), "8103.78.6")
+
+    def test_an_older_release_isnt_critical_for_a_newer_security_release(self):
+        listed = [both("157.0.8103.78-5", "8103.78.5", archs=("x64",)),
+                  both("157.0.8103.78-6", "8103.78.6", security=True, archs=("arm64",))]
+        intel = items(listed, arch="x64")[0]
+        self.assertEqual(intel.findtext(SP + "version"), "8103.78.5")
+        self.assertIsNone(intel.find(SP + "criticalUpdate"))
+
+    def test_ten_comes_after_nine(self):
+        listed = [both("157.0.8103.78-9", "8103.78.9"), both("157.0.8103.78-10", "8103.78.10")]
+        self.assertEqual(items(listed)[0].findtext(SP + "version"), "8103.78.10")
+
+
 class MainTest(unittest.TestCase):
     def test_reads_releases_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -98,6 +164,12 @@ class MainTest(unittest.TestCase):
     def test_wrong_arguments(self):
         with self.assertRaises(SystemExit):
             update_feed.main(["only-one"])
+
+    def test_architecture_uses_the_published_names(self):
+        # x64, not uname's x86_64: the feed's name and releases.json use the same word.
+        for arch in ("x86_64", "aarch64", ""):
+            with self.assertRaises(SystemExit):
+                update_feed.main(["releases.json", "macos", arch])
 
 
 if __name__ == "__main__":

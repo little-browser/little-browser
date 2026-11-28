@@ -83,7 +83,6 @@
   "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">Todas as versões</a>",
   "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>Esta é uma versão beta.</b> Espere alguns bugs, recursos ausentes e mudanças entre as versões, e mantenha outro navegador por perto por enquanto. As versões são assinadas com um Apple Developer ID e notarizadas pela Apple, então o macOS as abre como qualquer outro app. Depois de instalado, o navegador procura novas versões sozinho e pergunta antes de atualizar.",
   "macOS": "macOS",
-  "Chromium · Apple silicon": "Chromium · Apple silicon",
   "Beta": "Beta",
   "Windows": "Windows",
   "Chromium": "Chromium",
@@ -533,13 +532,13 @@
   "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "Os recursos chegam primeiro ao Mac e alcançam as outras plataformas conforme são construídos, então uma versão lista as mudanças de cada plataforma que tem uma. Para instalar uma versão ou conferir o SHA-256, vá para <a href=\"/downloads\">Baixar</a>. O navegador também oferece novas versões sozinho: veja as <a href=\"/features/updates\">atualizações automáticas</a>.",
   "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "Ative o JavaScript para ler as notas aqui, ou leia a lista bruta em <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.",
   "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "O que mudou em cada versão do Little Browser: novos recursos, correções e atualizações de segurança do Chromium, das mais novas às mais antigas, com link de download e checksum de cada versão.",
-  "Language": "Idioma"
+  "Language": "Idioma",
+  "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "Cada build é publicado separadamente, então uma nova versão pode chegar a uma plataforma ou chip algumas horas antes de outra."
  },
  "js": {
   "iPhone and iPad": "iPhone e iPad",
   "Copy SHA-256": "Copiar SHA-256",
   "Copied": "Copiado",
-  "{0} · download below": "{0} · download abaixo",
   "latest": "mais recente",
   "What's new": "Novidades",
   "Version {0}": "Versão {0}",
@@ -547,11 +546,13 @@
   "No changes you would notice in this release.": "Nenhuma mudança perceptível nesta versão.",
   "Download for {0}": "Baixar para {0}",
   "The first build is on its way.": "A primeira versão está a caminho.",
-  "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Este Mac tem um chip Intel; por enquanto, o Little Browser precisa de Apple silicon (M1 ou posterior).",
-  "Not available for {0} yet; the beta is macOS only.": "Ainda não disponível para {0}; o beta é só para macOS.",
   "{0} download": "{0} download",
   "{0} downloads": "{0} downloads",
   "{0} update": "{0} atualização",
-  "{0} updates": "{0} atualizações"
+  "{0} updates": "{0} atualizações",
+  "Apple silicon": "Apple silicon",
+  "Not available for {0} yet.": "Ainda não disponível para {0}.",
+  "Download": "Baixar",
+  "Version {0} isn't out for {1} yet.": "A versão {0} ainda não saiu para {1}."
  }
 }

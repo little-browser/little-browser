@@ -103,7 +103,9 @@
   //   { "releases": [ { "version": "157.0.8103.78-1", "date": "2026-11-20", "channel": "beta",
   //       "chromium": "157.0.8103.78", "notes": [ "Peek opens faster." ], "files": [ { "platform": "macos", "arch": "arm64",
   //       "url": "https://downloads.littlebrowser.app/...dmg", "size": 123, "sha256": "..." } ] } ] }
-  // Newest first. Next to it, stats.json (desktop/scripts/download_stats.py) counts each file's
+  // A file may also have a "format" (a platform with several kinds of file). Each platform's builds
+  // are published on their own, so a release can lack one for a while; downloads.js works out each
+  // build's current file and which one to offer. Next to it, stats.json (desktop/scripts/download_stats.py) counts each file's
   // completed downloads and the browser's updates to it, keyed by the file's path:
   //   { "counted_through": "2026-11-20", "downloads": { "<version>/<file>": 12 }, "updates": { ... } }
   // Nothing here is sent anywhere: the system is guessed locally from the browser.
@@ -111,14 +113,21 @@
   const meta = document.querySelector('[data-dl-meta]');
   const list = document.querySelector('[data-releases-list]');
   const notesList = document.querySelector('[data-release-notes]');
-  if (primary || list || notesList) {
+  // downloads.js works it out. Without it (a page cached from before it existed, or blocked) the
+  // page keeps its static links to the list of releases.
+  const D = window.LBDownloads;
+  if ((primary || list || notesList) && D) {
     const RELEASES = 'https://downloads.littlebrowser.app/releases.json';
     const STATS = 'https://downloads.littlebrowser.app/stats.json';
     const DOWNLOAD_ORIGIN = 'https://downloads.littlebrowser.app';
     const PLATFORMS = {
       macos: 'macOS', windows: 'Windows', linux: 'Linux', ios: t('iPhone and iPad'), android: 'Android',
     };
-    const ARCHES = { arm64: 'Apple silicon', x64: 'Intel' };
+    // Chip names as people on each platform know them.
+    const ARCHES = { macos: { arm64: t('Apple silicon'), x64: 'Intel' }, other: { arm64: 'ARM64', x64: 'x64' } };
+    // The chip to offer when the browser doesn't say: Safari and Firefox on a Mac don't, and most
+    // Macs sold since 2021 are Apple silicon.
+    const USUAL_ARCH = { macos: 'arm64', windows: 'x64', linux: 'x64', android: 'arm64' };
     // Store pages for the platforms that ship through a store. An entry here takes over the
     // button on that platform; none is listed yet.
     const STORES = {
@@ -126,7 +135,8 @@
       // android: { url: 'https://play.google.com/store/apps/details?id=...', label: 'Get it on Google Play' },
     };
 
-    // Best guess at the OS (and on a Mac, the chip). iPadOS reports itself as a Mac with touch.
+    // Best guess at the OS and, on a computer, the chip (downloads.js' archFromBrowser). iPadOS
+    // reports itself as a Mac with touch.
     const detect = async () => {
       const ua = navigator.userAgent;
       const uad = navigator.userAgentData;
@@ -137,14 +147,11 @@
       else if (/Mac/i.test(p)) os = 'macos';
       else if (/Win/i.test(p)) os = 'windows';
       else if (/Linux|X11|CrOS/i.test(p)) os = 'linux';
-      let arch = null; // Safari and Firefox don't say; most Macs sold since 2021 are Apple silicon
-      if (os === 'macos' && uad && uad.getHighEntropyValues) {
-        try {
-          const v = await uad.getHighEntropyValues(['architecture']);
-          arch = v.architecture === 'arm' ? 'arm64' : v.architecture === 'x86' ? 'x64' : null;
-        } catch {}
+      let hints = null;
+      if (['macos', 'windows', 'linux'].includes(os) && uad && uad.getHighEntropyValues) {
+        try { hints = await uad.getHighEntropyValues(['architecture', 'bitness']); } catch {}
       }
-      return { os, arch };
+      return { os, arch: D.archFromBrowser(os, hints, Boolean(uad), ua) };
     };
 
     // Only ever link to our own download host (local previews may point at a file next to the page).
@@ -156,7 +163,11 @@
       } catch { return null; }
     };
     const size = (b) => (b > 0 ? `${Math.round(b / 1048576)} MB` : '');
-    const label = (f) => `${PLATFORMS[f.platform] || f.platform}${ARCHES[f.arch] ? ` (${ARCHES[f.arch]})` : ''}`;
+    const archName = (f) => (f.arch ? (ARCHES[f.platform] || ARCHES.other)[f.arch] || f.arch : '');
+    // "Apple silicon", "x64, .deb": what tells a platform's builds apart.
+    const buildName = (f) => [archName(f), f.format].filter(Boolean).join(', ');
+    // "macOS (Apple silicon)": a build, or just the platform.
+    const label = (f) => `${PLATFORMS[f.platform] || f.platform}${buildName(f) ? ` (${buildName(f)})` : ''}`;
     const el = (tag, props = {}, ...kids) => {
       const n = Object.assign(document.createElement(tag), props);
       for (const k of kids) n.append(k);
@@ -239,20 +250,32 @@
 
     const releaseId = (r) => `v${r.version}`;
 
+    // A dim line for each build a release doesn't have yet.
+    const missing = (builds, r) => D.missingBuilds(builds, r).map((b) =>
+      el('div', { className: 'missing dim' }, t('Not available for {0} yet.', label(b.file))));
+
     (async () => {
       const [{ os, arch }, releases, stats] = await Promise.all([
         detect(), load(), list ? fetchJson(STATS, 'stats') : null,
       ]);
-      const rows = releases.filter((r) => r && r.version && Array.isArray(r.files) && r.files.length);
+      const rows = D.releaseRows(releases, (f) => safeUrl(f.url));
+      const builds = D.currentBuilds(rows);
 
-      // Platform cards: which ones have a build or a store page, and which one is yours.
+      // Platform cards: each build's current version, with its download, and which card is yours.
       for (const card of document.querySelectorAll('[data-platform]')) {
         const id = card.dataset.platform;
         const status = card.querySelector('[data-platform-status]');
+        const mine = D.platformBuilds(builds, id, USUAL_ARCH[id]);
         if (STORES[id]) status.replaceChildren(el('a', { href: STORES[id].url }, STORES[id].label));
-        else {
-          const newest = rows.find((r) => r.files.some((f) => f.platform === id));
-          if (newest) status.textContent = t('{0} · download below', channel(newest));
+        else if (mine.length) {
+          status.textContent = channel(mine[0].release);
+          const ul = el('ul', { className: 'builds' });
+          for (const b of mine) {
+            const a = el('a', { href: safeUrl(b.file.url), title: t('Download for {0}', label(b.file)) },
+              buildName(b.file) || t('Download'));
+            ul.append(el('li', {}, a, ' ', el('span', { className: 'dim' }, b.release.version)));
+          }
+          card.insertBefore(ul, status);
         }
         if (id === os) card.classList.add('yours');
       }
@@ -265,9 +288,7 @@
         rows.forEach((r, i) => {
           const files = el('td');
           for (const f of r.files) {
-            const href = safeUrl(f.url);
-            if (!href) continue;
-            const a = el('a', { href, className: 'file' }, label(f));
+            const a = el('a', { href: safeUrl(f.url), className: 'file' }, label(f));
             if (f.size) a.append(el('span', { className: 'dim' }, ` · ${size(f.size)}`));
             const item = el('div', {}, a);
             const counted = counts(stats, f);
@@ -275,6 +296,7 @@
             if (f.sha256) item.append(shaRow(String(f.sha256)));
             files.append(item);
           }
+          files.append(...missing(builds, r));
           const version = el('td', {}, el('b', {}, r.version));
           if (r.channel) version.append(el('span', { className: 'tag' }, r.channel));
           if (i === 0) version.append(el('span', { className: 'tag latest' }, t('latest')));
@@ -297,12 +319,10 @@
             ? el('ul', {}, ...notes.map((n) => el('li', {}, n)))
             : el('p', { className: 'none' }, t('No changes you would notice in this release.'));
           const get = el('div', { className: 'get' });
-          for (const f of r.files || []) {
-            const href = safeUrl(f.url);
-            if (href) get.append(el('a', { href }, t('Download for {0}', label(f))));
-          }
-          const art = el('article', { className: 'release', id: releaseId(r) }, h, el('div', { className: 'when' }, when), body);
-          if (get.children.length) art.append(get);
+          for (const f of r.files) get.append(el('a', { href: safeUrl(f.url) }, t('Download for {0}', label(f))));
+          const art = el('article', { className: 'release', id: releaseId(r) }, h, el('div', { className: 'when' }, when), body, get);
+          const later = missing(builds, r);
+          if (later.length) art.append(el('div', { className: 'later' }, ...later));
           notesList.append(art);
         });
         if (location.hash) {
@@ -311,8 +331,9 @@
         }
       }
 
-      // The button: this system's store page, or its newest build. Otherwise it goes to the full
-      // list, the link under it says why, and the link itself is dropped as it would repeat the button.
+      // The button: this system's store page, or the current file of its build, which can be in
+      // an older release than the newest. Otherwise it goes to the full list, the link under it
+      // says why, and the link itself is dropped as it would repeat the button.
       if (!primary || !meta) return;
       const all = meta.querySelector('a');
       const toAll = (why) => {
@@ -321,22 +342,25 @@
         if (why) meta.replaceChildren(why);
         else meta.hidden = true;
       };
-      const latest = rows[0];
-      const forMe = latest && latest.files.find((f) => f.platform === os && (!arch || !f.arch || f.arch === arch));
-      const href = forMe && safeUrl(forMe.url);
+      const o = D.offer(rows, builds, os, arch, USUAL_ARCH[os]);
       if (STORES[os]) {
         primary.href = STORES[os].url;
         primary.textContent = STORES[os].label;
-      } else if (href) {
-        primary.href = href;
+      } else if (o.build) {
+        const f = o.build.file;
+        const r = o.build.release;
+        primary.href = safeUrl(f.url);
         primary.textContent = t('Download for {0}', PLATFORMS[os]);
-        meta.replaceChildren(`${channel(latest)} ${latest.version} · ${label(forMe)}${forMe.size ? ` · ${size(forMe.size)}` : ''} · `, all);
-      } else if (!latest) {
+        // The chip was a guess: the other chips' builds, one click away.
+        const alt = o.others.flatMap((b) => [el('a', { href: safeUrl(b.file.url) }, t('Download for {0}', label(b.file))), ' · ']);
+        meta.replaceChildren(`${channel(r)} ${r.version} · ${label(f)}${f.size ? ` · ${size(f.size)}` : ''} · `, ...alt, all);
+        if (o.newer) meta.append(el('br'), t("Version {0} isn't out for {1} yet.", o.newer.version, label(f)));
+      } else if (o.why === 'first') {
         toAll(t('The first build is on its way.'));
-      } else if (os === 'macos' && arch === 'x64') {
-        toAll(t('This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.'));
-      } else if (os && os !== 'macos') {
-        toAll(t('Not available for {0} yet; the beta is macOS only.', PLATFORMS[os]));
+      } else if (o.why === 'chip') {
+        toAll(t('Not available for {0} yet.', label({ platform: os, arch })));
+      } else if (o.why === 'platform') {
+        toAll(t('Not available for {0} yet.', PLATFORMS[os]));
       } else {
         toAll();
       }

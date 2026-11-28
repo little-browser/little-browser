@@ -30,6 +30,11 @@ step, no cookies, no analytics.
   "link preview", "import from Arc"), unique per page, and the page's one `<h1>` matches its title.
 - Pages state what is true now and what is built; a feature that isn't built yet is listed as
   *Planned* in the table, not described in the text.
+- **Builds arrive one at a time.** Each platform's and chip's build of a release is published on
+  its own, hours or days apart. `downloads.js` (no page access; tested by
+  `desktop/scripts/test_site_downloads.js`) works out each build's newest file, which may be in an
+  older release than the newest: the download button and the platform cards offer that, and a
+  release still waiting for a build says so. `site.js` draws the result.
 - The release notes are the `Release-note:` lines of the commits (`desktop/scripts/release_notes.py`),
   published in `releases.json`. `/releases` and `/downloads` read the same file in the browser.
 

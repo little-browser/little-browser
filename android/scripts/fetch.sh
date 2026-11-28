@@ -6,7 +6,7 @@
 # Fetch and prepare the Chromium source tree for the Android build: Chromium's own Android app with
 # our privacy patches (android/patches/series).
 #
-#   android/scripts/fetch.sh                 Linux x86_64, the only host Chromium builds Android on
+#   android/scripts/fetch.sh                 Linux x64, the only host Chromium builds Android on
 #   android/scripts/fetch.sh --patches-only  any OS: check that every patch still applies, on a
 #                                            sparse checkout of just the files they touch
 #
@@ -55,7 +55,7 @@ if [ "${1:-}" = --patches-only ]; then
 fi
 
 [ "$(uname -s)-$(uname -m)" = Linux-x86_64 ] ||
-  die "Chromium builds Android only on Linux x86_64 (see android/README.md)"
+  die "Chromium builds Android only on Linux x64 (see android/README.md)"
 [ -e "$SRC" ] && die "$SRC already exists. Delete $BUILD to prepare it again."
 
 log "depot_tools"

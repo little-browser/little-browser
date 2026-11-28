@@ -5,7 +5,7 @@
 #
 # Configure and build the Android APK from the tree prepared by fetch.sh.
 #
-#   android/scripts/build.sh [arm64|x64]   (default arm64; x64 for x86_64 emulators)
+#   android/scripts/build.sh [arm64|x64]   (default arm64; x64 for x64 emulators)
 #
 # Output: android/build/src/out/<cpu>/apks/ChromePublic.apk, signed with Chromium's public debug
 # key. GN args: android/args/android.gn.

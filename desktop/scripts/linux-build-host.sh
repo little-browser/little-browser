@@ -4,7 +4,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
 # Prepare a fresh ubuntu:24.04 CI container for a Chromium build on the Linux build runners
-# (x86_64: lb-linux-build, lb-linux-release; arm64 on Graviton: lb-linux-arm64-build,
+# (x64: lb-linux-build, lb-linux-release; arm64 on Graviton: lb-linux-arm64-build,
 # lb-linux-arm64-release): the tools the fetch scripts need, and sccache. Every Linux-hosted
 # Chromium job (Android now, Linux desktop later) runs this first, as root.
 #

@@ -83,7 +83,6 @@
   "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">すべてのリリース</a>",
   "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>これはベータ版です。</b>不具合、未実装の機能、ビルド間の変更があるものとお考えいただき、当面は他のブラウザも残しておいてください。ビルドは Apple Developer ID で署名され、Apple による公証も受けているため、macOS では他のアプリと同じように開けます。インストール後は、ブラウザが自分で新しいビルドを確認し、更新前に確認を求めます。",
   "macOS": "macOS",
-  "Chromium · Apple silicon": "Chromium · Apple シリコン",
   "Beta": "ベータ",
   "Windows": "Windows",
   "Chromium": "Chromium",
@@ -533,13 +532,13 @@
   "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "機能はまず Mac に登場し、ほかのプラットフォームは開発が進み次第追いつくため、各リリースには、そのリリースがあるすべてのプラットフォームの変更内容が載ります。ビルドのインストールや SHA-256 の確認は<a href=\"/downloads\">ダウンロード</a>のページへ。ブラウザ自体も新しいリリースを案内します。<a href=\"/features/updates\">自動アップデート</a>をご覧ください。",
   "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "ここでリリースノートを読むには JavaScript を有効にしてください。または、<a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a> で一覧をそのままご覧いただけます。",
   "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Little Browser の全リリースの変更内容：新機能、修正、Chromium のセキュリティアップデートを新しい順に掲載し、各ビルドのダウンロードリンクとチェックサムも載せています。",
-  "Language": "言語"
+  "Language": "言語",
+  "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "ビルドはそれぞれ別に公開されるため、新しいバージョンがあるプラットフォームやチップに、ほかより数時間早く届くことがあります。"
  },
  "js": {
   "iPhone and iPad": "iPhone と iPad",
   "Copy SHA-256": "SHA-256 をコピー",
   "Copied": "コピーしました",
-  "{0} · download below": "{0} · 下からダウンロード",
   "latest": "最新",
   "What's new": "新機能",
   "Version {0}": "バージョン {0}",
@@ -547,11 +546,13 @@
   "No changes you would notice in this release.": "このリリースには、気づくような変更はありません。",
   "Download for {0}": "{0} 版をダウンロード",
   "The first build is on its way.": "最初のビルドを準備中です。",
-  "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "この Mac は Intel チップ搭載です。Little Browser は現時点では Apple シリコン（M1 以降）が必要です。",
-  "Not available for {0} yet; the beta is macOS only.": "{0} 版はまだ提供されていません。ベータ版は macOS のみです。",
   "{0} download": "ダウンロード数 {0}",
   "{0} downloads": "ダウンロード数 {0}",
   "{0} update": "アップデート {0} 件",
-  "{0} updates": "アップデート {0} 件"
+  "{0} updates": "アップデート {0} 件",
+  "Apple silicon": "Apple シリコン",
+  "Not available for {0} yet.": "{0} 版はまだ提供されていません。",
+  "Download": "ダウンロード",
+  "Version {0} isn't out for {1} yet.": "バージョン {0} の {1} 版はまだ公開されていません。"
  }
 }

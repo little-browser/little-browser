@@ -9,7 +9,7 @@
 
 PLATFORM_LABEL="macOS"
 PLATFORM_HOST="Darwin"
-PLATFORM_ARCHS="arm64 x86_64"
+PLATFORM_ARCHS="arm64 x64"
 PLATFORM_REPO="ungoogled-chromium-macos"
 PLATFORM_REPO_URL="https://github.com/ungoogled-software/ungoogled-chromium-macos"
 PLATFORM_TAG="$UNGOOGLED_MACOS_TAG"
@@ -18,18 +18,54 @@ PLATFORM_GN="out/Default/gn"   # bootstrapped by platform_prebuild
 PLATFORM_NINJA="ninja"         # Homebrew's
 PLATFORM_TARGETS="chrome"
 
-# The Chromium source tarball, unpacked into $SRC.
-platform_fetch_source() {
-  # The macOS repo's helper scripts expect ./ungoogled-chromium (a submodule) and ./build next to
-  # them. Point both at ours so there is a single source tree: desktop/build/src.
+# The macOS repo's helper scripts expect ./ungoogled-chromium (a submodule) and ./build next to
+# them, and work in build/src. Point both at ours so there is a single source tree:
+# desktop/build/src. Before each use of its scripts, so they never work in a tree of their own.
+mac_link_repo() {
   rm -rf "$PU/ungoogled-chromium" && ln -s ../ungoogled-chromium "$PU/ungoogled-chromium"
   if [ ! -L "$PU/build" ]; then rm -rf "$PU/build" && ln -s ../../build "$PU/build"; fi
-  python3 "$PU/retrieve_and_unpack_resource.py" --download --generic "$1"
 }
 
-# LLVM, Rust, Node.js and Crubit, prebuilt by the macOS repo.
+# The Chromium source tarball, unpacked into $SRC.
+platform_fetch_source() {
+  mac_link_repo
+  python3 "$PU/retrieve_and_unpack_resource.py" --download --generic "$(mac_arch "$1")"
+}
+
+# The machine python3 runs as, as the macOS repo's script sees it.
+mac_python_machine() {
+  python3 -c 'import platform; print(platform.machine())'
+}
+
+# mac_arch <arch>: the macOS repo's name for an architecture, which calls x64 x86_64.
+mac_arch() {
+  case "$1" in
+    arm64) echo arm64 ;;
+    x64) echo x86_64 ;;
+    *) die "an architecture is arm64 or x64, not $1" ;;
+  esac
+}
+
+# LLVM, Rust, Node.js and Crubit, prebuilt by the macOS repo, for this Mac, and the Rust standard
+# library of the other architecture, so the tree builds both (build.sh <arch>). Given a target
+# that isn't the host, the macOS repo's script installs the host's toolchain plus that target's
+# standard library; the host's own comes with its Rust. That script tells the host by Python's
+# platform.machine(): a python3 built only for Intel, on Apple silicon, would pick Intel
+# toolchains, so it has to agree with this shell.
 platform_toolchains() {
-  python3 "$PU/retrieve_and_unpack_resource.py" --platform-specific "$1"
+  local host native="" other="" a py
+  host="$(host_arch)"
+  py="$(arch_from_machine "$(mac_python_machine)")"
+  [ "$py" = "$host" ] ||
+    die "python3 ($(command -v python3)) runs as $py on this $host Mac; use a native python3 first on PATH"
+  for a in $PLATFORM_ARCHS; do
+    if [ "$a" = "$host" ]; then native="$a"; else other="$a"; fi
+  done
+  mac_link_repo
+  python3 "$PU/retrieve_and_unpack_resource.py" --platform-specific "$(mac_arch "${other:-$native}")"
+  # Its unpacker leaves the rest of the other architecture's Rust package (compiler, cargo, about
+  # 600 MB) beside that standard library; nothing reads it.
+  rm -rf "${SRC:?}"/third_party/rust-toolchain/rustc/lib/rustlib/rust-nightly-*
 }
 
 # The icons only macOS uses, after the shared ones (desktop/scripts/brand_assets.sh): the 22 px
@@ -106,9 +142,18 @@ platform_prebuild() {
   rm -rf third_party/devtools-frontend/src/node_modules/esbuild
   ln -s "$esbuild_module" third_party/devtools-frontend/src/node_modules/esbuild
 
-  [ -x out/Default/gn ] || ./tools/gn/bootstrap/bootstrap.py -o out/Default/gn --skip-generate-buildfiles
+  mac_bootstrap_gn
   [ -x third_party/rust-toolchain/bin/bindgen ] || ./tools/rust/build_bindgen.py --skip-test
   [ -x third_party/rust-toolchain/crubit/bin/cc_bindings_from_rs ] || "$PU/build_crubit.sh"
+}
+
+# gn, built once into $PLATFORM_GN (out/Default/gn) for every build of the tree. Its bootstrap
+# copies the binary there without making the folder, which a tree that has only built another
+# architecture (out/Default-x64) doesn't have yet. Run in $SRC.
+mac_bootstrap_gn() {
+  [ -x "$PLATFORM_GN" ] && return
+  mkdir -p "$(dirname "$PLATFORM_GN")"
+  ./tools/gn/bootstrap/bootstrap.py -o "$PLATFORM_GN" --skip-generate-buildfiles
 }
 
 # What the build made.

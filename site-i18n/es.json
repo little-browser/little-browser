@@ -83,7 +83,6 @@
   "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">Todas las versiones</a>",
   "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>Esto es una beta.</b> Espera algunos errores, funciones que faltan y cambios entre compilaciones, y\n        mantén otro navegador a mano por ahora. Las compilaciones están firmadas con un Apple Developer ID y\n        notarizadas por Apple, así que macOS las abre como cualquier otra aplicación. Una vez instalado, el\n        navegador busca compilaciones nuevas por sí mismo y pregunta antes de actualizar.",
   "macOS": "macOS",
-  "Chromium · Apple silicon": "Chromium · Apple silicon",
   "Beta": "Beta",
   "Windows": "Windows",
   "Chromium": "Chromium",
@@ -533,13 +532,13 @@
   "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "Las funciones llegan primero al Mac y pasan a otras plataformas a medida que se construyen, así que cada versión lista los cambios de todas las plataformas que tienen una. Para instalar una compilación o comprobar su SHA-256, ve a <a href=\"/downloads\">Descargar</a>. El propio navegador también ofrece las versiones nuevas: consulta las <a href=\"/features/updates\">actualizaciones automáticas</a>.",
   "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "Activa JavaScript para leer las notas aquí, o consulta la lista en bruto en\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.",
   "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Qué cambió en cada versión de Little Browser: funciones nuevas, correcciones y actualizaciones de seguridad de Chromium, de la más reciente a la más antigua, con un enlace de descarga y suma de comprobación para cada compilación.",
-  "Language": "Idioma"
+  "Language": "Idioma",
+  "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "Cada build se publica por separado, así que una versión nueva puede llegar a una plataforma o chip unas horas antes que a otra."
  },
  "js": {
   "iPhone and iPad": "iPhone y iPad",
   "Copy SHA-256": "Copiar SHA-256",
   "Copied": "Copiado",
-  "{0} · download below": "{0} · descarga abajo",
   "latest": "última",
   "What's new": "Novedades",
   "Version {0}": "Versión {0}",
@@ -547,11 +546,13 @@
   "No changes you would notice in this release.": "Esta versión no incluye cambios que notes.",
   "Download for {0}": "Descargar para {0}",
   "The first build is on its way.": "La primera compilación está en camino.",
-  "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Este Mac tiene un chip Intel; por ahora Little Browser necesita Apple silicon (M1 o posterior).",
-  "Not available for {0} yet; the beta is macOS only.": "Aún no está disponible para {0}; la beta es solo para macOS.",
   "{0} download": "{0} descarga",
   "{0} downloads": "{0} descargas",
   "{0} update": "{0} actualización",
-  "{0} updates": "{0} actualizaciones"
+  "{0} updates": "{0} actualizaciones",
+  "Apple silicon": "Apple silicon",
+  "Not available for {0} yet.": "Aún no está disponible para {0}.",
+  "Download": "Descargar",
+  "Version {0} isn't out for {1} yet.": "La versión {0} aún no ha salido para {1}."
  }
 }

@@ -3,12 +3,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# Sign out/Default's Little Browser.app and package it as a disk image,
+# Sign the release build's Little Browser.app and package it as a disk image,
 # desktop/build/LittleBrowser-macos-<arch>.dmg: the app next to an Applications link.
 #
-#   desktop/scripts/package-macos.sh [<version>]             ad-hoc signature (local testing)
-#   desktop/scripts/package-macos.sh --release <version>     Developer ID signature, notarised
-#                                                            and stapled (CI)
+#   desktop/scripts/package-macos.sh [--arch <arch>] [<version>]           ad-hoc signature (local
+#                                                                          testing)
+#   desktop/scripts/package-macos.sh [--arch <arch>] --release <version>   Developer ID signature,
+#                                                                          notarised and stapled (CI)
+#
+# --arch picks the build: this Mac's architecture (out/Default) unless it names another
+# (out/Default-x64, build.sh's folder for it).
 #
 # --release reads the signing material from AWS Secrets Manager (little-browser/signing/
 # apple-developer-id and apple-notarization), which only the release builder can read. While the
@@ -19,7 +23,9 @@
 # <Chromium build>.<patch>.<revision>, which the updater compares, and turns on the updater:
 # Sparkle (pinned below) in Contents/Frameworks, the feed and public key in Info.plist, and
 # LittleBrowser-macos-<arch>.update.json next to the disk image with the disk image's EdDSA
-# signature, which publish-release.sh puts in the feed. The update key ({"private_key",
+# signature, which publish-release.sh puts in the feed. <arch> is arm64 or x64, the names
+# releases.json uses, and each architecture's app reads its own feed, updates/macos-<arch>.xml
+# (update_feed.py), so it is only ever offered builds for its own chip. The update key ({"private_key",
 # "public_key"} from Sparkle's generate_keys) is the little-browser/signing/sparkle-ed25519
 # secret with --release, or the JSON file LB_UPDATE_KEY_FILE names otherwise; without one the
 # app has no updater, with a warning. LB_UPDATE_FEED_URL replaces the feed's address, for
@@ -33,9 +39,6 @@ set -euo pipefail
 
 DESKTOP="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENT="$DESKTOP/third_party/ungoogled-chromium-macos/entitlements"
-APP="$DESKTOP/build/src/out/Default/Little Browser.app"
-FW="$APP/Contents/Frameworks/Little Browser Framework.framework"
-HELPERS="$FW/Helpers"
 REGION="${LB_AWS_REGION:-ap-southeast-2}"
 # Developer ID Certification Authority (G2), valid until 2031-09-17.
 APPLE_DEVID_CA_URL=https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
@@ -44,25 +47,36 @@ APPLE_DEVID_CA_SHA256=f16cd3c54c7f83cea4bf1a3e6a0819c8aaa8e4a1528fd144715f350643
 SPARKLE_VERSION=2.10.1
 SPARKLE_SHA256=1a856d2a9edb8e628de88121d7be04cf0e2167f8641650b78fca00b14244cf27
 SPARKLE_URL="https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
-UPDATE_FEED_URL="${LB_UPDATE_FEED_URL:-https://downloads.littlebrowser.app/updates/macos-arm64.xml}"
 # Hours between update checks while the browser runs (docs/design.md §7.13).
 UPDATE_CHECK_SECONDS=14400
 
-die() { echo "error: $*" >&2; exit 1; }
+# shellcheck source=lib.sh
+source "$DESKTOP/scripts/lib.sh"   # die, host_arch, out_dir, arch_from_machine
 warn() { echo "warning: $*" >&2; }
-usage() { die "usage: package-macos.sh [--release] [<version>] (--release needs the version)"; }
+usage() { die "usage: package-macos.sh [--arch <arch>] [--release] [<version>] (--release needs the version)"; }
 
 RELEASE=0
 VERSION=""
-for arg in "$@"; do
-  case "$arg" in
+HOST="$(host_arch)"
+ARCH="$HOST"
+ARGS=("$@")   # for the re-run in the user's session below
+while [ $# -gt 0 ]; do
+  case "$1" in
     --release) RELEASE=1 ;;
+    --arch) [ $# -gt 1 ] || usage; ARCH="$2"; shift ;;
     -*) usage ;;
-    *) [ -z "$VERSION" ] || usage; VERSION="$arg" ;;
+    *) [ -z "$VERSION" ] || usage; VERSION="$1" ;;
   esac
+  shift
 done
 [ "$RELEASE" = 0 ] || [ -n "$VERSION" ] || usage
+APP="$DESKTOP/build/src/$(out_dir Default "$ARCH" "$HOST")/Little Browser.app"
+FW="$APP/Contents/Frameworks/Little Browser Framework.framework"
+HELPERS="$FW/Helpers"
 [ -d "$APP" ] || die "no release build at $APP"
+[ "$(arch_from_machine "$(lipo -archs "$APP/Contents/MacOS/Little Browser")")" = "$ARCH" ] ||
+  die "$APP is built for $(lipo -archs "$APP/Contents/MacOS/Little Browser"), not $ARCH"
+UPDATE_FEED_URL="${LB_UPDATE_FEED_URL:-https://downloads.littlebrowser.app/updates/macos-$ARCH.xml}"
 # shellcheck source=../VERSIONS
 source "$DESKTOP/VERSIONS"
 if [ -n "$VERSION" ]; then
@@ -77,7 +91,7 @@ fi
 if [ "$RELEASE" = 1 ] && [ "$(launchctl managername)" = System ] && [ -z "${LB_USER_SESSION:-}" ]; then
   exec sudo -n launchctl asuser "$(id -u)" sudo -n -u "$(id -un)" env LB_USER_SESSION=1 \
     PATH="$PATH" HOME="$HOME" LB_AWS_REGION="$REGION" ${AWS_PROFILE:+AWS_PROFILE="$AWS_PROFILE"} \
-    "$0" "$@"
+    "$0" ${ARGS[@]+"${ARGS[@]}"}
 fi
 [ -d "$ENT" ] || die "no entitlements in $ENT: run desktop/scripts/fetch.sh first"
 
@@ -322,8 +336,7 @@ if [ "${#NOTARY[@]}" -gt 0 ]; then
 fi
 
 # --------------------------------------------------------------- disk image
-arch="$(lipo -archs "$APP/Contents/MacOS/Little Browser")"
-DMG="$DESKTOP/build/LittleBrowser-macos-${arch// /-}.dmg"
+DMG="$DESKTOP/build/LittleBrowser-macos-$ARCH.dmg"
 UPDATE_INFO="${DMG%.dmg}.update.json"
 rm -f "$UPDATE_INFO"
 mkdir -p "$TMP/stage"

@@ -18,7 +18,7 @@ Windows, Linux and iOS don't exist yet.
 | `core/` | `lb-core`, the shared Rust library (data model, sync, import readers; later the blocker) |
 | `docs/` | `design.md` (architecture, privacy, sync, release pipeline), `ux.md` (UX spec), `desktop-ui.md` (sidebar internals), `legal/` |
 | `branding/`, `site/`, `site-i18n/` | Logo masters and icon export; the static website and its translations (`site/AGENTS.md`) |
-| `android/` | Android build of the Chromium fork: GN args, privacy patches, fetch/build scripts (Linux x86_64 hosts) |
+| `android/` | Android build of the Chromium fork: GN args, privacy patches, fetch/build scripts (Linux x64 hosts) |
 | `ios/` | Placeholder |
 
 ## Before you change things
@@ -41,6 +41,7 @@ desktop/scripts/check_lb_tests.py         # gate: unit tests for //lb:model and 
 desktop/scripts/check_series.py           # gate: patches keep engine and view code apart, platform ones tagged
 desktop/scripts/site_i18n.py check        # gate: website translations complete, translated copies up to date
 python3 -m unittest discover -s desktop/scripts -p 'test_*.py'   # the scripts' own tests
+node --test desktop/scripts/test_site_downloads.js           # the website's download logic
 shellcheck desktop/scripts/*.sh desktop/platforms/*.sh core/scripts/*.sh android/scripts/*.sh
 android/scripts/fetch.sh --patches-only   # after changing android/patches or desktop/VERSIONS
 ```
@@ -80,6 +81,10 @@ Chromium builds are not part of the per-push checks; see `desktop/AGENTS.md`.
   engine code or view code (Views, Cocoa, WebUI), never both: the engine half is the one Linux,
   Windows and Android can share. A patch for one platform's files is tagged for it in the series.
   `desktop/patches/README.md` has the rules; `check_series.py` enforces them.
+- **Architectures are `arm64` and `x64`**, everywhere: script arguments, platform entries, build
+  folders, file names, `releases.json`, docs. Where a tool says `x86_64` or `aarch64` (`uname -m`,
+  `lipo`, upstream's scripts), translate at that boundary (`arch_from_machine` in
+  `desktop/scripts/lib.sh`); never pass its spelling on.
 - **Platforms are entries.** What a desktop platform does differently in fetching and building is
   its file in `desktop/platforms/`; the scripts around it stay platform-free. Linux-hosted
   Chromium builds (Android, later Linux desktop) share one CI template (`.linux-chromium`), with

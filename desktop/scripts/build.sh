@@ -7,10 +7,13 @@
 #
 #   desktop/scripts/build.sh [--platform <name>] [--dev] [<arch>]   configure + build (re-run for
 #                                                                   incremental builds)
-#   desktop/scripts/build.sh [--platform <name>] --package          package the release build
+#   desktop/scripts/build.sh [--platform <name>] --package [<arch>] package the release build
 #
 #   (default)  release build → out/Default   official, ThinLTO: for packaging and measurements
 #   --dev      dev build     → out/Dev       component build, no LTO: fast edit-build-run
+#
+# <arch> defaults to this machine's. Another architecture builds into its own folder
+# (out/Default-x64, out/Dev-arm64), so the two builds live side by side.
 #
 # GN args = ungoogled flags.gn → the platform repo's flags → desktop/args/common.gn →
 # desktop/args/<platform>.gn (→ desktop/args/dev.gn with --dev); later files win.
@@ -38,26 +41,27 @@ while [ $# -gt 0 ]; do
     --dev) DEV=1 ;;
     --package) PACKAGE=1 ;;
     --platform) CHOSEN_PLATFORM="${2:?--platform needs a name}"; shift ;;
-    -*) die "usage: build.sh [--platform <name>] [--dev] [<arch>] | [--platform <name>] --package" ;;
+    -*) die "usage: build.sh [--platform <name>] [--dev] [<arch>] | [--platform <name>] --package [<arch>]" ;;
     *) ARCH="$1" ;;
   esac
   shift
 done
 load_platform "$DESKTOP/platforms" "${CHOSEN_PLATFORM:-$(host_platform)}"
 PU="$DESKTOP/third_party/$PLATFORM_REPO"
-if [ "$PACKAGE" = 1 ]; then platform_package; fi
+if [ "$PACKAGE" = 1 ]; then platform_package ${ARCH:+--arch "$ARCH"}; fi
 
-[ -d "$SRC" ] || die "run desktop/scripts/fetch.sh first"
-ARCH="${ARCH:-$(uname -m)}"
+HOST="$(host_arch)"
+ARCH="${ARCH:-$HOST}"
 check_arch "$ARCH"
-OUT_REL="out/Default"
+[ -d "$SRC" ] || die "run desktop/scripts/fetch.sh first"
+OUT_REL="$(out_dir Default "$ARCH" "$HOST")"
 ARG_FILES=("$UG/flags.gn" "$PU/$PLATFORM_FLAGS" "$DESKTOP/args/common.gn" "$DESKTOP/args/$PLATFORM.gn")
 if [ "$DEV" = 1 ]; then
-  OUT_REL="out/Dev"
+  OUT_REL="$(out_dir Dev "$ARCH" "$HOST")"
   ARG_FILES+=("$DESKTOP/args/dev.gn")
 fi
 
-write_gn_args "$SRC/$OUT_REL" "$(gn_cpu "$ARCH")" "${ARG_FILES[@]}"
+write_gn_args "$SRC/$OUT_REL" "$ARCH" "${ARG_FILES[@]}"
 cd "$SRC"
 platform_prebuild "$OUT_REL"   # in this shell: what it exports (macOS: SDKROOT) reaches the build
 # shellcheck disable=SC2086  # PLATFORM_TARGETS is a list

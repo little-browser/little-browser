@@ -45,7 +45,7 @@ notice have none:
 - `lb-core` changes the browser doesn't use yet; the commit that uses them gets the note;
 - fixes and follow-ups to something not released yet, since its own note already covers it. If
   the fix makes that note wrong, the release's notes are corrected when it is published
-  (`LB_RELEASE_NOTES` on the publish job).
+  (`LB_RELEASE_NOTES` on the release's first publish job).
 
 ## Licence headers
 

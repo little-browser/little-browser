@@ -59,7 +59,7 @@ Not yet as the baseline promises, on Android:
 
 ## Prerequisites
 
-Chromium builds Android only on Linux x86_64. Ubuntu 22.04 or 24.04, 100 GB+ free disk, 16 GB+
+Chromium builds Android only on Linux x64. Ubuntu 22.04 or 24.04, 100 GB+ free disk, 16 GB+
 RAM, and `git`, `python3`, `curl`, `lsb-release` and `sudo`. Not macOS, so not the desktop build
 machine.
 
@@ -79,7 +79,7 @@ android/build/src/build/install-build-deps.sh --android --no-chromeos-fonts
 ```
 
 Build (first run takes hours; re-run for incremental builds). The default is arm64; `x64` is for
-x86_64 emulators:
+x64 emulators:
 
 ```bash
 android/scripts/build.sh

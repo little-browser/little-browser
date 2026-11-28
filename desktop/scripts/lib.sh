@@ -38,13 +38,43 @@ clone_at() {
   fi
 }
 
-# gn_cpu <arch>: GN's target_cpu for an architecture name (uname -m style or GN's own).
-gn_cpu() {
+# Architectures are arm64 and x64 everywhere: script arguments, platform entries, folders, GN's
+# target_cpu, file names and releases.json. A tool that names them otherwise is translated where
+# its output is read (arch_from_machine) or where it is called (macOS: mac_arch).
+
+# arch_from_machine <name>: our name for an architecture as uname -m or lipo names it.
+arch_from_machine() {
   case "$1" in
     arm64|aarch64) echo arm64 ;;
-    x86_64|x64) echo x64 ;;
-    *) die "unknown architecture $1" ;;
+    x86_64) echo x64 ;;
+    *) die "unknown machine architecture $1" ;;
   esac
+}
+
+# check_arch_name <arch>: stop unless it is arm64 or x64.
+check_arch_name() {
+  case "$1" in
+    arm64|x64) ;;
+    *) die "an architecture is arm64 or x64, not ${1:-nothing}" ;;
+  esac
+}
+
+# host_arch: this machine's architecture. A shell running under Rosetta reports an Intel chip on
+# an Apple silicon Mac, which would fetch and build for the wrong host: stop.
+host_arch() {
+  [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || true)" != 1 ] ||
+    die "this shell runs under Rosetta on Apple silicon; use a native one, and build.sh x64 for Intel"
+  arch_from_machine "$(uname -m)"
+}
+
+# out_dir <kind> <arch> <host arch>: the output folder, relative to the source tree, for a build of
+# <kind> (Default: release, Dev) for <arch> on a machine of <host arch>. The host's own
+# architecture keeps the plain name (out/Default); another gets its own folder (out/Default-x64),
+# so building one never replaces the other's build.
+out_dir() {
+  check_arch_name "$2"
+  check_arch_name "$3"
+  if [ "$2" = "$3" ]; then echo "out/$1"; else echo "out/$1-$2"; fi
 }
 
 # merge_gn_args <arg file>...: print the merged "key = value" lines; later files override earlier ones.
@@ -63,12 +93,19 @@ PY
 }
 
 # write_gn_args <out dir> <target cpu> <arg file>...: <out dir>/args.gn from the merged files,
-# then target_cpu, then cc_wrapper when LB_CC_WRAPPER names a compiler cache (sccache).
+# then target_cpu (the only one: an arg file's own is dropped), then cc_wrapper when LB_CC_WRAPPER
+# names a compiler cache (sccache). A folder
+# that already holds a build for another target_cpu is left alone: rewriting it would throw that
+# build away.
 write_gn_args() {
-  local out="$1" cpu="$2"
+  local out="$1" cpu="$2" had
   shift 2
   mkdir -p "$out"
-  merge_gn_args "$@" > "$out/args.gn"
+  had=""
+  [ ! -f "$out/args.gn" ] || had="$(sed -n 's/^target_cpu = "\(.*\)"$/\1/p' "$out/args.gn" | tail -1)"
+  [ -z "$had" ] || [ "$had" = "$cpu" ] ||
+    die "$out holds an $had build, not $cpu: move or delete it to build $cpu there"
+  merge_gn_args "$@" | { grep -v '^target_cpu = ' || true; } > "$out/args.gn"
   echo "target_cpu = \"$cpu\"" >> "$out/args.gn"
   if [ -n "${LB_CC_WRAPPER:-}" ]; then
     command -v "$LB_CC_WRAPPER" >/dev/null || die "LB_CC_WRAPPER=$LB_CC_WRAPPER not found in PATH"

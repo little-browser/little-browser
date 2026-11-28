@@ -49,7 +49,7 @@
   } catch {} })();</script>
   <!-- /i18n:alternates -->
   <link rel="stylesheet" href="/styles.css">
-  <script>window.LB_STRINGS = {"iPhone and iPad": "iPhone e iPad", "Copy SHA-256": "Copiar SHA-256", "Copied": "Copiado", "{0} · download below": "{0} · download abaixo", "latest": "mais recente", "What's new": "Novidades", "Version {0}": "Versão {0}", "Chromium {0}": "Chromium {0}", "No changes you would notice in this release.": "Nenhuma mudança perceptível nesta versão.", "Download for {0}": "Baixar para {0}", "The first build is on its way.": "A primeira versão está a caminho.", "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Este Mac tem um chip Intel; por enquanto, o Little Browser precisa de Apple silicon (M1 ou posterior).", "Not available for {0} yet; the beta is macOS only.": "Ainda não disponível para {0}; o beta é só para macOS.", "{0} download": "{0} download", "{0} downloads": "{0} downloads", "{0} update": "{0} atualização", "{0} updates": "{0} atualizações"};</script>
+  <script>window.LB_STRINGS = {"iPhone and iPad": "iPhone e iPad", "Copy SHA-256": "Copiar SHA-256", "Copied": "Copiado", "latest": "mais recente", "What's new": "Novidades", "Version {0}": "Versão {0}", "Chromium {0}": "Chromium {0}", "No changes you would notice in this release.": "Nenhuma mudança perceptível nesta versão.", "Download for {0}": "Baixar para {0}", "The first build is on its way.": "A primeira versão está a caminho.", "{0} download": "{0} download", "{0} downloads": "{0} downloads", "{0} update": "{0} atualização", "{0} updates": "{0} atualizações", "Apple silicon": "Apple silicon", "Not available for {0} yet.": "Ainda não disponível para {0}.", "Download": "Baixar", "Version {0} isn't out for {1} yet.": "A versão {0} ainda não saiu para {1}."};</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -128,7 +128,7 @@
       </div>
 
       <div class="platforms" id="platforms">
-        <div class="platform" data-platform="macos"><b>macOS</b><span>Chromium · Apple silicon</span><em data-platform-status>Beta</em></div>
+        <div class="platform" data-platform="macos"><b>macOS</b><span>Chromium</span><em data-platform-status>Beta</em></div>
         <div class="platform" data-platform="windows"><b>Windows</b><span>Chromium</span><em data-platform-status>Em breve</em></div>
         <div class="platform" data-platform="linux"><b>Linux</b><span>Chromium</span><em data-platform-status>Em breve</em></div>
         <div class="platform" data-platform="ios"><b>iPhone &amp; iPad</b><span>WebKit, como a Apple exige</span><em data-platform-status>Em breve</em></div>
@@ -137,6 +137,7 @@
 
       <h2 class="releases-title" id="releases">Todas as versões</h2>
       <p class="dim">O que mudou em cada uma está na página de <a href="/pt-br/releases">notas de versão</a>.</p>
+      <p class="dim">Cada build é publicado separadamente, então uma nova versão pode chegar a uma plataforma ou chip algumas horas antes de outra.</p>
       <p class="releases-empty" data-releases-empty>A primeira versão está a caminho. Volte em breve.</p>
       <div class="releases-wrap" hidden data-releases-list>
         <table class="releases">
@@ -175,6 +176,7 @@
     <span>© The Little Browser Team · <a href="mailto:hello@littlebrowser.app">hello@littlebrowser.app</a> · Este site não usa cookies nem análises.</span>
   </div>
 </footer>
+<script src="/downloads.js"></script>
 <script src="/site.js"></script>
 </body>
 </html>

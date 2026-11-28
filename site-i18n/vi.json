@@ -83,7 +83,6 @@
   "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">Tất cả bản phát hành</a>",
   "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>Đây là bản beta.</b> Hãy chuẩn bị gặp một số lỗi, thiếu tính năng và thay đổi giữa các bản dựng, và tạm thời cứ giữ thêm một trình duyệt khác. Các bản dựng được ký bằng Apple Developer ID và được Apple công chứng, nên macOS mở chúng như mọi ứng dụng khác. Sau khi cài đặt, trình duyệt tự kiểm tra bản dựng mới và hỏi trước khi cập nhật.",
   "macOS": "macOS",
-  "Chromium · Apple silicon": "Chromium · Apple silicon",
   "Beta": "Beta",
   "Windows": "Windows",
   "Chromium": "Chromium",
@@ -533,13 +532,13 @@
   "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "Tính năng đến với Mac trước và tới các nền tảng khác khi chúng được xây dựng, nên một bản phát hành liệt kê thay đổi cho mọi nền tảng đã có. Để cài một bản dựng hoặc kiểm tra SHA-256 của nó, hãy vào <a href=\"/downloads\">Tải xuống</a>. Trình duyệt cũng tự đề xuất các bản phát hành mới: xem <a href=\"/features/updates\">cập nhật tự động</a>.",
   "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "Hãy bật JavaScript để đọc ghi chú tại đây, hoặc xem danh sách thô tại <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.",
   "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Những gì thay đổi trong mọi bản phát hành Little Browser: tính năng mới, bản sửa lỗi và cập nhật bảo mật Chromium, mới nhất trước, kèm liên kết tải và checksum cho từng bản dựng.",
-  "Language": "Ngôn ngữ"
+  "Language": "Ngôn ngữ",
+  "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "Mỗi bản dựng được phát hành riêng, nên phiên bản mới có thể đến một nền tảng hoặc chip sớm hơn nơi khác vài giờ."
  },
  "js": {
   "iPhone and iPad": "iPhone và iPad",
   "Copy SHA-256": "Sao chép SHA-256",
   "Copied": "Đã sao chép",
-  "{0} · download below": "{0} · tải xuống bên dưới",
   "latest": "mới nhất",
   "What's new": "Có gì mới",
   "Version {0}": "Phiên bản {0}",
@@ -547,11 +546,13 @@
   "No changes you would notice in this release.": "Bản phát hành này không có thay đổi nào đáng chú ý.",
   "Download for {0}": "Tải xuống cho {0}",
   "The first build is on its way.": "Bản dựng đầu tiên sắp ra mắt.",
-  "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Mac này dùng chip Intel; hiện Little Browser cần Apple silicon (M1 trở lên).",
-  "Not available for {0} yet; the beta is macOS only.": "Chưa có cho {0}; bản beta chỉ dành cho macOS.",
   "{0} download": "{0} lượt tải",
   "{0} downloads": "{0} lượt tải",
   "{0} update": "{0} bản cập nhật",
-  "{0} updates": "{0} bản cập nhật"
+  "{0} updates": "{0} bản cập nhật",
+  "Apple silicon": "Apple silicon",
+  "Not available for {0} yet.": "Chưa có cho {0}.",
+  "Download": "Tải xuống",
+  "Version {0} isn't out for {1} yet.": "Phiên bản {0} chưa có cho {1}."
  }
 }

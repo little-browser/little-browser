@@ -10,13 +10,17 @@
 #   desktop/scripts/fetch.sh --patches-only [--platform <name>]
 #                                                  steps 1–3 only, on any OS: CI checks that every
 #                                                  patch still applies
+#   desktop/scripts/fetch.sh --toolchains-only     step 5's toolchains again, in the existing tree;
+#                                                  the next build rebuilds the tools built from
+#                                                  them (bindgen, Crubit)
 #
 #   1. ungoogled-chromium and the platform's repo at the pinned tags
 #   2. Chromium source tarball for the pinned version (much smaller than a git checkout)
 #   3. prune binaries, apply ungoogled patches (minus ours to skip), platform patches, our patches
 #      (those tagged for another platform skipped)
 #   4. domain substitution, EXCEPT paths that must keep real Google endpoints (Safe Browsing, Widevine)
-#   5. platform toolchains, branding, link our source tree
+#   5. platform toolchains (this machine's, able to build every architecture the platform
+#      builds, whichever one <arch> names), branding, link our source tree
 #
 # What differs per platform lives in its entry, desktop/platforms/<name>.sh (macOS: mac).
 set -euo pipefail
@@ -47,13 +51,15 @@ apply_series() {
 }
 
 PATCHES_ONLY=0
+TOOLCHAINS_ONLY=0
 CHOSEN_PLATFORM=""
 ARCH=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --patches-only) PATCHES_ONLY=1 ;;
+    --toolchains-only) TOOLCHAINS_ONLY=1 ;;
     --platform) CHOSEN_PLATFORM="${2:?--platform needs a name}"; shift ;;
-    -*) die "usage: fetch.sh [--patches-only] [--platform <name>] [<arch>]" ;;
+    -*) die "usage: fetch.sh [--patches-only | --toolchains-only] [--platform <name>] [<arch>]" ;;
     *) ARCH="$1" ;;
   esac
   shift
@@ -62,8 +68,16 @@ load_platform "$DESKTOP/platforms" "${CHOSEN_PLATFORM:-$(host_platform)}"
 PU="$DESKTOP/third_party/$PLATFORM_REPO"
 [ "$PATCHES_ONLY" = 1 ] || [ "$(uname -s)" = "$PLATFORM_HOST" ] ||
   die "the $PLATFORM_LABEL build runs on $PLATFORM_HOST (see desktop/README.md)"
-ARCH="${ARCH:-$(uname -m)}"
+HOST="$(host_arch)"
+ARCH="${ARCH:-$HOST}"
 check_arch "$ARCH"
+if [ "$TOOLCHAINS_ONLY" = 1 ]; then
+  [ -d "$SRC" ] || die "no source tree at $SRC: run fetch.sh first"
+  log "$PLATFORM_LABEL toolchains"
+  platform_toolchains
+  log "Done. Toolchains replaced in $SRC."
+  exit 0
+fi
 [ -e "$SRC" ] && die "$SRC already exists. Delete $BUILD/src to prepare it again (downloads stay cached)."
 
 log "ungoogled-chromium $UNGOOGLED_TAG + $PLATFORM_LABEL $PLATFORM_TAG"
@@ -108,7 +122,7 @@ python3 "$UG/utils/domain_substitution.py" apply \
   -c "$BUILD/domsubcache.tar.gz" "$SRC"
 
 log "$PLATFORM_LABEL toolchains"
-platform_toolchains "$ARCH"
+platform_toolchains
 
 log "Branding: product strings (translations re-keyed), icons, our source tree"
 cp "$DESKTOP/branding/BRANDING" "$SRC/chrome/app/theme/chromium/BRANDING"

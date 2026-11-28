@@ -159,8 +159,14 @@ def release_notes(chromium: str, previous_chromium: str, security: bool,
     return ([first] if first else []) + notes
 
 
+PLATFORMS = {"macos": "macOS", "windows": "Windows", "linux": "Linux", "android": "Android",
+             "ios": "iOS"}
+
+
 def markdown(releases: dict, version: str) -> str:
-    """A release's entry in releases.json as Markdown, its notes escaped to read as plain text."""
+    """A release's entry in releases.json as Markdown, its notes escaped to read as plain text,
+    with the builds published so far: each platform's is published on its own, and the GitLab
+    release is updated as each one joins (gitlab_release.py)."""
     release = next((r for r in releases.get("releases", []) if r.get("version") == version), None)
     if release is None:
         raise NotesError("releases.json has no release %s" % version)
@@ -169,6 +175,11 @@ def markdown(releases: dict, version: str) -> str:
     lines += ["- " + MARKDOWN_SPECIAL.sub(r"\\\1", n) for n in notes]
     if notes:
         lines.append("")
+    builds = [" ".join([PLATFORMS.get(f.get("platform"), str(f.get("platform")))]
+                       + [str(f[k]) for k in ("arch", "format") if f.get(k)])
+              for f in release.get("files") or [] if isinstance(f, dict) and f.get("platform")]
+    if builds:
+        lines += ["Builds: " + MARKDOWN_SPECIAL.sub(r"\\\1", ", ".join(builds)), ""]
     lines.append("Download: https://littlebrowser.app/downloads")
     return "\n".join(lines) + "\n"
 

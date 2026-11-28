@@ -83,7 +83,6 @@
     "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">Усе выпускі</a>",
     "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>Гэта бэта-версія.</b> Чакайце памылак, недаробак і змен паміж зборкамі, і пакуль трымайце пад рукой іншы браўзер. Зборкі падпісаны праз Apple Developer ID і праверана Apple (notarization), таму macOS адкрывае іх, як любую іншую праграму. Пасля ўстаноўкі браўзер сам правярае новыя зборкі і пытаецца перад абнаўленнем.",
     "macOS": "macOS",
-    "Chromium · Apple silicon": "Chromium · Apple silicon",
     "Beta": "Бэта",
     "Windows": "Windows",
     "Chromium": "Chromium",
@@ -533,13 +532,13 @@
     "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "Магчымасці спачатку з’яўляюцца на Mac і пасля трапляюць на іншыя платформы па меры іх стварэння, таму выпуск пералічвае змены для кожнай платформы, якая ў яго ёсць. Каб усталяваць зборку або праверыць яе SHA-256, перайдзіце да <a href=\"/downloads\">Спампаваць</a>. Браўзер сам таксама прапануе новыя выпускі: глядзіце <a href=\"/features/updates\">аўтаматычныя абнаўленні</a>.",
     "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "Уключыце JavaScript, каб чытаць нататкі тут, або глядзіце неапрацаваны спіс на <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.",
     "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Што змянілася ў кожным выпуску Little Browser: новыя магчымасці, выпраўленні і абнаўленні бяспекі Chromium, найноўшыя першымі, са спасылкай на спампоўку і кантрольнай сумай для кожнай зборкі.",
-    "Language": "Мова"
+    "Language": "Мова",
+    "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "Кожная зборка публікуецца асобна, таму новая версія можа з’явіцца для адной платформы ці чыпа на некалькі гадзін раней, чым для іншай."
   },
   "js": {
     "iPhone and iPad": "iPhone і iPad",
     "Copy SHA-256": "Скапіяваць SHA-256",
     "Copied": "Скапіявана",
-    "{0} · download below": "{0} · спампаваць ніжэй",
     "latest": "апошні",
     "What's new": "Што новага",
     "Version {0}": "Версія {0}",
@@ -547,11 +546,13 @@
     "No changes you would notice in this release.": "У гэтым выпуску няма змен, якія вы заўважылі б.",
     "Download for {0}": "Спампаваць для {0}",
     "The first build is on its way.": "Першая зборка ўжо ў дарозе.",
-    "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "На гэтым Mac чып Intel; Little Browser пакуль патрабуе Apple silicon (M1 або навейшы).",
-    "Not available for {0} yet; the beta is macOS only.": "Для {0} пакуль недаступна; бэта працуе толькі на macOS.",
     "{0} download": "Спампоўак: {0}",
     "{0} downloads": "Спампоўак: {0}",
     "{0} update": "Абнаўленняў: {0}",
-    "{0} updates": "Абнаўленняў: {0}"
+    "{0} updates": "Абнаўленняў: {0}",
+    "Apple silicon": "Apple silicon",
+    "Not available for {0} yet.": "Для {0} пакуль недаступна.",
+    "Download": "Спампаваць",
+    "Version {0} isn't out for {1} yet.": "Версія {0} для {1} яшчэ не выйшла."
   }
 }

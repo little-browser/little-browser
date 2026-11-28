@@ -71,8 +71,8 @@ Run a build with a separate developer profile (`--dev` for `out/Dev`, `--fresh` 
 desktop/scripts/run.sh --dev
 ```
 
-Ad-hoc signed `.dmg` of the release build (`build/LittleBrowser-macos-<arch>.dmg`, the app next to
-an Applications link), through `scripts/package-macos.sh`:
+Ad-hoc signed `.dmg` of the release build (`build/LittleBrowser-macos-<arch>.dmg`, `<arch>` being
+`arm64` or `x64`, the app next to an Applications link), through `scripts/package-macos.sh`:
 
 ```bash
 desktop/scripts/build.sh --package
@@ -99,6 +99,16 @@ it read the item without asking.
 |---|---|---|
 | Release | `out/Default` | packaging, performance/memory measurements, final checks |
 | Dev | `out/Dev` | day-to-day feature work (`args/dev.gn`) |
+
+Those folders hold builds for this Mac's own architecture. A build for the other one
+(`build.sh x64` on Apple silicon, `build.sh arm64` on an Intel Mac) goes to its own folder,
+`out/Default-x64` or `out/Dev-arm64`, so it never replaces the native build; `run.sh --arch x64`
+and `build.sh --package x64` use it. `build.sh` refuses to reuse a folder that holds another
+architecture's build. One source tree builds both: `fetch.sh` installs this Mac's toolchains
+and the other architecture's Rust standard library, which an x64 build on Apple silicon (or an
+arm64 one on Intel) links. `fetch.sh --toolchains-only` installs the toolchains again in an
+existing tree (the next build rebuilds bindgen and Crubit). Run the
+scripts in a native shell: under Rosetta an Apple silicon Mac passes for an Intel one, and they stop.
 
 We follow ungoogled-chromium-macos's recipe (`third_party/ungoogled-chromium-macos`, pinned in
 `VERSIONS`), with two differences: the Chromium **source tarball** instead of a git clone (no

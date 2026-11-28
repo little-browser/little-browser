@@ -83,7 +83,6 @@
     "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">सभी रिलीज़</a>",
     "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>यह बीटा है।</b> कुछ बग, अधूरे फ़ीचर और बिल्ड के बीच बदलाव की उम्मीद रखें, और फ़िलहाल कोई दूसरा ब्राउज़र भी पास रखें। बिल्ड Apple Developer ID से साइन किए गए हैं और Apple द्वारा नोटराइज़ किए गए हैं, इसलिए macOS इन्हें किसी भी आम ऐप की तरह खोलता है। इंस्टॉल होने के बाद ब्राउज़र नए बिल्ड खुद खोजता है और अपडेट करने से पहले पूछता है।",
     "macOS": "macOS",
-    "Chromium · Apple silicon": "Chromium · Apple silicon",
     "Beta": "बीटा",
     "Windows": "Windows",
     "Chromium": "Chromium",
@@ -533,13 +532,13 @@
     "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "फ़ीचर पहले Mac पर आते हैं और बनते-बनते दूसरे प्लैटफ़ॉर्म तक पहुँचते हैं, इसलिए रिलीज़ उन सभी प्लैटफ़ॉर्म के बदलाव सूचीबद्ध करती है जिन पर वह है। कोई बिल्ड इंस्टॉल करने या उसका SHA-256 जाँचने के लिए <a href=\"/downloads\">डाउनलोड</a> पर जाएँ। ब्राउज़र नई रिलीज़ खुद भी सुझाता है: <a href=\"/features/updates\">अपने-आप अपडेट</a> देखें।",
     "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "रिलीज़ नोट्स पढ़ने के लिए JavaScript चालू करें, या कच्ची सूची <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a> पर पढ़ें।",
     "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Little Browser की हर रिलीज़ में क्या बदला: नए फ़ीचर, सुधार और Chromium सुरक्षा अपडेट, सबसे नई पहले, हर बिल्ड के डाउनलोड लिंक और चेकसम के साथ।",
-    "Language": "भाषा"
+    "Language": "भाषा",
+    "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "हर बिल्ड अलग से प्रकाशित होता है, इसलिए नया संस्करण किसी एक प्लैटफ़ॉर्म या चिप पर दूसरे से कुछ घंटे पहले आ सकता है।"
   },
   "js": {
     "iPhone and iPad": "iPhone और iPad",
     "Copy SHA-256": "SHA-256 कॉपी करें",
     "Copied": "कॉपी हो गया",
-    "{0} · download below": "{0} · नीचे डाउनलोड करें",
     "latest": "नवीनतम",
     "What's new": "नया क्या है",
     "Version {0}": "वर्शन {0}",
@@ -547,11 +546,13 @@
     "No changes you would notice in this release.": "इस रिलीज़ में ऐसे कोई बदलाव नहीं जो आपको दिखें।",
     "Download for {0}": "{0} के लिए डाउनलोड करें",
     "The first build is on its way.": "पहला बिल्ड रास्ते में है।",
-    "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "इस Mac में Intel चिप है; Little Browser को फ़िलहाल Apple silicon (M1 या बाद का) चाहिए।",
-    "Not available for {0} yet; the beta is macOS only.": "अभी {0} के लिए उपलब्ध नहीं है; बीटा सिर्फ़ macOS के लिए है।",
     "{0} download": "{0} डाउनलोड",
     "{0} downloads": "{0} डाउनलोड",
     "{0} update": "{0} अपडेट",
-    "{0} updates": "{0} अपडेट"
+    "{0} updates": "{0} अपडेट",
+    "Apple silicon": "Apple silicon",
+    "Not available for {0} yet.": "अभी {0} के लिए उपलब्ध नहीं है।",
+    "Download": "डाउनलोड",
+    "Version {0} isn't out for {1} yet.": "संस्करण {0} अभी {1} के लिए नहीं आया है।"
   }
 }

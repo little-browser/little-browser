@@ -402,6 +402,11 @@ kbd {
 .platform b { font-size: 18px; }
 .platform span { color: var(--ink-dim); font-size: 14px; }
 .platform em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--accent); margin-top: 8px; }
+.platform .builds { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.platform .builds a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.platform .builds a:hover { text-decoration: underline; }
+.platform .builds li { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.platform .builds .dim { color: var(--ink-dim); white-space: nowrap; }
 .platform.yours { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* ---------------------------------------------------------------- download */
@@ -432,6 +437,7 @@ kbd {
 /* A release's notes are on /releases. */
 .releases .notes-link { margin-top: 6px; font-size: 13px; }
 .releases .notes-link a { color: var(--ink-dim); }
+.releases .missing { margin-top: 8px; font-size: 13px; }
 .releases .counts { margin-top: 2px; font-size: 12px; }
 .releases .sha-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--ink-dim); }
 .releases .sha { font-size: 12px; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
@@ -586,6 +592,7 @@ footer nav.topics b { color: var(--ink); font-weight: 600; }
 .release .none { color: var(--ink-dim); margin: 0; }
 .release .get { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 15px; }
 .release .get a { font-weight: 600; }
+.release .later { font-size: 14px; display: grid; gap: 2px; }
 
 /* Language switcher (the globe in the header): a <details>, so it works without script. */
 .lang { position: relative; }

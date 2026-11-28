@@ -48,7 +48,7 @@
 | Windows | Chromium | Chromium Views | Chrome Web Store, MV3 | Code signing; own updater |
 | Linux | Chromium | Chromium Views | Chrome Web Store, MV3 | x64 and arm64; Flatpak + .deb/.rpm repos |
 | Android | Chromium fork | Java/Kotlin | None | Play Store + F-Droid/APK |
-| ChromeOS | The Android build | The Android build's | None | The Android app from Google Play, in a window, with the sidebar layout when wide; Play serves its arm64 and x86-64 builds, for both kinds of Chromebook. The Linux build, with extensions, also runs in ChromeOS's Linux environment (Crostini) where the user turns it on |
+| ChromeOS | The Android build | The Android build's | None | The Android app from Google Play, in a window, with the sidebar layout when wide; Play serves its arm64 and x64 builds, for both kinds of Chromebook. The Linux build, with extensions, also runs in ChromeOS's Linux environment (Crostini) where the user turns it on |
 | iOS / iPadOS | **WebKit (WKWebView)** — required | Swift (UIKit/SwiftUI) | None (third-party browsers can't load Safari extensions) | App Store |
 
 **iOS detail.** Since iOS 17.4 Apple allows other engines (via BrowserEngineKit and a special
@@ -138,7 +138,7 @@ The Android build today is Chromium's own `chrome_public_apk` from a gclient che
 tarball has no Android SDK or NDK), at the Chromium version pinned for desktop, with our app ID
 and our own Android privacy patches (`android/patches/`): no automatic requests to Google and the
 desktop's privacy defaults. It is not based on ungoogled-chromium, which has no maintained Android
-platform repo and tests its patches on desktop only. It builds on Linux x86_64 only. Where it
+platform repo and tests its patches on desktop only. It builds on Linux x64 only. Where it
 falls short of section 5 (Safe Browsing) is listed in
 `android/README.md`.
 
@@ -518,7 +518,7 @@ carrier networks.
 
 | Purpose | What it is | Sees |
 |---|---|---|
-| Updates and downloads (desktop) | Static files on `downloads.littlebrowser.app` (S3 + CloudFront): the releases, `releases.json`, and on macOS the Sparkle feed `updates/macos-arm64.xml` with signed update files under `updates/` (later: Windows' equivalent; apt/rpm repos + Flatpak on Linux) | IP, version and platform. Its log keeps only each request's time, method, file, status and bytes sent (no IP address or user agent), for a week, to count downloads (§14) |
+| Updates and downloads (desktop) | Static files on `downloads.littlebrowser.app` (S3 + CloudFront): the releases, `releases.json`, and on macOS one Sparkle feed per architecture, `updates/macos-arm64.xml` and `updates/macos-x64.xml`, with signed update files under `updates/` (later: Windows' equivalent; apt/rpm repos + Flatpak on Linux) | IP, version and platform. Its log keeps only each request's time, method, file, status and bytes sent (no IP address or user agent), for a week, to count downloads (§14) |
 | Mobile distribution | App Store, Google Play, F-Droid/APK | — (store's own data) |
 | Filter-list updates | Every 4 days, straight from the lists' maintainers: `easylist.to`, `ublockorigin.github.io`, `pgl.yoyo.org`; an hour later after a failed download | IP, version (the user agent); no cookies |
 | Widevine DRM component | Downloaded from Google, only after the user agrees on first use | IP, version |
@@ -626,22 +626,35 @@ on the macOS runner. A patch to a widely included header can cost almost as much
    `little-browser/signing/sparkle-ed25519`) into a `.update.json` next to it.
 6. **Internal channel.** The signed `.dmg` is kept as a pipeline artifact for 30 days; internal
    testers download it from the tag's pipeline.
-7. **Publish (manual).** After internal testing, a person runs the `publish` job
+7. **Publish (manual), one build at a time.** Each platform and architecture has its own chain of
+   jobs (build, package, publish, GitLab release), each needing only the one before it, so a
+   build is published as soon as it is ready rather than when the slowest one is. After internal
+   testing, a person runs that build's `publish-<platform>-<arch>` job
    (`desktop/scripts/publish-release.sh`): it uploads the same file to
    `downloads.littlebrowser.app/<version>/` and adds it, with its size and SHA-256, to
    `releases.json` in the `beta` channel, with the release's notes. littlebrowser.app reads that
    file for its download button, its list of builds (each file's full SHA-256 with a button to
    copy it) and its release notes page, which shows each release's notes under its own anchor. The notes (`release_notes.py`) are the
-   `Release-note:` lines of the commits since the last published release, oldest first and
-   without those of commits reverted in the meantime, after a line naming the Chromium version
-   when it is new and saying when the release has security fixes; `LB_RELEASE_NOTES` on the job
-   (notes separated by `|`) replaces the commits' notes. Once the release is public, GitLab's
-   release for the tag gets the same notes. The update prompt doesn't show them (§7.13). The
-   same file also goes to `updates/<version>/`, the updater's copy, and `updates/macos-arm64.xml`,
-   the updater's feed, is rewritten to offer it (`update_feed.py`: only the newest release, marked
-   critical for versions older than the newest security release). A release is a security release
-   when `LB_SECURITY_RELEASE=1` is set on the job, or, unset, when it is on a new Chromium
-   version. Without a `.update.json` (no update key yet) the release is a download only.
+   `Release-note:` lines of the commits since the release before it (by version), oldest first
+   and without those of commits reverted in the meantime, after a line naming the Chromium
+   version when it is new and saying when the release has security fixes; `LB_RELEASE_NOTES` on
+   the release's first publish job (notes separated by `|`) replaces the commits' notes. The
+   update prompt doesn't show them (§7.13). Once a build is public, its
+   `release-<platform>-<arch>` job writes GitLab's release for the tag from the published
+   `releases.json` (`gitlab_release.py`), once that lists the build: the notes and the builds
+   out so far. The first build creates the release and each later one updates it, so whichever
+   job runs last lists every build; the text is generated, so an edit made on GitLab is replaced
+   by the next build's job. The
+   same file also goes to `updates/<version>/`, the updater's copy, and its architecture's feed,
+   `updates/macos-<arch>.xml` (`arm64` or `x64`; each app reads the one it was built for), is
+   rewritten to offer it (`update_feed.py`: only the newest release with that architecture's
+   build, marked critical for versions older than the newest security release up to it, whichever
+   architectures that release had). Each architecture's build is published on its own, so a later
+   one joins its release, which keeps the notes and security flag its first build set (its job
+   stops if `LB_RELEASE_NOTES` or `LB_SECURITY_RELEASE` is set); `releases.json` stays in version
+   order, and the website offers each build's newest file, which can be a release older than the
+   newest. A release is a security release when `LB_SECURITY_RELEASE=1` is set on its first
+   publish job, or, unset, when it is on a newer Chromium version than the release before it. Without a `.update.json` (no update key yet) the release is a download only.
    Published files are never replaced or deleted. Later: the exact build arguments and an SBOM
    alongside. Nothing is rebuilt.
 

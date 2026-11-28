@@ -83,7 +83,6 @@
   "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">Όλες οι εκδόσεις</a>",
   "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>Αυτή είναι μια beta.</b> Να περιμένετε κάποια σφάλματα, λειτουργίες που λείπουν και αλλαγές μεταξύ των εκδόσεων, και κρατήστε προς το παρόν και ένα άλλο πρόγραμμα περιήγησης. Οι εκδόσεις υπογράφονται με Apple Developer ID και πιστοποιούνται από την Apple, ώστε το macOS να τις ανοίγει όπως κάθε άλλη εφαρμογή. Μόλις εγκατασταθεί, το πρόγραμμα περιήγησης ελέγχει μόνο του για νέες εκδόσεις και ρωτά πριν ενημερωθεί.",
   "macOS": "macOS",
-  "Chromium · Apple silicon": "Chromium · Apple silicon",
   "Beta": "Beta",
   "Windows": "Windows",
   "Chromium": "Chromium",
@@ -533,13 +532,13 @@
   "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "Οι λειτουργίες φτάνουν πρώτα στο Mac και περνούν σε άλλες πλατφόρμες όσο χτίζονται, οπότε μια έκδοση απαριθμεί αλλαγές για κάθε πλατφόρμα που έχει. Για να εγκαταστήσετε μια έκδοση ή να ελέγξετε το SHA-256 της, πηγαίνετε στη <a href=\"/downloads\">Λήψη</a>. Το πρόγραμμα περιήγησης προτείνει και μόνο του νέες εκδόσεις: δείτε τις <a href=\"/features/updates\">αυτόματες ενημερώσεις</a>.",
   "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "Ενεργοποιήστε τη JavaScript για να διαβάσετε τις σημειώσεις εδώ ή διαβάστε την ακατέργαστη λίστα στη διεύθυνση <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.",
   "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Τι άλλαξε σε κάθε έκδοση του Little Browser: νέες λειτουργίες, διορθώσεις και ενημερώσεις ασφαλείας του Chromium, με τις νεότερες πρώτα, με σύνδεσμο λήψης και άθροισμα ελέγχου για κάθε έκδοση.",
-  "Language": "Γλώσσα"
+  "Language": "Γλώσσα",
+  "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "Κάθε build δημοσιεύεται χωριστά, οπότε μια νέα έκδοση μπορεί να φτάσει σε μια πλατφόρμα ή ένα τσιπ λίγες ώρες πριν από κάποιο άλλο."
  },
  "js": {
   "iPhone and iPad": "iPhone και iPad",
   "Copy SHA-256": "Αντιγραφή SHA-256",
   "Copied": "Αντιγράφηκε",
-  "{0} · download below": "{0} · λήψη παρακάτω",
   "latest": "τελευταία",
   "What's new": "Τι νέο υπάρχει",
   "Version {0}": "Έκδοση {0}",
@@ -547,11 +546,13 @@
   "No changes you would notice in this release.": "Καμία αλλαγή που να προσέξετε σε αυτήν την έκδοση.",
   "Download for {0}": "Λήψη για {0}",
   "The first build is on its way.": "Η πρώτη έκδοση είναι καθ' οδόν.",
-  "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Αυτό το Mac έχει επεξεργαστή Intel· το Little Browser χρειάζεται προς το παρόν Apple silicon (M1 ή νεότερο).",
-  "Not available for {0} yet; the beta is macOS only.": "Δεν είναι ακόμη διαθέσιμο για {0}· η beta είναι μόνο για macOS.",
   "{0} download": "{0} λήψη",
   "{0} downloads": "{0} λήψεις",
   "{0} update": "{0} ενημέρωση",
-  "{0} updates": "{0} ενημερώσεις"
+  "{0} updates": "{0} ενημερώσεις",
+  "Apple silicon": "Apple silicon",
+  "Not available for {0} yet.": "Δεν είναι ακόμη διαθέσιμο για {0}.",
+  "Download": "Λήψη",
+  "Version {0} isn't out for {1} yet.": "Η έκδοση {0} δεν έχει κυκλοφορήσει ακόμη για {1}."
  }
 }

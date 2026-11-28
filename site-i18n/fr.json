@@ -83,7 +83,6 @@
   "<a href=\"#releases\">All releases</a>": "<a href=\"#releases\">Toutes les versions</a>",
   "<b>This is a beta.</b> Expect some bugs, missing features and changes between builds, and\n        keep another browser around for now. Builds are signed with an Apple Developer ID and\n        notarised by Apple, so macOS opens them like any other app. Once it's installed, the\n        browser checks for new builds itself and asks before updating.": "<b>Ceci est une bêta.</b> Il faut s’attendre à quelques bugs, à des fonctionnalités manquantes et à des changements d’une version à l’autre ; mieux vaut garder un autre navigateur sous la main pour l’instant. Les versions sont signées avec un identifiant Apple Developer ID et notariées par Apple : macOS les ouvre comme n’importe quelle app. Une fois installé, le navigateur vérifie lui-même les nouvelles versions et demande avant de se mettre à jour.",
   "macOS": "macOS",
-  "Chromium · Apple silicon": "Chromium · puce Apple",
   "Beta": "Bêta",
   "Windows": "Windows",
   "Chromium": "Chromium",
@@ -533,13 +532,13 @@
   "Features arrive on the Mac first and reach other platforms as they're built, so a release lists changes for every platform that has one. To install a build or check its SHA-256, go to <a href=\"/downloads\">Download</a>. The browser also offers new releases itself: see <a href=\"/features/updates\">automatic updates</a>.": "Les fonctionnalités arrivent d’abord sur Mac puis gagnent les autres plateformes à mesure qu’elles sont développées : une version liste donc les changements de chaque plateforme qui en a une. Pour installer une version ou vérifier son SHA-256, rendez-vous sur <a href=\"/downloads\">Télécharger</a>. Le navigateur propose aussi lui-même les nouvelles versions : voir les <a href=\"/features/updates\">mises à jour automatiques</a>.",
   "Turn on JavaScript to read the notes here, or read the raw list at\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.": "Activez JavaScript pour lire les notes ici, ou consultez la liste brute sur\n        <a href=\"https://downloads.littlebrowser.app/releases.json\">downloads.littlebrowser.app/releases.json</a>.",
   "What changed in every Little Browser release: new features, fixes and Chromium security updates, newest first, with a download link and checksum for each build.": "Ce qui a changé dans chaque version de Little Browser : nouvelles fonctionnalités, corrections et mises à jour de sécurité de Chromium, de la plus récente à la plus ancienne, avec un lien de téléchargement et une somme de contrôle pour chaque version.",
-  "Language": "Langue"
+  "Language": "Langue",
+  "Each build is published on its own, so a new version can reach one platform or chip a few hours before another.": "Chaque build est publié séparément : une nouvelle version peut arriver sur une plateforme ou une puce quelques heures avant une autre."
  },
  "js": {
   "iPhone and iPad": "iPhone et iPad",
   "Copy SHA-256": "Copier le SHA-256",
   "Copied": "Copié",
-  "{0} · download below": "{0} · à télécharger ci-dessous",
   "latest": "dernière",
   "What's new": "Nouveautés",
   "Version {0}": "Version {0}",
@@ -547,11 +546,13 @@
   "No changes you would notice in this release.": "Aucun changement perceptible dans cette version.",
   "Download for {0}": "Télécharger pour {0}",
   "The first build is on its way.": "La première version arrive.",
-  "This Mac has an Intel chip; Little Browser needs Apple silicon (M1 or later) for now.": "Ce Mac a une puce Intel ; Little Browser exige pour l’instant une puce Apple (M1 ou plus récente).",
-  "Not available for {0} yet; the beta is macOS only.": "Pas encore disponible pour {0} ; la bêta est réservée à macOS.",
   "{0} download": "{0} téléchargement",
   "{0} downloads": "{0} téléchargements",
   "{0} update": "{0} mise à jour",
-  "{0} updates": "{0} mises à jour"
+  "{0} updates": "{0} mises à jour",
+  "Apple silicon": "puce Apple",
+  "Not available for {0} yet.": "Pas encore disponible pour {0}.",
+  "Download": "Télécharger",
+  "Version {0} isn't out for {1} yet.": "La version {0} n’est pas encore sortie pour {1}."
  }
 }

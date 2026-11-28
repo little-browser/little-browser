@@ -135,6 +135,20 @@ class MarkdownTest(unittest.TestCase):
         with self.assertRaises(release_notes.NotesError):
             release_notes.markdown(self.RELEASES, "9.9.9.9-1")
 
+    def test_the_builds_out_so_far(self):
+        # Each architecture is published on its own; the GitLab release is updated as each joins.
+        releases = {"releases": [{"version": "1.0.0.1-3", "notes": ["A."], "files": [
+            {"platform": "macos", "arch": "arm64"},
+            {"platform": "macos", "arch": "x64"},
+            {"platform": "linux", "arch": "x64", "format": "deb"},
+            {"platform": "plan9"},
+        ]}]}
+        self.assertEqual(release_notes.markdown(releases, "1.0.0.1-3"),
+                         "Little Browser 1.0.0.1-3\n\n"
+                         "- A.\n\n"
+                         "Builds: macOS arm64, macOS x64, Linux x64 deb, plan9\n\n"
+                         "Download: https://littlebrowser.app/downloads\n")
+
 
 class GitRepo:
     """A throwaway repository with commits and tags."""

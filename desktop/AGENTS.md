@@ -13,7 +13,9 @@ This file covers how to work in the fork.
 3. our patch series, `patches/series`, without the patches tagged for another platform;
 4. domain substitution, which rewrites Google domains to `*.qjz9zk` in listed files, minus
    `patches/domsub-exclude.txt`;
-5. the platform's toolchains (macOS: LLVM, Rust, Node.js, Crubit);
+5. the platform's toolchains (macOS: LLVM, Rust, Node.js, Crubit), for this machine, with the
+   other architecture's Rust standard library so the tree builds both (`build.sh x64`);
+   `fetch.sh --toolchains-only` redoes this step in an existing tree;
 6. branding: `rebrand_strings.py`, `brand_assets.sh` and the platform's own icons;
 7. symlinks `src/lb` → `desktop/lb` and `src/lb_core` → `core/lb-core`.
 
@@ -73,6 +75,7 @@ share goes in `lb/common` too, in a tested target such as `//lb:page_names`.
 ```bash
 scripts/build.sh --dev            # out/Dev: component build; a one-file edit rebuilds in ~30 s
 scripts/build.sh                  # out/Default: release; for packaging and performance numbers
+scripts/build.sh x64              # another architecture than this Mac's: out/Default-x64
 LB_NINJA_FLAGS="-k 0" scripts/build.sh --dev   # keep going and collect every error in one pass
 ```
 
@@ -95,14 +98,16 @@ once. Machines that share a cache need the same checkout path, or the keys won't
 - `scripts/macos-host.sh up` is CI-only: it allocates or reuses the per-release EC2 Mac
   host, starts the builder and, if one is configured, attaches its persistent data volume. The infrastructure behind it lives in
   the infrastructure repository.
-- `scripts/package-macos.sh [--release] [<version>]` signs out/Default's app and makes the
-  `.dmg`; `--release` (CI) uses the Developer ID from Secrets Manager and notarises. `build.sh
+- `scripts/package-macos.sh [--arch <arch>] [--release] [<version>]` signs out/Default's app
+  (out/Default-<arch> for the other architecture) and makes `LittleBrowser-macos-<arch>.dmg`,
+  `<arch>` being `arm64` or `x64`; the app reads its own architecture's update feed,
+  `updates/macos-<arch>.xml`; `--release` (CI) uses the Developer ID from Secrets Manager and notarises. `build.sh
   --package` runs it without `--release` (ad-hoc). With a version and an update key it also adds
   the updater (Sparkle) and writes the `.dmg`'s update signature to a `.update.json`; to try an
   update locally, give it `LB_UPDATE_KEY_FILE` and `LB_UPDATE_FEED_URL` (see its header).
 - `scripts/release_notes.py notes …` prints a release's notes from the commits' `Release-note:`
   lines, and `markdown …` a release in `releases.json` as Markdown; safe to run locally.
-- `scripts/publish-release.sh <version> <file.dmg>` and `scripts/deploy-site.sh` are CI-only:
+- `scripts/publish-release.sh <version> <LittleBrowser-macos-<arch>.dmg>` and `scripts/deploy-site.sh` are CI-only:
   they put a release on downloads.littlebrowser.app (in `releases.json` and the update feed,
   written by `scripts/update_feed.py`) and upload `site/` to littlebrowser.app.
   `scripts/download-stats.sh` (CI-only, daily) counts each file's downloads and updates from the
